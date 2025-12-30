@@ -1,0 +1,62 @@
+# IDDFENet 模型训练配置文件
+# 全局参数
+mode: train
+save_dir: null  # 预测时指定
+checkpoint_path: null  # 训练时为null，测试/预测时指定
+random_seed: 42
+
+# 训练器配置
+trainer:
+  max_epochs: 200
+  accelerator: gpu
+  devices: [ 0 ]
+  precision: 32
+  experiment_name: ESO-IDDFENet
+  version: 20251225-1200-aug-awsmp-focal-tongji-imgmd-and-mask
+  log_dir: Run
+  wandb_project: ESO-pCR-Prediction
+  enable_ddp: false
+
+# 模型配置
+model:
+  learning_rate: 0.0001
+  T_max: 200
+  eta_min: !!float 1e-06
+  loss_type: focal  # 可选值：cross_entropy, focal
+  loss_config:
+    gamma: 2.0
+    alpha: [ 0.25, 0.75 ]
+    reduction: mean
+  # IDDFENet 特定配置
+  model_config:
+    in_channels: 1
+    radiomics_channels: 21
+    n_channels: 64
+    n_classes: 2
+    exp_r: 4
+    kernel_size: 3
+    deep_supervision: false
+    do_res: true
+    do_res_up_down: false
+    block_counts: [ 3, 3, 3, 3 ]
+    dim: 3d
+    grn: false
+    drop_path: 0.0
+
+# 数据配置
+data:
+  root_dir_train: /mnt/data/cwy/datasets/ESO-2025.11.8/tongji/grouped  # 请根据实际情况设置
+  root_dir_val: /mnt/data/cwy/datasets/ESO-2025.11.8/tongji/grouped  # 请根据实际情况设置
+  root_dir_test: null  # 请根据实际情况设置
+  root_dir_predict: null  # 请根据实际情况设置
+  manifest_file_train: /mnt/data/cwy/datasets/ESO-2025.11.8/tongji/grouped/ts_splits/train_tongji.xlsx  # 请根据实际情况设置
+  manifest_file_val: /mnt/data/cwy/datasets/ESO-2025.11.8/tongji/grouped/ts_splits/test_tongji.xlsx  # 请根据实际情况设置
+  manifest_file_test: null  # 请根据实际情况设置
+  manifest_file_predict: null  # 请根据实际情况设置
+  n_radiomics: 21
+  batch_size_train: 1
+  batch_size_val: 1
+  batch_size_test: 1
+  batch_size_predict: 1
+  sample_weight_train: true
+  num_workers: 1
