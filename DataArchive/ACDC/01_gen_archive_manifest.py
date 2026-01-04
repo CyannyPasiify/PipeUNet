@@ -14,6 +14,7 @@
  spz：记录图像的z间距。
  orientation_from：记录图像的L/R、A/P、S/I朝向，记录开始端侧，例如LPS、RAI等，如果其方向不标准（transfomr空间变换矩阵的前3×3不是对角阵），则记录为Oblique。
  orientation_to：记录图像的L/R、A/P、S/I朝向，记录结束端侧，如果其方向不标准（transfomr空间变换矩阵的前3×3不是对角阵），则记录为Oblique。
+ dtype：记录图像文件的数据类型。
  transform：记录图像携带的4×4空间变换矩阵。
  diff_trans_f_norm：只对蒙版文件进行记录，其它留空。记录patientxxx_frameyy_gt.nii.gz蒙版文件与其对应的patientxxx_frameyy.nii.gz图像文件的transform空间变换矩阵的差矩阵的F范数。
  使用MONAI库LoadImage读取图像文件，使用pathlib处理路径。
@@ -34,8 +35,8 @@ Parameters:
     -s, --sheet_name: Optional sheet name for the Excel worksheet
 
 Usage Examples:
-    python 01_gen_manifest.py -r /path/to/dataset -o manifest.xlsx
-    python 01_gen_manifest.py --root_dir ./ACDC --output_manifest_file ./output/manifest.xlsx --sheet_name ACDC_Manifest
+    python 01_gen_archive_manifest.py -r /path/to/ACDC -o /path/to/archive_manifest.xlsx
+    python 01_gen_archive_manifest.py --root_dir /path/to/ACDC --output_manifest_file /path/to/archive_manifest.xlsx --sheet_name ACDC_Manifest
 """
 
 import re
@@ -59,8 +60,8 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s -r /path/to/dataset -o manifest.xlsx
-  %(prog)s --root_dir ./ACDC --output_manifest_file ./output/manifest.xlsx --sheet_name ACDC_Manifest
+  %(prog)s -r /path/to/ACDC -o /path/to/archive_manifest.xlsx
+  %(prog)s --root_dir /path/to/ACDC --output_manifest_file /path/to/archive_manifest.xlsx --sheet_name ACDC_Manifest
         """
     )
     
@@ -148,7 +149,7 @@ def get_image_metadata(nii_path):
     Returns:
         dict: Dictionary containing image metadata including dimensions, spacings, orientation, and transform
     """
-    loader = LoadImage(image_only=False)
+    loader = LoadImage(image_only=False, dtype=None)
     img_data, img_meta = loader(str(nii_path))
     
     affine = img_meta['affine'].numpy()
@@ -173,6 +174,7 @@ def get_image_metadata(nii_path):
         'spt': zooms[4] if len(zooms) > 4 else '',
         'orientation_from': orientation_from,
         'orientation_to': orientation_to,
+        'dtype': str(img_data.numpy().dtype),
         'transform': affine
     }
     
@@ -254,6 +256,7 @@ def scan_dataset(root_dir):
                         'spz': metadata['spz'],
                         'orientation_from': metadata['orientation_from'],
                         'orientation_to': metadata['orientation_to'],
+                        'dtype': metadata['dtype'],
                         'transform': metadata['transform'],
                         'diff_trans_f_norm': ''
                     }
@@ -285,6 +288,7 @@ def scan_dataset(root_dir):
                         'spz': metadata['spz'],
                         'orientation_from': metadata['orientation_from'],
                         'orientation_to': metadata['orientation_to'],
+                        'dtype': metadata['dtype'],
                         'transform': metadata['transform'],
                         'diff_trans_f_norm': diff_f_norm
                     }
@@ -303,8 +307,9 @@ def format_transform_for_excel(transform):
     Returns:
         str: Formatted string representation of the matrix
     """
-    matrix_str = np.array2string(transform, precision=6, suppress_small=True)
-    return matrix_str.replace('\n', '; ')
+    formatter = {'float_kind': lambda x: f'{x:>14.8f}'}
+    matrix_str = np.array2string(transform, formatter=formatter, separator='')
+    return matrix_str
 
 
 def generate_manifest_excel(file_info_list, output_path, sheet_name='Manifest'):
@@ -333,6 +338,7 @@ def generate_manifest_excel(file_info_list, output_path, sheet_name='Manifest'):
             'spz': file_info['spz'],
             'orientation_from': file_info['orientation_from'],
             'orientation_to': file_info['orientation_to'],
+            'dtype': file_info['dtype'],
             'transform': format_transform_for_excel(file_info['transform']),
             'diff_trans_f_norm': file_info['diff_trans_f_norm']
         }
