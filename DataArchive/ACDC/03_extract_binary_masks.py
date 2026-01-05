@@ -104,7 +104,9 @@ def process_subset_dir(subset_dir, label_explanations):
     pair_dirs = sorted(subset_dir.glob('patient*_frame*'))
 
     for pair_dir in tqdm(pair_dirs, desc=f'  Processing {subset_dir.name}', leave=False):
-        mask_file = pair_dir / f'{pair_dir.name}_mask.nii.gz'
+        identifier = pair_dir.name.split('_', maxsplit=2)[:2]
+        combined_identifier = '_'.join(identifier)
+        mask_file = pair_dir / f'{combined_identifier}_mask.nii.gz'
 
         if not mask_file.exists():
             print(f"Warning: Mask file not found: {mask_file}")
@@ -119,7 +121,7 @@ def process_subset_dir(subset_dir, label_explanations):
 
             for label_idx, binary_mask in enumerate(binary_masks):
                 label_name = label_explanations[label_idx]
-                output_filestem = pair_dir / f'{pair_dir.name}_mask_{label_name}'
+                output_filestem = pair_dir / f'{combined_identifier}_mask_{label_name}'
 
                 saver(binary_mask, meta_data=mask_meta, filename=output_filestem)
                 total_binary_masks_extracted += 1

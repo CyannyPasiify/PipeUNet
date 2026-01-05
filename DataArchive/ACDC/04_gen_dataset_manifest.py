@@ -44,6 +44,7 @@ Usage Examples:
 
 import re
 import argparse
+import yaml
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
@@ -220,6 +221,45 @@ def check_mask_dtype_consistency(mask_dtype_dict):
     return len(issues) == 0, issues
 
 
+def parse_info_yaml(info_yaml_path):
+    """
+    Parse info.yaml file to extract patient information.
+    
+    Args:
+        info_yaml_path (str or Path): Path to the info.yaml file
+        
+    Returns:
+        dict: Dictionary containing group, height, phase, tot_frame, weight information
+    """
+    info = {
+        'group': None,
+        'height': None,
+        'phase': None,
+        'tot_frame': None,
+        'weight': None
+    }
+    
+    try:
+        with open(info_yaml_path, 'r', encoding='utf-8') as f:
+            yaml_data = yaml.safe_load(f)
+            
+            if yaml_data:
+                if 'group' in yaml_data:
+                    info['group'] = yaml_data['group']
+                if 'height' in yaml_data:
+                    info['height'] = yaml_data['height']
+                if 'phase' in yaml_data:
+                    info['phase'] = yaml_data['phase']
+                if 'tot_frame' in yaml_data:
+                    info['tot_frame'] = yaml_data['tot_frame']
+                if 'weight' in yaml_data:
+                    info['weight'] = yaml_data['weight']
+    except Exception as e:
+        pass
+    
+    return info
+
+
 def process_pair_dir(pair_dir, root_path, loader, verbose=False):
     """
     Process a single pair directory and extract metadata.
@@ -241,11 +281,19 @@ def process_pair_dir(pair_dir, root_path, loader, verbose=False):
 
     patient_id = match.group(1)
     frame_id = match.group(2)
+    combined_id = f'patient{patient_id}_frame{frame_id}'
 
-    volume_file = pair_dir / f'{pair_name}_volume.nii.gz'
-    mask_file = pair_dir / f'{pair_name}_mask.nii.gz'
+    info_file = pair_dir / f'{combined_id}_info.yaml'
+    volume_file = pair_dir / f'{combined_id}_volume.nii.gz'
+    mask_file = pair_dir / f'{combined_id}_mask.nii.gz'
 
     debug_info = []
+
+    if not info_file.exists():
+        debug_info.append(f"Missing info file: {info_file.name}")
+        if verbose:
+            return None
+        return None
 
     if not volume_file.exists():
         debug_info.append(f"Missing volume file: {volume_file.name}")
@@ -274,14 +322,16 @@ def process_pair_dir(pair_dir, root_path, loader, verbose=False):
 
         orientation_from, orientation_to = get_orientation_string(volume_affine)
 
+        info_data = parse_info_yaml(info_file)
+
         mask_meta_dict = {'mask': mask_meta}
         mask_dtype_dict = {'mask': str(mask_data.dtype)}
         binary_mask_paths = {}
 
-        binary_mask_files = sorted(pair_dir.glob(f'{pair_name}_mask_*.nii.gz'))
+        binary_mask_files = sorted(pair_dir.glob(f'{combined_id}_mask_*.nii.gz'))
 
         for binary_mask_file in binary_mask_files:
-            binary_match = re.match(rf'{pair_name}_mask_(.+)\.nii\.gz', binary_mask_file.name)
+            binary_match = re.match(rf'{combined_id}_mask_(.+)\.nii\.gz', binary_mask_file.name)
             if binary_match:
                 label_name = binary_match.group(1)
                 binary_mask_data, binary_mask_meta = loader(str(binary_mask_file))
@@ -303,6 +353,7 @@ def process_pair_dir(pair_dir, root_path, loader, verbose=False):
             for issue in consistency_issues + dtype_issues:
                 print(f"  - {issue}")
 
+        info_rel_path = info_file.relative_to(root_path)
         volume_rel_path = volume_file.relative_to(root_path)
         mask_rel_path = mask_file.relative_to(root_path)
 
@@ -310,6 +361,12 @@ def process_pair_dir(pair_dir, root_path, loader, verbose=False):
             'ID': f'patient{patient_id}_frame{frame_id}',
             'patient': patient_id,
             'frame': frame_id,
+            'group': info_data['group'] if info_data['group'] is not None else '',
+            'phase': info_data['phase'] if info_data['phase'] is not None else '',
+            'tot_frame': info_data['tot_frame'] if info_data['tot_frame'] is not None else '',
+            'height': info_data['height'] if info_data['height'] is not None else '',
+            'weight': info_data['weight'] if info_data['weight'] is not None else '',
+            'info': str(info_rel_path.as_posix()),
             'volume': str(volume_rel_path.as_posix()),
             'mask': str(mask_rel_path.as_posix()),
             'szx': volume_shape[0] if len(volume_shape) > 0 else '',
@@ -341,6 +398,12 @@ def process_pair_dir(pair_dir, root_path, loader, verbose=False):
                 'ID': f'patient{patient_id}_frame{frame_id}',
                 'patient': patient_id,
                 'frame': frame_id,
+                'group': '',
+                'phase': '',
+                'tot_frame': '',
+                'height': '',
+                'weight': '',
+                'info': '',
                 'volume': '',
                 'mask': '',
                 'szx': '',
@@ -429,7 +492,7 @@ def process_root_dir(root_dir, output_manifest_file, sheet_name='Manifest', verb
     df['patient'] = df['patient'].astype(str).str.zfill(3)
     df['frame'] = df['frame'].astype(str).str.zfill(2)
 
-    column_order = ['ID', 'patient', 'frame', 'volume', 'mask']
+    column_order = ['ID', 'patient', 'frame', 'group', 'phase', 'tot_frame', 'height', 'weight', 'info', 'volume', 'mask']
     column_order.extend(sorted(all_binary_mask_keys))
     column_order.extend(['szx', 'szy', 'szz', 'spx', 'spy', 'spz', 'orientation_from', 'orientation_to',
                          'vol_dtype', 'mask_dtype', 'transform'])

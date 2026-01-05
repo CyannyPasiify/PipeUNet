@@ -14,7 +14,7 @@ import pathlib
 Data Pair Confirmation and Reorganization Script for ACDC Dataset
 
 This script confirms and reorganizes image-mask pairs from the ACDC dataset, ensuring metadata consistency
-and organizing files into a standardized directory structure.
+and organizing files into a standardized directory structure with patient information.
 
 Parameters:
     -r, --root_dir: Root directory of the dataset containing 'training' and 'testing' subdirectories
@@ -26,7 +26,9 @@ Usage Examples:
 """
 
 import re
+import yaml
 import argparse
+import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 from monai.transforms import LoadImage, SaveImage
@@ -161,6 +163,80 @@ def copy_metadata_to_mask(image_meta, mask_data):
     return mask_data, updated_meta
 
 
+def parse_info_cfg(info_cfg_path):
+    """
+    Parse Info.cfg file to extract patient information.
+    
+    Args:
+        info_cfg_path (str or Path): Path to the Info.cfg file
+        
+    Returns:
+        dict: Dictionary containing ED, ES, Group, Height, NbFrame, Weight information
+    """
+    info = {
+        'ED': None,
+        'ES': None,
+        'Group': None,
+        'Height': None,
+        'NbFrame': None,
+        'Weight': None
+    }
+    
+    try:
+        with open(info_cfg_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip().split('#')[0].strip()
+                    
+                    if key in info:
+                        if key in ['Height', 'Weight']:
+                            try:
+                                info[key] = float(value)
+                            except ValueError:
+                                pass
+                        elif key in ['ED', 'ES', 'NbFrame']:
+                            try:
+                                info[key] = int(value)
+                            except ValueError:
+                                pass
+                        else:
+                            info[key] = value
+    except Exception as e:
+        pass
+    
+    return info
+
+
+def determine_phase(frame_id, ed, es):
+    """
+    Determine the cardiac phase (ED/ES/UND) based on frame number.
+    
+    Args:
+        frame_id (str): Frame number as string
+        ed (int): End Diastolic frame number
+        es (int): End Systolic frame number
+        
+    Returns:
+        str: 'ED', 'ES', or 'UND' based on frame number
+    """
+    try:
+        frame_num = int(frame_id)
+        if ed is not None and frame_num == ed:
+            return 'ED'
+        elif es is not None and frame_num == es:
+            return 'ES'
+        else:
+            return 'UND'
+    except (ValueError, TypeError):
+        return 'UND'
+
+
 def process_pairs(root_dir, output_dir):
     """
     Process all image-mask pairs and reorganize them into the output directory.
@@ -202,10 +278,16 @@ def process_pairs(root_dir, output_dir):
 
             patient_id = patient_match.group(1)
 
+            info_cfg_path = patient_dir / 'Info.cfg'
+            patient_info = parse_info_cfg(info_cfg_path)
+
             matched_pairs, unmatched_images, unmatched_masks = find_image_mask_pairs(patient_dir)
 
             for image_path, mask_path, frame_id in matched_pairs:
-                pair_dir = output_subdir / f'patient{patient_id}_frame{frame_id}'
+                phase = determine_phase(frame_id, patient_info['ED'], patient_info['ES'])
+                group = patient_info['Group'] if patient_info['Group'] else 'Unknown'
+                
+                pair_dir = output_subdir / f'patient{patient_id}_frame{frame_id}_{phase}_{group}'
                 pair_dir.mkdir(parents=True, exist_ok=True)
 
                 try:
@@ -227,6 +309,18 @@ def process_pairs(root_dir, output_dir):
 
                     saver_image(image_data, meta_data=image_meta, filename=volume_filestem)
                     saver_mask(mask_data, meta_data=mask_meta, filename=mask_filestem)
+
+                    info_data = {
+                        'phase': phase,
+                        'group': patient_info['Group'],
+                        'tot_frame': patient_info['NbFrame'],
+                        'height': patient_info['Height'],
+                        'weight': patient_info['Weight']
+                    }
+
+                    info_yaml_path = pair_dir / f'patient{patient_id}_frame{frame_id}_info.yaml'
+                    with open(info_yaml_path, 'w', encoding='utf-8') as f:
+                        yaml.dump(info_data, f, default_flow_style=False, allow_unicode=True)
 
                     total_pairs += 1
 

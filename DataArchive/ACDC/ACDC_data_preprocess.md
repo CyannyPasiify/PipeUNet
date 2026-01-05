@@ -21,6 +21,20 @@ All filtered NIfTI files are recorded in `archive_manifest.xlsx`. The file conta
 - `patient`: Patient identifier, a 3-digit number, e.g., 001.
 - `frame`: Frame time-point, a 2-digit number, e.g. 01.
 - `type`: Content type the file expressed. There are 2 options: volume 3D (v3d), mask 3D (m3d).
+- `phase`: Diastolic or systolic phase of the volume frame.
+  - ED = End Diastolic phase
+  - ES = End Systolic phase
+
+- `group`: Subgroup of the patient (4 pathological plus 1 healthy subject groups).
+  - NOR = normal subjects
+  - MINF = patient with previous myocardial infarction (ejection fraction of the left ventricle lower than 40% and several myocardial segments with abnormal contraction)
+  - DCM = patient with dilated cardiomyopathy (diastolic left ventricular volume >100 mL/m2 and an ejection fraction of the left ventricle lower than 40%) 
+  - HCM = patient with hypertrophic cardiomyopathy (left ventricular cardiac mass high than 110 g/m2, several myocardial segments with a thickness higher than 15 mm in diastole and a normal ejecetion fraction) 
+  - RV = patient with abnormal right ventricle (volume of the right ventricular cavity higher than 110 mL/m2 or ejection fraction of the rigth ventricle lower than 40%) 
+
+- `tot_frame`: Total frames of the patient's 4D Cine-MRI.
+- `height`: Height of the patient in cm.
+- `weight`: Weight of the patient in kg.
 - `szx`: Volume size of X dimension.
 - `szy`: Volume size of Y dimension.
 - `szz`: Volume size of Z dimension.
@@ -97,11 +111,24 @@ Routine 04 recursively scans all NIfTI `nii.gz` files in the `root_dir/grouped` 
 
 This routine reports an error if the size, transformation matrix, spacing, or origin of all NIfTI files associated with a given sample are inconsistent, or if the data types of all mask NIfTI files associated with the same sample do not match.
 
-All sample files are recorded in `dataset_manifest.xlsx`. The file contains a single worksheet titled **Manifest**, which includes the following attributes:
+All sample files are recorded in `dataset_manifest.xlsx`. The file contains a main worksheet titled **Manifest**, which includes the following attributes:
 
 - `ID`: Sample identifier, formatted as `patient{patient ID}_frame{frame time-point}` (e.g., `patient001_frame01`).
 - `patient`: Patient identifier, a 3-digit number, e.g., 001.
 - `frame`: Frame time-point, a 2-digit number, e.g. 01.
+- `phase`: Diastolic or systolic phase of the volume frame.
+  - ED = End Diastolic
+  - ES = End Systolic
+- `group`: Subgroup of the patient (4 pathological plus 1 healthy subject groups).
+  - NOR = normal subjects
+  - MINF = patient with previous myocardial infarction (ejection fraction of the left ventricle lower than 40% and several myocardial segments with abnormal contraction)
+  - DCM = patient with dilated cardiomyopathy (diastolic left ventricular volume >100 mL/m2 and an ejection fraction of the left ventricle lower than 40%) 
+  - HCM = patient with hypertrophic cardiomyopathy (left ventricular cardiac mass high than 110 g/m2, several myocardial segments with a thickness higher than 15 mm in diastole and a normal ejecetion fraction) 
+  - RV = patient with abnormal right ventricle (volume of the right ventricular cavity higher than 110 mL/m2 or ejection fraction of the rigth ventricle lower than 40%) 
+- `tot_frame`: Total frames of the patient's 4D Cine-MRI.
+- `height`: Height of the patient in cm.
+- `weight`: Weight of the patient in kg.
+- `info`: Sample information YAML file path relative to `root_dir`.
 - `volume`: Volume NIfTI `nii.gz` file path relative to `root_dir`.
 - `mask`: Multi-label mask NIfTI `nii.gz` file path relative to `root_dir`.
 - `mask_Bg`: **Background** binary mask NIfTI `nii.gz` file path relative to `root_dir`.
@@ -134,7 +161,7 @@ This script creates a worksheet named `split01_standard` in the manifest Excel f
 python 05_make_split02_train_val_fixed_test.py --manifest_file root_dir/grouped/dataset_manifest.xlsx --split_name split02_t8v2s --val_ratio 0.2 --random_seed 0
 ```
 
-This script creates a new worksheet in the manifest Excel file to store train/val/test split information, which is determined by both the top-level directory of each volume file path and a predefined validation ratio. It copies all attributes from the primary **Manifest** worksheet and appends a new attribute column named `split02_t8v2s`. For samples located in the top-level `train` directory, the script first groups samples sharing the same patient identifier and then performs a train/val split with a validation ratio (`val_ratio`) set to 0.2. For samples in the top-level `test` directory, it assigns a `test` label to every corresponding entry.
+This script creates a new worksheet in the manifest Excel file to store train/val/test split information, which is determined by both the top-level directory of each volume file path and a predefined validation ratio. It copies all attributes from the primary **Manifest** worksheet and appends a new attribute column named `split02_t8v2s`. For samples in the top-level `train` directory, the script first groups samples by unique patient identifier `ID`, then performs a train/val split with a predefined validation ratio (`val_ratio`) of 0.2. This split operation is executed hierarchically based on the values of the `group` attribute. For samples in the top-level `test` directory, it assigns a `test` label to every corresponding entry.
 
 ### 7️⃣Extracts subset-specific index manifests from dataset manifest: Run routine 06
 

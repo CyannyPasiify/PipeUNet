@@ -197,6 +197,80 @@ def calculate_transform_f_norm_diff(affine1, affine2):
     return f_norm
 
 
+def parse_info_cfg(info_cfg_path):
+    """
+    Parse Info.cfg file to extract patient information.
+    
+    Args:
+        info_cfg_path (str or Path): Path to the Info.cfg file
+        
+    Returns:
+        dict: Dictionary containing ED, ES, Group, Height, NbFrame, Weight information
+    """
+    info = {
+        'ED': None,
+        'ES': None,
+        'Group': None,
+        'Height': None,
+        'NbFrame': None,
+        'Weight': None
+    }
+    
+    try:
+        with open(info_cfg_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    
+                    if key in info:
+                        if key in ['Height', 'Weight']:
+                            try:
+                                info[key] = float(value)
+                            except ValueError:
+                                pass
+                        elif key in ['ED', 'ES', 'NbFrame']:
+                            try:
+                                info[key] = int(value)
+                            except ValueError:
+                                pass
+                        else:
+                            info[key] = value
+    except Exception as e:
+        pass
+    
+    return info
+
+
+def determine_phase(frame_id, ed, es):
+    """
+    Determine the cardiac phase (ED/ES/UND) based on frame number.
+    
+    Args:
+        frame_id (str): Frame number as string
+        ed (int): End Diastolic frame number
+        es (int): End Systolic frame number
+        
+    Returns:
+        str: 'ED', 'ES', or 'UND' based on frame number
+    """
+    try:
+        frame_num = int(frame_id)
+        if ed is not None and frame_num == ed:
+            return 'ED'
+        elif es is not None and frame_num == es:
+            return 'ES'
+        else:
+            return 'UND'
+    except (ValueError, TypeError):
+        return 'UND'
+
+
 def scan_dataset(root_dir):
     """
     Scan the dataset directory structure and collect all relevant image files.
@@ -226,6 +300,9 @@ def scan_dataset(root_dir):
             
             patient_id = patient_match.group(1)
             
+            info_cfg_path = patient_dir / 'Info.cfg'
+            patient_info = parse_info_cfg(info_cfg_path)
+            
             nii_files = list(patient_dir.glob('*.nii.gz'))
             
             frame_transforms = {}
@@ -241,6 +318,8 @@ def scan_dataset(root_dir):
                     metadata = get_image_metadata(str(nii_file))
                     frame_transforms[frame_id] = metadata['transform']
                     
+                    phase = determine_phase(frame_id, patient_info['ED'], patient_info['ES'])
+                    
                     rel_path = nii_file.relative_to(root_path)
                     file_info = {
                         'file_path': str(rel_path),
@@ -248,6 +327,11 @@ def scan_dataset(root_dir):
                         'patient': patient_id,
                         'frame': frame_id,
                         'type': 'v3d',
+                        'phase': phase,
+                        'group': patient_info['Group'],
+                        'tot_frame': patient_info['NbFrame'],
+                        'height': patient_info['Height'],
+                        'weight': patient_info['Weight'],
                         'szx': metadata['szx'],
                         'szy': metadata['szy'],
                         'szz': metadata['szz'],
@@ -273,6 +357,8 @@ def scan_dataset(root_dir):
                             frame_transforms[frame_id]
                         )
                     
+                    phase = determine_phase(frame_id, patient_info['ED'], patient_info['ES'])
+                    
                     rel_path = nii_file.relative_to(root_path)
                     file_info = {
                         'file_path': str(rel_path),
@@ -280,6 +366,11 @@ def scan_dataset(root_dir):
                         'patient': patient_id,
                         'frame': frame_id,
                         'type': 'm3d',
+                        'phase': phase,
+                        'group': patient_info['Group'],
+                        'tot_frame': patient_info['NbFrame'],
+                        'height': patient_info['Height'],
+                        'weight': patient_info['Weight'],
                         'szx': metadata['szx'],
                         'szy': metadata['szy'],
                         'szz': metadata['szz'],
@@ -330,6 +421,11 @@ def generate_manifest_excel(file_info_list, output_path, sheet_name='Manifest'):
             'patient': file_info['patient'],
             'frame': file_info['frame'],
             'type': file_info['type'],
+            'phase': file_info['phase'],
+            'group': file_info['group'],
+            'tot_frame': file_info['tot_frame'],
+            'height': file_info['height'],
+            'weight': file_info['weight'],
             'szx': file_info['szx'],
             'szy': file_info['szy'],
             'szz': file_info['szz'],

@@ -140,32 +140,71 @@ def create_split_worksheet(manifest_file, sheet_name, split_name, val_ratio, ran
         train_df = df_copy[train_mask].copy()
         test_df = df_copy[test_mask].copy()
 
-        train_groups = train_df.groupby(bind_col)
-        test_groups = test_df.groupby(bind_col)
+        print(f"\nChecking group consistency within each {bind_col}...")
 
-        train_group_names = list(train_groups.groups.keys())
-        test_group_names = list(test_groups.groups.keys())
+        train_bind_groups = train_df.groupby(bind_col)
+        inconsistent_binds = []
+
+        for bind_name, bind_df in train_bind_groups:
+            unique_groups = bind_df['group'].unique()
+            if len(unique_groups) > 1:
+                inconsistent_binds.append((bind_name, unique_groups))
+                print(f"  Error: {bind_col} '{bind_name}' has inconsistent group values: {unique_groups}")
+
+        if inconsistent_binds:
+            print(f"\nError: Found {len(inconsistent_binds)} {bind_col}(s) with inconsistent group values.")
+            print("Please ensure each sample within the same {bind_col} has the same group value.")
+            return
+
+        print(f"  All {bind_col}s have consistent group values.")
+
+        print(f"\nBuilding sample groups DataFrame...")
+
+        train_group_data = []
+        for bind_name, bind_df in train_bind_groups:
+            group_value = bind_df['group'].iloc[0]
+            indexes = bind_df.index.tolist()
+            train_group_data.append({
+                bind_col: bind_name,
+                'indexes': indexes,
+                'group': group_value
+            })
+
+        train_groups_df = pd.DataFrame(train_group_data)
+
+        print(f"  Total sample groups: {len(train_groups_df)}")
+        print(f"  Group distribution:")
+        group_dist = train_groups_df['group'].value_counts()
+        for group, count in group_dist.items():
+            print(f"    {group}: {count} groups")
 
         np.random.seed(random_seed)
-        np.random.shuffle(train_group_names)
 
-        val_group_count = int(len(train_group_names) * val_ratio)
-        val_group_names = train_group_names[:val_group_count]
-        train_group_names = train_group_names[val_group_count:]
+        train_groups_df[split_name] = ''
 
-        df_copy[split_name] = ''
+        group_categories = train_groups_df.groupby('group')
 
-        for group_name in train_group_names:
-            group_indices = train_groups.get_group(group_name).index.tolist()
-            df_copy.loc[group_indices, split_name] = 'train'
+        for group_name, group_df in group_categories:
+            group_indices = group_df.index.tolist()
+            np.random.shuffle(group_indices)
 
-        for group_name in val_group_names:
-            group_indices = train_groups.get_group(group_name).index.tolist()
-            df_copy.loc[group_indices, split_name] = 'val'
+            val_count = int(len(group_indices) * val_ratio)
+            val_indices = group_indices[:val_count]
+            train_indices = group_indices[val_count:]
 
-        for group_name in test_group_names:
-            group_indices = test_groups.get_group(group_name).index.tolist()
-            df_copy.loc[group_indices, split_name] = 'test'
+            train_groups_df.loc[train_indices, split_name] = 'train'
+            train_groups_df.loc[val_indices, split_name] = 'val'
+
+        test_df[split_name] = 'test'
+        test_indices = test_df.index.tolist()
+        df_copy.loc[test_indices, split_name] = 'test'
+
+        print(f"\nAssigning samples to splits based on sample groups...")
+
+        for idx, row in train_groups_df.iterrows():
+            split_value = row[split_name]
+            sample_indexes = row['indexes']
+            df_copy.loc[sample_indexes, split_name] = split_value
 
         df_copy = df_copy[[split_name] + [col for col in df_copy.columns if col != split_name]]
 
@@ -180,13 +219,9 @@ def create_split_worksheet(manifest_file, sheet_name, split_name, val_ratio, ran
         print(f"  Test samples: {test_count} ({test_count/len(df_copy)*100:.1f}%)")
         print(f"  Unknown samples: {unknown_count}")
 
-        if unknown_count > 0:
-            unknown_samples = df_copy[df_copy[split_name] == '']
-            print(f"\nWarning: {unknown_count} samples could not be classified:")
-            for idx, row in unknown_samples.head(10).iterrows():
-                print(f"  - {row.get('volume', 'N/A')}")
-            if unknown_count > 10:
-                print(f"  ... and {unknown_count - 10} more")
+        print(f"\nSample group distribution by split:")
+        group_split_stats = train_groups_df.groupby('group')[split_name].value_counts().unstack(fill_value=0)
+        print(group_split_stats.to_string())
 
         with pd.ExcelWriter(manifest_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
             df_copy.to_excel(writer, index=False, sheet_name=split_name)
