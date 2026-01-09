@@ -36,7 +36,7 @@ Parameters:
 
 Usage Examples:
     python 01_gen_archive_manifest.py -r /path/to/ACDC -o /path/to/archive_manifest.xlsx
-    python 01_gen_archive_manifest.py --root_dir /path/to/ACDC --output_manifest_file /path/to/archive_manifest.xlsx --sheet_name ACDC_Manifest
+    python 01_gen_archive_manifest.py --root_dir /path/to/ACDC --output_manifest_file /path/to/archive_manifest.xlsx --sheet_name Manifest
 """
 
 import re
@@ -133,8 +133,8 @@ def get_orientation_string(affine):
         else:
             return 'S' if val > 0 else 'I'
     
-    orientation_from = ''.join([get_axis_label(rotation[:, i]) for i in range(3)])
-    orientation_to = ''.join([get_axis_label(-rotation[:, i]) for i in range(3)])
+    orientation_from = ''.join([get_axis_label(-rotation[:, i]) for i in range(3)])
+    orientation_to = ''.join([get_axis_label(rotation[:, i]) for i in range(3)])
     
     return orientation_from, orientation_to
 

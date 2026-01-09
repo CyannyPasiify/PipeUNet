@@ -38,7 +38,7 @@ Parameters:
 
 Usage Examples:
     python 04_gen_dataset_manifest.py -r /path/to/grouped -o /path/to/dataset_manifest.xlsx
-    python 04_gen_dataset_manifest.py --root_dir /path/to/grouped --output_manifest_file /path/to/dataset_manifest.xlsx -s ACDC_Manifest
+    python 04_gen_dataset_manifest.py --root_dir /path/to/grouped --output_manifest_file /path/to/dataset_manifest.xlsx -s Manifest
     python 04_gen_dataset_manifest.py -r /path/to/grouped -o /path/to/dataset_manifest.xlsx --verbose
 """
 
@@ -143,8 +143,8 @@ def get_orientation_string(affine):
         else:
             return 'S' if val > 0 else 'I'
 
-    orientation_from = ''.join([get_axis_label(rotation[:, i]) for i in range(3)])
-    orientation_to = ''.join([get_axis_label(-rotation[:, i]) for i in range(3)])
+    orientation_from = ''.join([get_axis_label(-rotation[:, i]) for i in range(3)])
+    orientation_to = ''.join([get_axis_label(rotation[:, i]) for i in range(3)])
 
     return orientation_from, orientation_to
 

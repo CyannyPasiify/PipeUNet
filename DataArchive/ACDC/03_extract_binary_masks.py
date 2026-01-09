@@ -121,7 +121,7 @@ def process_subset_dir(subset_dir, label_explanations):
 
             for label_idx, binary_mask in enumerate(binary_masks):
                 label_name = label_explanations[label_idx]
-                output_filestem = pair_dir / f'{combined_identifier}_mask_{label_name}'
+                output_filestem = pair_dir / f'{combined_identifier}_mask_{label_idx:02d}_{label_name}'
 
                 saver(binary_mask, meta_data=mask_meta, filename=output_filestem)
                 total_binary_masks_extracted += 1

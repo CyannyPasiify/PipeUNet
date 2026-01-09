@@ -57,10 +57,11 @@ Routine 02 recursively scans all NIfTI `nii.gz` files in the `root_dir/archive` 
 
 Two subdirectories named `train` and `test` are created under `root_dir/grouped`, which are dedicated to storing derived files sourced from `root_dir/archive/training` and `root_dir/archive/testing`, respectively.
 
-Tertiary subdirectories formatted as `patient{patient ID}_frame{frame time-point}` (e.g., `patient001_frame01`) are then generated under either `root_dir/grouped/train` or `root_dir/grouped/test`. Within each corresponding tertiary subdirectory:
+Tertiary subdirectories formatted as `patient{patient}_frame{frame}_{phase}_{group}` (e.g., `patient001_frame01`) are then generated under either `root_dir/grouped/train` or `root_dir/grouped/test`. Within each corresponding tertiary subdirectory:
 
-- The volume file is saved as `patient{patient ID}_frame{frame time-point}_volume.nii.gz` (`dtype=float32`) after metadata correction;
-- The mask file is saved as `patient{patient ID}_frame{frame time-point}_mask.nii.gz ` (`dtype=uint8`), with metadata consistent with that of the volume file.
+- The info file is saved as `patient{patient}_frame{frame}_info.yaml`;
+- The volume file is saved as `patient{patient}_frame{frame}_volume.nii.gz` (`dtype=float32`) after metadata correction;
+- The mask file is saved as `patient{patient}_frame{frame}_mask.nii.gz ` (`dtype=uint8`), with metadata consistent with that of the volume file.
 
 After processing, the directory structure is as follows:
 
@@ -68,12 +69,12 @@ After processing, the directory structure is as follows:
 root_dir
 - grouped
   - train
-    - patient001_frame01
+    - patient001_frame01_ED_DCM
       - patient001_frame01_volume.nii.gz
       - patient001_frame01_mask.nii.gz
     - ...
   - test
-    - patient101_frame01
+    - patient101_frame01_ED_DCM
     - ...
 ```
 
@@ -83,7 +84,7 @@ root_dir
 python 03_extract_binary_masks.py --root_dir root_dir/grouped --label_explanation Bg RV Myo LV
 ```
 
-Routine 03 recursively scans all NIfTI `nii.gz` mask files in the `root_dir/grouped` directory, and splits each multi-label segmentation mask into a set of binary segmentation masks. The label values in the original masks are defined as follows: **0 = Background (Bg)**, **1 = Right Ventricle cavity (RV)**, **2 = Myocardium (Myo)**, and **3 = Left Ventricle cavity (LV)**. These binary masks are then saved in the same subdirectory as the original mask file, with the respective suffixes `Bg`, `RV`, `Myo`, and `LV` appended to the filenames.
+Routine 03 recursively scans all NIfTI `nii.gz` mask files in the `root_dir/grouped` directory, and splits each multi-label segmentation mask into a set of binary segmentation masks. The label values in the original masks are defined as follows: **0 = Background (Bg)**, **1 = Right Ventricle cavity (RV)**, **2 = Myocardium (Myo)**, and **3 = Left Ventricle cavity (LV)**. These binary masks are then saved in the same subdirectory as the original mask file, with the respective suffixes `label_value` with `Bg`, `RV`, `Myo`, and `LV` appended to the filenames.
 
 After processing, the directory structure is as follows:
 
@@ -91,13 +92,14 @@ After processing, the directory structure is as follows:
 root_dir
 - grouped
   - train
-    - patient001_frame01
+    - patient001_frame01_ED_DCM
+      - patient001_frame01_info.yaml
       - patient001_frame01_volume.nii.gz
       - patient001_frame01_mask.nii.gz
-      - patient001_frame01_mask_Bg.nii.gz
-      - patient001_frame01_mask_RV.nii.gz
-      - patient001_frame01_mask_Myo.nii.gz
-      - patient001_frame01_mask_LV.nii.gz
+      - patient001_frame01_mask_00_Bg.nii.gz
+      - patient001_frame01_mask_01_RV.nii.gz
+      - patient001_frame01_mask_02_Myo.nii.gz
+      - patient001_frame01_mask_03_LV.nii.gz
     - ...
 ```
 
@@ -113,7 +115,7 @@ This routine reports an error if the size, transformation matrix, spacing, or or
 
 All sample files are recorded in `dataset_manifest.xlsx`. The file contains a main worksheet titled **Manifest**, which includes the following attributes:
 
-- `ID`: Sample identifier, formatted as `patient{patient ID}_frame{frame time-point}` (e.g., `patient001_frame01`).
+- `ID`: Sample identifier, formatted as `patient{patient}_frame{frame}` (e.g., `patient001_frame01`).
 - `patient`: Patient identifier, a 3-digit number, e.g., 001.
 - `frame`: Frame time-point, a 2-digit number, e.g. 01.
 - `phase`: Diastolic or systolic phase of the volume frame.
@@ -131,10 +133,10 @@ All sample files are recorded in `dataset_manifest.xlsx`. The file contains a ma
 - `info`: Sample information YAML file path relative to `root_dir`.
 - `volume`: Volume NIfTI `nii.gz` file path relative to `root_dir`.
 - `mask`: Multi-label mask NIfTI `nii.gz` file path relative to `root_dir`.
-- `mask_Bg`: **Background** binary mask NIfTI `nii.gz` file path relative to `root_dir`.
-- `mask_LV`:  **Right Ventricle cavity** binary mask NIfTI `nii.gz` file path relative to `root_dir`.
-- `mask_Myo`: **Myocardium** binary mask NIfTI `nii.gz` file path relative to `root_dir`.
-- `mask_RV`: **Left Ventricle cavity** binary mask NIfTI `nii.gz` file path relative to `root_dir`.
+- `mask_00_Bg`: **Background** binary mask NIfTI `nii.gz` file path relative to `root_dir`.
+- `mask_01_RV`:  **Right Ventricle cavity** binary mask NIfTI `nii.gz` file path relative to `root_dir`.
+- `mask_02_Myo`: **Myocardium** binary mask NIfTI `nii.gz` file path relative to `root_dir`.
+- `mask_03_LV`: **Left Ventricle cavity** binary mask NIfTI `nii.gz` file path relative to `root_dir`.
 - `szx`: Volume size of X dimension for all NIfTI files associated with this sample.
 - `szy`: Volume size of Y dimension for all NIfTI files associated with this sample.
 - `szz`: Volume size of Z dimension for all NIfTI files associated with this sample.
