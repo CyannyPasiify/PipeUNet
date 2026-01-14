@@ -273,7 +273,7 @@ def process_sample_dir(sample_dir, root_path, loader, verbose=False):
 
     if info_files:
         info_file = info_files[0]
-        info_rel_path = str(info_file.relative_to(root_path)).replace('\\', '/')
+        info_rel_path = str(info_file.relative_to(root_path).as_posix())
 
         try:
             with open(info_file, 'r', encoding='utf-8') as f:
@@ -333,7 +333,7 @@ def process_sample_dir(sample_dir, root_path, loader, verbose=False):
                 mask_dtype_dict[f'mask_{label_name}'] = str(binary_mask_data.dtype)
 
                 rel_path = binary_mask_file.relative_to(root_path)
-                binary_mask_paths[f'mask_{label_name}'] = str(rel_path).replace('\\', '/')
+                binary_mask_paths[f'mask_{label_name}'] = str(rel_path.as_posix())
 
                 has_foreground = int(np.any(binary_mask_data.numpy() > 0))
                 binary_mask_existence[f'mask_{label_name}_existence'] = has_foreground

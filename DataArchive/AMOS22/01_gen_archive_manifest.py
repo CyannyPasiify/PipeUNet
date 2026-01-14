@@ -60,7 +60,7 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s -r /path/to/AMOS22 -o /path/to/archive_manifest.xlsx
+  %(prog)s -r /path/to/AMOS22 -o /path/to/archive_manifest.xlsx -m /path/to/meta.csv
   %(prog)s --root_dir /path/to/AMOS22 --output_manifest_file /path/to/archive_manifest.xlsx --sheet_name AMOS22_Manifest
         """
     )
@@ -291,7 +291,7 @@ def scan_dataset(root_dir):
             
             rel_path = nii_file.relative_to(root_path)
             file_info = {
-                'file_path': str(rel_path),
+                'file_path': str(rel_path.as_posix()),
                 'subset': subset,
                 'seq': seq_id,
                 'type': file_type,

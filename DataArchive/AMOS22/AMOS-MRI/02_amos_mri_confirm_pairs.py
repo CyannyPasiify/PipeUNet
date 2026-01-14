@@ -213,6 +213,7 @@ def copy_metadata_to_mask(image_meta, mask_data):
         tuple: (mask_data_with_meta, updated_meta)
     """
     updated_meta = image_meta.copy()
+    mask_data.meta = updated_meta
     return mask_data, updated_meta
 
 

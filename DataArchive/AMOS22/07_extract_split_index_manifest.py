@@ -16,7 +16,7 @@ This script extracts subset-specific index manifests from a main manifest Excel 
 
 Parameters:
     -m, --manifest_file: Path to the Excel manifest file
-    -spn, --split_name: Name of the split scheme (e.g., split01_standard, split02_t8v2s)
+    -spn, --split_name: Name of the split scheme (e.g., split01_standard)
     -o, --output_index_manifest_dir: Output directory for index manifest files
     -s, --subsets: Subset names to extract (can be specified multiple times, e.g., -s train val -s test)
 
@@ -44,8 +44,8 @@ def parse_args():
         epilog="""
 Examples:
   %(prog)s -m /path/to/dataset_manifest.xlsx -spn split01_standard -o /path/to/output -s train -s test
-  %(prog)s --manifest_file /path/to/dataset_manifest.xlsx --split_name split02_t8v2s --output_index_manifest_dir /path/to/output --subsets train val
-  %(prog)s -m /path/to/dataset_manifest.xlsx -spn split02_t8v2s -o /path/to/output -s train -s val -s test
+  %(prog)s --manifest_file /path/to/dataset_manifest.xlsx --split_name split01_standard --output_index_manifest_dir /path/to/output --subsets train val
+  %(prog)s -m /path/to/dataset_manifest.xlsx -spn split01_standard -o /path/to/output -s train -s val -s test
         """
     )
 
@@ -60,7 +60,7 @@ Examples:
         '-spn', '--split_name',
         type=str,
         required=True,
-        help='Name of the split scheme (e.g., split01_standard, split02_t8v2s)'
+        help='Name of the split scheme (e.g., split01_standard)'
     )
 
     parser.add_argument(
