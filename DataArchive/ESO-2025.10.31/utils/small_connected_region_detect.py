@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Small Connected Region Detection Script for AMOS22 Dataset
+Small Connected Region Detection Script for ESO-2025 Dataset
 
 This script detects small connected regions in binary mask files and reports their
 center coordinates and volumes. Regions with physical volume below the threshold are reported.
 
 Parameters:
-    -r, --root_dir: Root directory containing nested subdirectories with sample directories (amos_xxxx*)
+    -r, --root_dir: Root directory containing nested subdirectories with sample directories ({site}_{pid}_{phase})
     -t, --region_volume_thresh: Volume threshold in mm³ for small regions (default: 300.0)
     -o, --output_manifest: Path to output Excel manifest file
 
@@ -23,9 +23,10 @@ import numpy as np
 import pandas as pd
 from monai.transforms import LoadImage
 from scipy import ndimage
+from typing import List, Dict, Tuple, Optional, Union, Any
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """
     Parse command line arguments using argparse.
     
@@ -46,7 +47,7 @@ Examples:
         '-r', '--root_dir',
         type=str,
         required=True,
-        help='Root directory containing nested subdirectories with sample directories (amos_xxxx*)'
+        help='Root directory containing nested subdirectories with sample directories ({site}_{pid}_{phase})'
     )
 
     parser.add_argument(
@@ -66,17 +67,17 @@ Examples:
     return parser.parse_args()
 
 
-def detect_small_regions(mask_data, spacing, threshold):
+def detect_small_regions(mask_data: np.ndarray, spacing: Tuple[float, float, float], threshold: float) -> List[Tuple[float, float, float, float]]:
     """
     Detect small connected regions in binary mask.
     
     Args:
         mask_data (np.ndarray): Binary mask data array
-        spacing (tuple): Spacing values (dx, dy, dz) in mm
+        spacing (Tuple[float, float, float]): Spacing values (dx, dy, dz) in mm
         threshold (float): Volume threshold for small regions
         
     Returns:
-        list: List of small regions with format [(x, y, z, vol), ...]
+        List[Tuple[float, float, float, float]]: List of small regions with format [(x, y, z, vol), ...]
     """
     labeled_array, num_features = ndimage.label(mask_data, structure=np.ones((3, 3, 3)))
 
@@ -97,7 +98,7 @@ def detect_small_regions(mask_data, spacing, threshold):
     return small_regions
 
 
-def process_sample_dir(sample_dir, threshold, loader):
+def process_sample_dir(sample_dir: Path, threshold: float, loader: LoadImage) -> Optional[Dict[str, Any]]:
     """
     Process all binary mask files in a sample directory.
     
@@ -107,20 +108,24 @@ def process_sample_dir(sample_dir, threshold, loader):
         loader (LoadImage): MONAI LoadImage instance
         
     Returns:
-        dict: Dictionary containing ID and small regions for each mask
+        Optional[Dict[str, Any]]: Dictionary containing ID and small regions for each mask, or None if invalid sample directory
     """
-    sample_name = sample_dir.name
-    match = re.match(r'amos_(\d{4})', sample_name)
+    sample_name: str = sample_dir.name
+    match = re.match(r'([^_]+)_([^_]+)_(pre|post)', sample_name)
     if not match:
         return None
 
-    sample_id = match.group(1)
-    record = {'ID': f'amos_{sample_id}'}
+    site_id: str = match.group(1)
+    pid: str = match.group(2)
+    phase: str = match.group(3)
+    sample_id: str = f'{site_id}_{pid}_{phase}'
+    record: Dict[str, Any] = {'ID': sample_id}
 
-    mask_files = sorted(sample_dir.glob(f'amos_{sample_id}_mask_*.nii.gz'))
+    mask_files = sorted(sample_dir.glob(f'*_mask_*.nii.gz'))
 
     for mask_file in mask_files:
-        binary_match = re.match(rf'amos_{sample_id}_mask_(.+)\.nii\.gz', mask_file.name)
+        # Extract label name from filename
+        binary_match = re.match(r'.+_mask_(.+)\.nii\.gz', mask_file.name)
         if binary_match:
             label_name = binary_match.group(1)
         else:
@@ -128,12 +133,12 @@ def process_sample_dir(sample_dir, threshold, loader):
 
         try:
             mask_data, mask_meta = loader(str(mask_file))
-            spacing = [mask_meta['pixdim'][1], mask_meta['pixdim'][2], mask_meta['pixdim'][3]]
+            spacing: Tuple[float, float, float] = (mask_meta['pixdim'][1], mask_meta['pixdim'][2], mask_meta['pixdim'][3])
 
-            small_regions = detect_small_regions(mask_data, spacing, threshold)
+            small_regions: List[Tuple[float, float, float, float]] = detect_small_regions(mask_data, spacing, threshold)
 
             if small_regions:
-                region_str = '; '.join([f"({x:.0f},{y:.0f},{z:.0f},{v:.2f})" for x, y, z, v in small_regions])
+                region_str: str = '; '.join([f"({x:.0f},{y:.0f},{z:.0f},{v:.2f})" for x, y, z, v in small_regions])
                 record[f'mask_{label_name}'] = region_str
             else:
                 record[f'mask_{label_name}'] = ''
@@ -145,64 +150,69 @@ def process_sample_dir(sample_dir, threshold, loader):
     return record
 
 
-def find_sample_dirs(root_dir):
+def find_sample_dirs(root_dir: Union[str, Path]) -> List[Path]:
     """
-    Recursively find all sample directories named amos_xxxx*.
+    Recursively find all sample directories named {site}_{pid}_{phase}.
     
     Args:
-        root_dir (Path): Root directory to search
+        root_dir (Union[str, Path]): Root directory to search
         
     Returns:
-        list: List of Path objects pointing to sample directories
+        List[Path]: List of Path objects pointing to sample directories
     """
-    root_path = Path(root_dir)
-    sample_dirs = []
+    root_path: Path = Path(root_dir)
+    sample_dirs: List[Path] = []
 
-    for path in root_path.rglob('amos_*'):
-        if path.is_dir():
+    for path in root_path.rglob('*_*_*'):
+        if path.is_dir() and re.match(r'[A-Z]+_[0-9]+_(pre|post)', path.name):
             sample_dirs.append(path)
 
     return sorted(sample_dirs)
 
 
-def process_root_dir(root_dir, threshold, output_manifest):
+def process_root_dir(root_dir: Union[str, Path], threshold: float, output_manifest: Union[str, Path]) -> None:
     """
     Process all sample directories in the root directory recursively.
     
     Args:
-        root_dir (str or Path): Root directory containing nested subdirectories
+        root_dir (Union[str, Path]): Root directory containing nested subdirectories
         threshold (float): Volume threshold for small regions
-        output_manifest (str): Path to output Excel manifest file
+        output_manifest (Union[str, Path]): Path to output Excel manifest file
     """
-    root_path = Path(root_dir)
+    root_path: Path = Path(root_dir)
 
     if not root_path.exists():
         print(f"Error: Root directory does not exist: {root_dir}")
         return
 
-    sample_dirs = find_sample_dirs(root_dir)
+    sample_dirs: List[Path] = find_sample_dirs(root_dir)
 
     if not sample_dirs:
         print(f"Warning: No sample directories found in {root_dir}")
         return
 
     print(f"Found {len(sample_dirs)} sample directories")
+    print(f"Volume threshold: {threshold} mm³\n")
 
-    loader = LoadImage(image_only=False, dtype=None)
-    all_records = []
+    loader: LoadImage = LoadImage(image_only=False, dtype=None)
+    all_records: List[Dict[str, Any]] = []
 
     for sample_dir in tqdm(sample_dirs, desc='Processing samples'):
-        record = process_sample_dir(sample_dir, threshold, loader)
-        all_records.append(record)
+        record: Optional[Dict[str, Any]] = process_sample_dir(sample_dir, threshold, loader)
+        if record:
+            all_records.append(record)
 
     if all_records:
-        df = pd.DataFrame(all_records)
+        df: pd.DataFrame = pd.DataFrame(all_records)
 
-        df['sample_num'] = df['ID'].str.extract(r'amos_(\d{4})').astype(int)
-        df = df.sort_values(by='sample_num', ascending=True)
-        df = df.drop(columns=['sample_num'])
+        ids = df['ID'].str.extract(r'([^_]+)_([^_]+)_(pre|post)')
+        df['site'] = ids[0]
+        df['pid'] = ids[1]
+        df['phase'] = ids[2]
+        df = df.sort_values(by=['site', 'pid', 'phase'], ascending=True)
+        df = df.drop(columns=['site', 'pid', 'phase'])
 
-        output_path = Path(output_manifest)
+        output_path: Path = Path(output_manifest)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         df.to_excel(output_path, sheet_name=f'Small Connected Regions {threshold}', index=False)
@@ -211,16 +221,16 @@ def process_root_dir(root_dir, threshold, output_manifest):
         print(f"Total samples processed: {len(all_records)}")
         print(f"Output manifest saved to: {output_manifest}")
 
-        mask_cols = [col for col in df.columns if col.startswith('mask_')]
+        mask_cols: List[str] = [col for col in df.columns if col.startswith('mask_')]
         for col in mask_cols:
-            non_empty = df[col].apply(lambda x: x != '' if x is not None else False).sum()
+            non_empty: int = df[col].apply(lambda x: x != '' if x is not None else False).sum()
             if non_empty > 0:
                 print(f"  {col}: {non_empty} samples with small regions")
     else:
         print("No records found to save.")
 
 
-def main():
+def main() -> None:
     """
     Main function to orchestrate the small connected region detection process.
     """

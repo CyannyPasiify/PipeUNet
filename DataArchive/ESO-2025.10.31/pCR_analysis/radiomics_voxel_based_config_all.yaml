@@ -1,0 +1,41 @@
+# Pyradiomics configuration for voxel-based radiomics feature extraction
+# This configuration enables original image type and specific features
+
+# Image types to process
+imageType:
+  Original: { }
+
+# Feature classes and features to extract
+featureClass:
+  firstorder:
+    - Entropy
+    - MeanAbsoluteDeviation
+    - Median
+  glcm:
+    - DifferenceAverage
+    - DifferenceEntropy
+    - DifferenceVariance
+    - Imc1
+    - Imc2
+    - InverseVariance
+    - JointEnergy
+    - JointEntropy
+    - SumEntropy
+  glrlm:
+    - LongRunEmphasis
+    - RunEntropy
+    - RunVariance
+  glszm:
+    - SizeZoneNonUniformityNormalized
+    - SmallAreaHighGrayLevelEmphasis
+  ngtdm:
+    - Contrast
+    - Strength
+setting:
+  voxelArrayShift: 0
+  resampledPixelSpacing:
+  binWidth: 25
+voxelSetting:
+  kernelRadius: 1
+  maskedKernel: true
+  voxelBatch: 5000

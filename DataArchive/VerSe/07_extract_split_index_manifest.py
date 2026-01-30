@@ -10,7 +10,7 @@
 """
 
 """
-Dataset Split Index Manifest Extraction Script for AMOS22 Dataset
+Dataset Split Index Manifest Extraction Script for VerSe Dataset
 
 This script extracts subset-specific index manifests from a main manifest Excel file based on split information.
 
@@ -21,9 +21,9 @@ Parameters:
     -s, --subsets: Subset names to extract (can be specified multiple times, e.g., -s train val -s test)
 
 Usage Examples:
-    python 06_extract_split_index_manifest.py -m /path/to/dataset_manifest.xlsx -spn split01_standard -o /path/to/output -s train -s test
-    python 06_extract_split_index_manifest.py --manifest_file /path/to/dataset_manifest.xlsx --split_name split02_t8v2s --output_index_manifest_dir /path/to/output --subsets train val
-    python 06_extract_split_index_manifest.py -m /path/to/dataset_manifest.xlsx -spn split02_t8v2s -o /path/to/output -s train -s val -s test
+    python 07_extract_split_index_manifest.py -m /path/to/dataset_manifest.xlsx -spn split01_standard -o /path/to/output -s train -s test
+    python 07_extract_split_index_manifest.py --manifest_file /path/to/dataset_manifest.xlsx --split_name split02_t8v2s --output_index_manifest_dir /path/to/output --subsets train val
+    python 07_extract_split_index_manifest.py -m /path/to/dataset_manifest.xlsx -spn split02_t8v2s -o /path/to/output -s train -s val -s test
 """
 
 import argparse

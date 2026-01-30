@@ -16,7 +16,7 @@ $$
 $$
 \operatorname{Optimize} \left(mask_i\right) = SC^i_{res} \odot mask_i + SC^i_{m+} \odot \operatorname{Open_{5×5}} \left(mask_i\right) + SC^i_{m-} \odot \operatorname{Close_{5×5}} \left(mask_i\right)
 $$
-每个单点 $(x,y,z)$ 位置在17个Label上的标签值序列：
+每个单点(x,y,z)位置在17个Label上的标签值序列：
 $$
 \operatorname{Idx} \left(x,y,z\right) = \left[mask_0\left(x,y,z\right),mask_1\left(x,y,z\right),...,mask_{16}\left(x,y,z\right)\right]
 $$

@@ -340,7 +340,7 @@ def process_pair_dir(pair_dir, root_path, loader, verbose=False):
                 mask_dtype_dict[f'mask_{label_name}'] = str(binary_mask_data.dtype)
 
                 rel_path = binary_mask_file.relative_to(root_path)
-                binary_mask_paths[f'mask_{label_name}'] = str(rel_path).replace('\\', '/')
+                binary_mask_paths[f'mask_{label_name}'] = str(rel_path.as_posix())
 
         is_consistent, consistency_issues = check_metadata_consistency(volume_meta, mask_meta_dict)
 

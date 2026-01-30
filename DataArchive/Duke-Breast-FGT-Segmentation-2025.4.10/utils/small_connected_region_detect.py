@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-Small Connected Region Detection Script for AMOS22 Dataset
+Small Connected Region Detection Script for Duke-Breast-FGT-Segmentation Dataset
 
 This script detects small connected regions in binary mask files and reports their
 center coordinates and volumes. Regions with physical volume below the threshold are reported.
 
 Parameters:
-    -r, --root_dir: Root directory containing nested subdirectories with sample directories (amos_xxxx*)
-    -t, --region_volume_thresh: Volume threshold in mm³ for small regions (default: 300.0)
+    -r, --root_dir: Root directory containing nested subdirectories with sample directories ({pid})
+    -t, --region_volume_thresh: Volume threshold in mm³ for small regions (default: 100.0)
     -o, --output_manifest: Path to output Excel manifest file
 
 Usage Examples:
     python small_connected_region_detect.py -r /path/to/root -o output.xlsx
-    python small_connected_region_detect.py --root_dir /path/to/root --region_volume_thresh 300.0 --output_manifest output.xlsx
+    python small_connected_region_detect.py --root_dir /path/to/root --region_volume_thresh 100.0 --output_manifest output.xlsx
 """
 
 import argparse
-import re
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
@@ -46,14 +45,14 @@ Examples:
         '-r', '--root_dir',
         type=str,
         required=True,
-        help='Root directory containing nested subdirectories with sample directories (amos_xxxx*)'
+        help='Root directory containing nested subdirectories with sample directories ({pid})'
     )
 
     parser.add_argument(
         '-t', '--region_volume_thresh',
         type=float,
         default=300.0,
-        help='Volume threshold in mm³ for small regions (default: 300.0)'
+        help='Volume threshold in mm³ for small regions (default: 100.0)'
     )
 
     parser.add_argument(
@@ -110,19 +109,16 @@ def process_sample_dir(sample_dir, threshold, loader):
         dict: Dictionary containing ID and small regions for each mask
     """
     sample_name = sample_dir.name
-    match = re.match(r'amos_(\d{4})', sample_name)
-    if not match:
-        return None
+    sample_id = sample_name
 
-    sample_id = match.group(1)
-    record = {'ID': f'amos_{sample_id}'}
+    record = {'ID': sample_id}
 
-    mask_files = sorted(sample_dir.glob(f'amos_{sample_id}_mask_*.nii.gz'))
+    mask_files = sorted(sample_dir.glob(f'{sample_id}_mask_*.nii.gz'))
 
     for mask_file in mask_files:
-        binary_match = re.match(rf'amos_{sample_id}_mask_(.+)\.nii\.gz', mask_file.name)
-        if binary_match:
-            label_name = binary_match.group(1)
+        binary_match = mask_file.name.split('_mask_', 1)
+        if len(binary_match) == 2:
+            label_name = binary_match[1].replace('.nii.gz', '')
         else:
             continue
 
@@ -147,7 +143,7 @@ def process_sample_dir(sample_dir, threshold, loader):
 
 def find_sample_dirs(root_dir):
     """
-    Recursively find all sample directories named amos_xxxx*.
+    Recursively find all sample directories.
     
     Args:
         root_dir (Path): Root directory to search
@@ -158,9 +154,12 @@ def find_sample_dirs(root_dir):
     root_path = Path(root_dir)
     sample_dirs = []
 
-    for path in root_path.rglob('amos_*'):
+    for path in root_path.rglob('*'):
         if path.is_dir():
-            sample_dirs.append(path)
+            # Check if directory contains mask files
+            mask_files = list(path.glob(f'{path.name}_mask_*.nii.gz'))
+            if mask_files:
+                sample_dirs.append(path)
 
     return sorted(sample_dirs)
 
@@ -198,9 +197,7 @@ def process_root_dir(root_dir, threshold, output_manifest):
     if all_records:
         df = pd.DataFrame(all_records)
 
-        df['sample_num'] = df['ID'].str.extract(r'amos_(\d{4})').astype(int)
-        df = df.sort_values(by='sample_num', ascending=True)
-        df = df.drop(columns=['sample_num'])
+        df = df.sort_values(by='ID', ascending=True)
 
         output_path = Path(output_manifest)
         output_path.parent.mkdir(parents=True, exist_ok=True)

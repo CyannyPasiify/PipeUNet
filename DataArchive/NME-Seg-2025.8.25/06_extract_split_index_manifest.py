@@ -1,37 +1,34 @@
 # -*- coding: utf-8 -*-
 """
-参照04_gen_dataset_manifest.py生成数据集划分索引清单提取脚本。使用argparse。接收-m/--manifest_file指定的Excel清单文件路径，
--spn/--split_name指定划分方案名称，-o/--output_index_manifest_dir指定索引清单文件的输出目录，
--s/--subsets指定导出索引类型集合，可有0个或多个参数，每个参数是一个字符串表示子集名称，例如 train val test，
--s/--subsets可以多次使用并多次指定不同的子集集合，程序记录所有的子集集合，对于每个subsets指定的子集集合，
-从manifest_file的split_name工作表中匹配split_name列的项目内容，将那些在指定子集中的项目筛选出来，
-并保存到output_index_manifest_dir目录，文件名为split_name_{下划线连接的subsets子集名称}.xlsx，
-工作表名称为split_name；如果subsets中出现了工作表split_name列不存在的子集名称，则报告错误到控制台并跳过此子集
+接收-m/--manifest_file指定的Excel清单文件路径，-spn/--split_name指定划分方案名称，-o/--output_index_manifest_dir指定索引清单文件的输出目录，-s/--subsets指定导出索引类型集合，可有0个或多个参数，每个参数是一个字符串表示子集名称，例如 train val test，-s/--subsets可以多次使用并多次指定不同的子集集合，程序记录所有的子集集合，对于每个subsets指定的子集集合，从manifest_file的split_name工作表中匹配split_name列的项目内容，将那些在指定子集中的项目筛选出来，并保存到output_index_manifest_dir目录，文件名为split_name_{下划线连接的subsets子集名称}.xlsx，工作表名称为split_name；如果subsets中出现了工作表split_name列不存在的子集名称，则报告错误到控制台并跳过此子集。 
+  对全部变量和函数参数添加类型注解。 
+  除了此聊天内容以外，代码其它部分全部使用英文注释。首先，将此聊天内容以注释形式添加到代码文件开头。第二，添加脚本功能说明，参数释义和用法示例。第三，添加parse_args函数，其中添加argparse的实例化和参数解析。第四，添加具体业务逻辑的若干函数。最后，创建main主函数和函数入口。
 """
 
 """
-Dataset Split Index Manifest Extraction Script for AMOS22 Dataset
+Dataset Split Index Manifest Extraction Script for NME-Seg-2025.8.25 Dataset
 
 This script extracts subset-specific index manifests from a main manifest Excel file based on split information.
 
 Parameters:
     -m, --manifest_file: Path to the Excel manifest file
-    -spn, --split_name: Name of the split scheme (e.g., split01_standard)
+    -spn, --split_name: Name of the split scheme (e.g., split01_Tongji)
     -o, --output_index_manifest_dir: Output directory for index manifest files
-    -s, --subsets: Subset names to extract (can be specified multiple times, e.g., -s train val -s test)
+    -s, --subsets: Subset names to extract (can be specified multiple times, e.g., -s train -s val -s test)
 
 Usage Examples:
-    python 06_extract_split_index_manifest.py -m /path/to/dataset_manifest.xlsx -spn split01_standard -o /path/to/output -s train -s test
-    python 06_extract_split_index_manifest.py --manifest_file /path/to/dataset_manifest.xlsx --split_name split02_t8v2s --output_index_manifest_dir /path/to/output --subsets train val
-    python 06_extract_split_index_manifest.py -m /path/to/dataset_manifest.xlsx -spn split02_t8v2s -o /path/to/output -s train -s val -s test
+    python 06_extract_split_index_manifest.py -m /path/to/dataset_manifest.xlsx -spn split01_Tongji -o /path/to/output -s train -s test
+    python 06_extract_split_index_manifest.py --manifest_file /path/to/dataset_manifest.xlsx --split_name split01_Tongji --output_index_manifest_dir /path/to/output --subsets train val
+    python 06_extract_split_index_manifest.py -m /path/to/dataset_manifest.xlsx -spn split01_Tongji -o /path/to/output -s train -s val -s test
 """
 
 import argparse
 from pathlib import Path
 import pandas as pd
+from typing import List, Tuple, Optional, Union, Any, Set
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """
     Parse command line arguments using argparse.
     
@@ -43,9 +40,9 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s -m /path/to/dataset_manifest.xlsx -spn split01_standard -o /path/to/output -s train -s test
-  %(prog)s --manifest_file /path/to/dataset_manifest.xlsx --split_name split01_standard --output_index_manifest_dir /path/to/output --subsets train val
-  %(prog)s -m /path/to/dataset_manifest.xlsx -spn split01_standard -o /path/to/output -s train -s val -s test
+  %(prog)s -m /path/to/dataset_manifest.xlsx -spn split01_Tongji -o /path/to/output -s train -s test
+  %(prog)s --manifest_file /path/to/dataset_manifest.xlsx --split_name split01_Tongji --output_index_manifest_dir /path/to/output --subsets train val
+  %(prog)s -m /path/to/dataset_manifest.xlsx -spn split01_Tongji -o /path/to/output -s train -s val -s test
         """
     )
 
@@ -60,7 +57,7 @@ Examples:
         '-spn', '--split_name',
         type=str,
         required=True,
-        help='Name of the split scheme (e.g., split01_standard)'
+        help='Name of the split scheme (e.g., split01_Tongji)'
     )
 
     parser.add_argument(
@@ -81,24 +78,24 @@ Examples:
     return parser.parse_args()
 
 
-def validate_subsets(df, split_name, subset_groups):
+def validate_subsets(df: pd.DataFrame, split_name: str, subset_groups: List[List[str]]) -> Tuple[bool, List[str]]:
     """
     Validate that all specified subsets exist in the split column.
     
     Args:
         df (pd.DataFrame): DataFrame containing the split information
         split_name (str): Name of the split column
-        subset_groups (list): List of subset groups to validate
+        subset_groups (List[List[str]]): List of subset groups to validate
         
     Returns:
-        tuple: (is_valid, invalid_subsets) where invalid_subsets is a list of invalid subset names
+        Tuple[bool, List[str]]: (is_valid, invalid_subsets) where invalid_subsets is a list of invalid subset names
     """
     if split_name not in df.columns:
         print(f"Error: Split column '{split_name}' not found in manifest")
         return False, []
 
-    valid_subsets = set(df[split_name].dropna().unique())
-    invalid_subsets = []
+    valid_subsets: Set[str] = set(df[split_name].dropna().unique())
+    invalid_subsets: List[str] = []
 
     for group in subset_groups:
         for subset in group:
@@ -108,14 +105,14 @@ def validate_subsets(df, split_name, subset_groups):
     return len(invalid_subsets) == 0, invalid_subsets
 
 
-def extract_subset_manifest(df, split_name, subsets):
+def extract_subset_manifest(df: pd.DataFrame, split_name: str, subsets: List[str]) -> pd.DataFrame:
     """
     Extract rows matching the specified subsets from the DataFrame.
     
     Args:
         df (pd.DataFrame): DataFrame containing the split information
         split_name (str): Name of the split column
-        subsets (list): List of subset names to extract
+        subsets (List[str]): List of subset names to extract
         
     Returns:
         pd.DataFrame: Filtered DataFrame containing only the specified subsets
@@ -124,15 +121,15 @@ def extract_subset_manifest(df, split_name, subsets):
     return df[mask].copy()
 
 
-def save_index_manifest(df, output_dir, split_name, subsets):
+def save_index_manifest(df: pd.DataFrame, output_dir: Union[str, Path], split_name: str, subsets: List[str]) -> Path:
     """
     Save the filtered DataFrame to an Excel file.
     
     Args:
         df (pd.DataFrame): Filtered DataFrame to save
-        output_dir (str or Path): Output directory path
+        output_dir (Union[str, Path]): Output directory path
         split_name (str): Name of the split scheme
-        subsets (list): List of subset names
+        subsets (List[str]): List of subset names
         
     Returns:
         Path: Path to the saved file
@@ -150,15 +147,20 @@ def save_index_manifest(df, output_dir, split_name, subsets):
     return file_path
 
 
-def process_split_index_manifest(manifest_file, split_name, output_index_manifest_dir, subset_groups):
+def process_split_index_manifest(
+    manifest_file: Union[str, Path], 
+    split_name: str, 
+    output_index_manifest_dir: Union[str, Path], 
+    subset_groups: Optional[List[List[str]]]
+) -> None:
     """
     Process the manifest file and extract index manifests for each subset group.
     
     Args:
-        manifest_file (str or Path): Path to the Excel manifest file
+        manifest_file (Union[str, Path]): Path to the Excel manifest file
         split_name (str): Name of the split scheme
-        output_index_manifest_dir (str or Path): Output directory for index manifest files
-        subset_groups (list): List of subset groups to extract
+        output_index_manifest_dir (Union[str, Path]): Output directory for index manifest files
+        subset_groups (Optional[List[List[str]]]): List of subset groups to extract
     """
     manifest_path = Path(manifest_file)
     output_path = Path(output_index_manifest_dir)
@@ -175,8 +177,8 @@ def process_split_index_manifest(manifest_file, split_name, output_index_manifes
         df = pd.read_excel(
             manifest_path, 
             sheet_name=split_name, 
-            dtype={'ID': str, 'seq': str, 'birth_date': str, 'acquisition_date': str}
-            )
+            dtype={'ID': str, 'site': str, 'pid': str}
+        )
 
         print(f"Total records in manifest: {len(df)}")
 
@@ -216,11 +218,11 @@ def process_split_index_manifest(manifest_file, split_name, output_index_manifes
         return
 
 
-def main():
+def main() -> None:
     """
     Main function to orchestrate the split index manifest extraction process.
     """
-    args = parse_args()
+    args: argparse.Namespace = parse_args()
 
     print(f"Processing manifest file: {args.manifest_file}")
     print(f"Split name: {args.split_name}")

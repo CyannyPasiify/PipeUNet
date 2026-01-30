@@ -10,7 +10,7 @@
 """
 
 """
-Dataset Split Index Manifest Extraction Script for AMOS22 Dataset
+Dataset Split Index Manifest Extraction Script for Duke-Breast-FGT-Segmentation Dataset
 
 This script extracts subset-specific index manifests from a main manifest Excel file based on split information.
 

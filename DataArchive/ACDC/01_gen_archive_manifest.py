@@ -322,7 +322,7 @@ def scan_dataset(root_dir):
                     
                     rel_path = nii_file.relative_to(root_path)
                     file_info = {
-                        'file_path': str(rel_path),
+                        'file_path': str(rel_path.as_posix()),
                         'subset': subdir,
                         'patient': patient_id,
                         'frame': frame_id,
@@ -361,7 +361,7 @@ def scan_dataset(root_dir):
                     
                     rel_path = nii_file.relative_to(root_path)
                     file_info = {
-                        'file_path': str(rel_path),
+                        'file_path': str(rel_path.as_posix()),
                         'subset': subdir,
                         'patient': patient_id,
                         'frame': frame_id,

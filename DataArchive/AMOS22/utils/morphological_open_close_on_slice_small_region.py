@@ -45,9 +45,10 @@ from tqdm import tqdm
 import numpy as np
 from scipy.ndimage import binary_closing, binary_opening, label
 from monai.transforms import LoadImage, SaveImage
+from typing import List, Dict, Tuple, Optional, Union
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """
     Parse command line arguments using argparse.
     
@@ -103,13 +104,13 @@ Examples:
     return parser.parse_args()
 
 
-def find_small_regions_mask(binary_mask_slice, spacing, area_thresh):
+def find_small_regions_mask(binary_mask_slice: np.ndarray, spacing: Tuple[float, float], area_thresh: float) -> np.ndarray:
     """
     Find small connected regions in a binary mask slice.
     
     Args:
         binary_mask_slice (np.ndarray): Binary mask slice (2D array)
-        spacing (tuple): Tuple of (dx, dy) for pixel spacing in mm
+        spacing (Tuple[float, float]): Tuple of (dx, dy) for pixel spacing in mm
         area_thresh (float): Area threshold in mm² for small regions
         
     Returns:
@@ -132,7 +133,7 @@ def find_small_regions_mask(binary_mask_slice, spacing, area_thresh):
     return small_region_mask
 
 
-def apply_morphological_operations_slice(binary_mask_slice, kernel_size, spacing, area_thresh):
+def apply_morphological_operations_slice(binary_mask_slice: np.ndarray, kernel_size: Tuple[int, int], spacing: Tuple[float, float], area_thresh: float) -> np.ndarray:
     """
     Apply morphological closing and opening operations to small connected regions in a single slice.
     First apply separate closing and opening operations, then use connected component analysis
@@ -141,8 +142,8 @@ def apply_morphological_operations_slice(binary_mask_slice, kernel_size, spacing
     
     Args:
         binary_mask_slice (np.ndarray): Binary mask slice (2D array)
-        kernel_size (tuple): Tuple of (kx, ky) for kernel size
-        spacing (tuple): Tuple of (dx, dy) for pixel spacing in mm
+        kernel_size (Tuple[int, int]): Tuple of (kx, ky) for kernel size
+        spacing (Tuple[float, float]): Tuple of (dx, dy) for pixel spacing in mm
         area_thresh (float): Area threshold in mm² for small regions
         
     Returns:
@@ -157,29 +158,29 @@ def apply_morphological_operations_slice(binary_mask_slice, kernel_size, spacing
     opened_slice = binary_opening(original_slice, structure=structure)
 
     small_foreground_mask = find_small_regions_mask(original_slice, spacing, area_thresh)
-    small_background_mask = find_small_regions_mask(~original_slice, spacing, area_thresh)
+    small_background_mask = find_small_regions_mask(1 - original_slice, spacing, area_thresh)
 
     processed_slice = original_slice.copy()
 
     if np.any(small_foreground_mask):
-        foreground_small_regions = small_foreground_mask & original_slice
+        foreground_small_regions = small_foreground_mask & (original_slice == 1)
         np.putmask(processed_slice, foreground_small_regions, opened_slice)
 
     if np.any(small_background_mask):
-        background_small_regions = small_background_mask & (~original_slice)
+        background_small_regions = small_background_mask & (original_slice == 0)
         np.putmask(processed_slice, background_small_regions, closed_slice)
 
     return processed_slice
 
 
-def process_binary_mask_slice_by_slice(binary_mask_data, kernel_size, spacing, area_thresh):
+def process_binary_mask_slice_by_slice(binary_mask_data: np.ndarray, kernel_size: Tuple[int, int], spacing: Tuple[float, float], area_thresh: float) -> np.ndarray:
     """
     Process binary mask slice by slice with morphological operations on small regions only.
     
     Args:
         binary_mask_data (np.ndarray): Binary mask data (3D array)
-        kernel_size (tuple): Tuple of (kx, ky) for kernel size
-        spacing (tuple): Tuple of (dx, dy) for pixel spacing in mm
+        kernel_size (Tuple[int, int]): Tuple of (kx, ky) for kernel size
+        spacing (Tuple[float, float]): Tuple of (dx, dy) for pixel spacing in mm
         area_thresh (float): Area threshold in mm² for small regions
         
     Returns:
@@ -195,34 +196,34 @@ def process_binary_mask_slice_by_slice(binary_mask_data, kernel_size, spacing, a
     return processed_data
 
 
-def resolve_conflicts(binary_masks_dict, filter_halfedge):
+def resolve_conflicts(binary_masks_dict: Dict[int, np.ndarray], filter_halfedge: int) -> Optional[np.ndarray]:
     """
     Resolve conflicts where multiple labels claim the same voxel using vectorized operations.
     For voxels with no foreground labels after processing, check foreground support point counts
     within filter_halfedge in each binary mask in the same slice, and assign the label with the most support points.
     
     Args:
-        binary_masks_dict (dict): Dictionary mapping label values to binary mask arrays
+        binary_masks_dict (Dict[int, np.ndarray]): Dictionary mapping label values to binary mask arrays
         filter_halfedge (int): Half-edge of filter region for conflict resolution (actual kernel size is 2*filter_halfedge+1)
         
     Returns:
-        np.ndarray: Multi-label mask with resolved conflicts
+        Optional[np.ndarray]: Multi-label mask with resolved conflicts, or None if no masks were provided
     """
     if not binary_masks_dict:
         return None
 
-    sorted_labels = sorted(binary_masks_dict.keys())
-    binary_masks = [binary_masks_dict[label] for label in sorted_labels]
+    sorted_labels: List[int] = sorted(binary_masks_dict.keys())
+    binary_masks: List[np.ndarray] = [binary_masks_dict[label] for label in sorted_labels]
 
-    stacked_masks = np.stack(binary_masks, axis=0)
+    stacked_masks: np.ndarray = np.stack(binary_masks, axis=0)
 
-    label_counts = np.sum(stacked_masks, axis=0)
+    label_counts: np.ndarray = np.sum(stacked_masks, axis=0)
 
-    no_conflict_mask = (label_counts == 1)
-    conflict_mask = (label_counts > 1)
-    no_label_mask = (label_counts == 0)
+    no_conflict_mask: np.ndarray = (label_counts == 1)
+    conflict_mask: np.ndarray = (label_counts > 1)
+    no_label_mask: np.ndarray = (label_counts == 0)
 
-    combined_mask = np.zeros(stacked_masks.shape[1:], dtype=np.uint8)
+    combined_mask: np.ndarray = np.zeros(stacked_masks.shape[1:], dtype=np.uint8)
 
     for i, label in enumerate(sorted_labels):
         label_mask = stacked_masks[i] & no_conflict_mask
@@ -293,15 +294,15 @@ def resolve_conflicts(binary_masks_dict, filter_halfedge):
     return combined_mask
 
 
-def find_sample_dirs(root_dir):
+def find_sample_dirs(root_dir: Union[str, Path]) -> List[Path]:
     """
     Recursively find all sample directories named amos_xxxx*.
     
     Args:
-        root_dir (Path): Root directory to search
+        root_dir (Union[str, Path]): Root directory to search
         
     Returns:
-        list: List of Path objects pointing to sample directories
+        List[Path]: List of Path objects pointing to sample directories
     """
     root_path = Path(root_dir)
     sample_dirs = []
@@ -313,7 +314,7 @@ def find_sample_dirs(root_dir):
     return sorted(sample_dirs)
 
 
-def process_sample_dir(sample_dir, root_path, output_root_path, kernel_size, filter_halfedge, area_thresh):
+def process_sample_dir(sample_dir: Path, root_path: Path, output_root_path: Path, kernel_size: Tuple[int, int], filter_halfedge: int, area_thresh: float) -> Tuple[int, int, int]:
     """
     Process a single sample directory.
     
@@ -321,79 +322,99 @@ def process_sample_dir(sample_dir, root_path, output_root_path, kernel_size, fil
         sample_dir (Path): Path to the sample directory
         root_path (Path): Root directory path for relative path calculation
         output_root_path (Path): Output root directory path
-        kernel_size (tuple): Tuple of (kx, ky) for kernel size
+        kernel_size (Tuple[int, int]): Tuple of (kx, ky) for kernel size
         filter_halfedge (int): Half-edge of filter region for conflict resolution (actual kernel size is 2*filter_halfedge+1)
         area_thresh (float): Area threshold in mm² for small regions
         
     Returns:
-        tuple: (binary_masks_processed, multi_mask_saved, error_count)
+        Tuple[int, int, int]: (binary_masks_processed, multi_mask_saved, error_count)
     """
-    loader = LoadImage(image_only=False, dtype=None)
-    saver = SaveImage(output_postfix='', output_dtype=np.uint8)
+    loader: LoadImage = LoadImage(image_only=False, dtype=None)
+    saver: SaveImage = SaveImage(output_postfix='', output_dtype=np.uint8)
 
-    sample_name = sample_dir.name
+    sample_name: str = sample_dir.name
 
     match = re.match(r'amos_(\d{4})', sample_name)
     if not match:
         return 0, 0, 0
 
-    sample_id = match.group(1)
+    sample_id: str = match.group(1)
 
-    binary_mask_files = sorted(sample_dir.glob('*_mask_*.nii.gz'))
+    binary_mask_files: List[Path] = sorted(sample_dir.glob('*_mask_*.nii.gz'))
 
     if not binary_mask_files:
         return 0, 0, 0
 
-    binary_masks_processed = 0
-    multi_mask_saved = 0
-    error_count = 0
+    binary_masks_processed: int = 0
+    multi_mask_saved: int = 0
+    error_count: int = 0
 
-    binary_masks_dict = {}
-    binary_masks_meta_dict = {}
+    binary_masks_dict: Dict[int, np.ndarray] = {}
+    binary_masks_meta_dict: Dict[int, Dict] = {}
 
     try:
+        # First process all binary masks and build dictionary, but don't save them yet
         for binary_mask_file in binary_mask_files:
             binary_match = re.match(r'.+_mask_(\d{2})_(.+)\.nii\.gz', binary_mask_file.name)
             if not binary_match:
                 continue
 
-            label_value = int(binary_match.group(1))
+            label_value: int = int(binary_match.group(1))
 
             try:
                 binary_mask_data, binary_mask_meta = loader(str(binary_mask_file))
 
-                pixdim = binary_mask_meta.get('pixdim', None)
+                pixdim: Optional[List[float]] = binary_mask_meta.get('pixdim', None)
                 if pixdim is not None:
-                    spacing = (pixdim[1], pixdim[2])
+                    spacing: Tuple[float, float] = (pixdim[1], pixdim[2])
                 else:
-                    spacing = (1.0, 1.0)
+                    spacing: Tuple[float, float] = (1.0, 1.0)
 
-                processed_binary_mask = process_binary_mask_slice_by_slice(binary_mask_data.numpy(), kernel_size,
+                processed_binary_mask: np.ndarray = process_binary_mask_slice_by_slice(binary_mask_data.numpy(), kernel_size,
                                                                            spacing, area_thresh)
-
-                rel_path = binary_mask_file.relative_to(root_path)
-                output_file_path = output_root_path / rel_path
-                output_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-                saver(processed_binary_mask, meta_data=binary_mask_meta, filename=output_file_path.replace('.nii.gz', ''))
 
                 binary_masks_dict[label_value] = processed_binary_mask
                 binary_masks_meta_dict[label_value] = binary_mask_meta
-
-                binary_masks_processed += 1
 
             except Exception as e:
                 print(f"Error processing {binary_mask_file.name}: {str(e)}")
                 error_count += 1
 
         if binary_masks_dict:
-            combined_mask = resolve_conflicts(binary_masks_dict, filter_halfedge)
+            combined_mask: Optional[np.ndarray] = resolve_conflicts(binary_masks_dict, filter_halfedge)
 
             if combined_mask is not None:
-                mask_meta = next(iter(binary_masks_meta_dict.values()))
-                output_filestem = output_root_path / rel_path.parent / f'amos_{sample_id}_mask'
+                mask_meta: Dict = next(iter(binary_masks_meta_dict.values()))
+                # Find original mask filename pattern
+                original_mask_files: List[Path] = list(sample_dir.glob('*_mask.nii.gz'))
+                output_filestem: Path = (output_root_path / original_mask_files[0]
+                                   .relative_to(root_path).parent / f'amos_{sample_id}_mask')
+                
+                # First save the combined multi-label mask
+                output_filestem.parent.mkdir(parents=True, exist_ok=True)
                 saver(combined_mask, meta_data=mask_meta, filename=output_filestem)
                 multi_mask_saved += 1
+                
+                # Then export binary masks based on the processed multi-label mask
+                for binary_mask_file in binary_mask_files:
+                    binary_match = re.match(r'.+_mask_(\d{2})_(.+)\.nii\.gz', binary_mask_file.name)
+                    if not binary_match:
+                        continue
+                    
+                    label_value: int = int(binary_match.group(1))
+                    
+                    # Create binary mask from multi-label mask
+                    binary_mask: np.ndarray = (combined_mask == label_value).astype(np.uint8)
+                    
+                    # Generate output filename
+                    rel_path: Path = binary_mask_file.relative_to(root_path)
+                    output_file_path: Path = output_root_path / rel_path
+                    output_file_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Save binary mask
+                    saver(binary_mask, meta_data=mask_meta,
+                          filename=str(output_file_path).replace('.nii.gz', ''))
+                    binary_masks_processed += 1
 
     except Exception as e:
         print(f"Error processing sample {sample_name}: {str(e)}")
@@ -402,38 +423,33 @@ def process_sample_dir(sample_dir, root_path, output_root_path, kernel_size, fil
     return binary_masks_processed, multi_mask_saved, error_count
 
 
-def process_root_dir(root_dir, output_dir, kernel_size, filter_halfedge, area_thresh):
+def process_root_dir(root_dir: Union[str, Path], output_dir: Union[str, Path], kernel_size: Tuple[int, int], filter_halfedge: int, area_thresh: float) -> None:
     """
     Process all sample directories in the root directory recursively.
     
     Args:
-        root_dir (str or Path): Root directory containing sample directories at any depth
-        output_dir (str or Path): Output root directory for processed masks
-        kernel_size (tuple): Tuple of (kx, ky) for kernel size
+        root_dir (Union[str, Path]): Root directory containing sample directories at any depth
+        output_dir (Union[str, Path]): Output root directory for processed masks
+        kernel_size (Tuple[int, int]): Tuple of (kx, ky) for kernel size
         filter_halfedge (int): Half-edge of filter region for conflict resolution (actual kernel size is 2*filter_halfedge+1)
         area_thresh (float): Area threshold in mm² for small regions
     """
-    root_path = Path(root_dir)
-    output_root_path = Path(output_dir)
+    root_path: Path = Path(root_dir)
+    output_root_path: Path = Path(output_dir)
 
     if not root_path.exists():
         print(f"Error: Root directory does not exist: {root_dir}")
         return
 
-    sample_dirs = find_sample_dirs(root_path)
+    sample_dirs: List[Path] = find_sample_dirs(root_path)
 
     if not sample_dirs:
         print(f"Warning: No sample directories (amos_xxxx*) found in {root_dir}")
         return
 
-    total_binary_masks_processed = 0
-    total_multi_masks_saved = 0
-    total_errors = 0
-
-    print(f"Found {len(sample_dirs)} sample directories")
-    print(f"Kernel size: {kernel_size}")
-    print(f"Filter half-edge: {filter_halfedge}")
-    print(f"Region area threshold: {area_thresh} mm²\n")
+    total_binary_masks_processed: int = 0
+    total_multi_masks_saved: int = 0
+    total_errors: int = 0
 
     for sample_dir in tqdm(sample_dirs, desc='Processing samples'):
         binary_masks_processed, multi_mask_saved, errors = process_sample_dir(
@@ -449,7 +465,7 @@ def process_root_dir(root_dir, output_dir, kernel_size, filter_halfedge, area_th
     print(f"Total errors encountered: {total_errors}")
 
 
-def main():
+def main() -> None:
     """
     Main function to orchestrate the morphological operations process.
     """

@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Small Connected Region Detection Script for AMOS22 Dataset
+Small Connected Region Detection Script for VerSe Dataset
 
 This script detects small connected regions in binary mask files and reports their
 center coordinates and volumes. Regions with physical volume below the threshold are reported.
 
 Parameters:
-    -r, --root_dir: Root directory containing nested subdirectories with sample directories (amos_xxxx*)
+    -r, --root_dir: Root directory containing nested subdirectories with sample directories
     -t, --region_volume_thresh: Volume threshold in mm³ for small regions (default: 300.0)
     -o, --output_manifest: Path to output Excel manifest file
 
 Usage Examples:
-    python small_connected_region_detect.py -r /path/to/root -o output.xlsx
-    python small_connected_region_detect.py --root_dir /path/to/root --region_volume_thresh 300.0 --output_manifest output.xlsx
+    python small_connected_region_detect.py -r /path/to/grouped -o output.xlsx
+    python small_connected_region_detect.py --root_dir /path/to/grouped --region_volume_thresh 300.0 --output_manifest output.xlsx
 """
 
 import argparse
@@ -46,7 +46,7 @@ Examples:
         '-r', '--root_dir',
         type=str,
         required=True,
-        help='Root directory containing nested subdirectories with sample directories (amos_xxxx*)'
+        help='Root directory containing nested subdirectories with sample directories'
     )
 
     parser.add_argument(
@@ -110,17 +110,21 @@ def process_sample_dir(sample_dir, threshold, loader):
         dict: Dictionary containing ID and small regions for each mask
     """
     sample_name = sample_dir.name
-    match = re.match(r'amos_(\d{4})', sample_name)
-    if not match:
-        return None
+    
+    # Extract sample ID - for VerSe, sample name is already the sample ID
+    sample_id = sample_name
+    record = {'ID': sample_id}
 
-    sample_id = match.group(1)
-    record = {'ID': f'amos_{sample_id}'}
-
-    mask_files = sorted(sample_dir.glob(f'amos_{sample_id}_mask_*.nii.gz'))
+    # Find all binary mask files in the sample directory
+    mask_files = sorted(sample_dir.glob(f'*{sample_id}_mask_*.nii.gz'))
+    
+    # If no mask files found with the sample_id in the filename, try more general pattern
+    if not mask_files:
+        mask_files = sorted(sample_dir.glob(f'*_mask_*.nii.gz'))
 
     for mask_file in mask_files:
-        binary_match = re.match(rf'amos_{sample_id}_mask_(.+)\.nii\.gz', mask_file.name)
+        # Extract label name from filename
+        binary_match = re.match(r'.+_mask_(.+)\.nii\.gz', mask_file.name)
         if binary_match:
             label_name = binary_match.group(1)
         else:
@@ -134,6 +138,7 @@ def process_sample_dir(sample_dir, threshold, loader):
 
             if small_regions:
                 region_str = '; '.join([f"({x:.0f},{y:.0f},{z:.0f},{v:.2f})" for x, y, z, v in small_regions])
+                print(f"Sample ID: {sample_id}, Mask File: {mask_file}, Small Regions: {region_str}")
                 record[f'mask_{label_name}'] = region_str
             else:
                 record[f'mask_{label_name}'] = ''
@@ -147,7 +152,8 @@ def process_sample_dir(sample_dir, threshold, loader):
 
 def find_sample_dirs(root_dir):
     """
-    Recursively find all sample directories named amos_xxxx*.
+    Recursively find all sample directories in VerSe dataset structure.
+    Root -> VerSe* -> train/val/test -> sample directories
     
     Args:
         root_dir (Path): Root directory to search
@@ -158,9 +164,16 @@ def find_sample_dirs(root_dir):
     root_path = Path(root_dir)
     sample_dirs = []
 
-    for path in root_path.rglob('amos_*'):
-        if path.is_dir():
-            sample_dirs.append(path)
+    # Find all VerSe* directories
+    verse_dirs = [d for d in root_path.iterdir() if d.is_dir() and d.name.startswith('VerSe')]
+    
+    for verse_dir in verse_dirs:
+        # Find train/val/test subdirectories
+        subset_dirs = [d for d in verse_dir.iterdir() if d.is_dir() and d.name in ['train', 'val', 'test']]
+        
+        for subset_dir in subset_dirs:
+            # Find all sample directories in the subset
+            sample_dirs.extend([d for d in subset_dir.iterdir() if d.is_dir()])
 
     return sorted(sample_dirs)
 
@@ -187,6 +200,7 @@ def process_root_dir(root_dir, threshold, output_manifest):
         return
 
     print(f"Found {len(sample_dirs)} sample directories")
+    print(f"Volume threshold: {threshold} mm³\n")
 
     loader = LoadImage(image_only=False, dtype=None)
     all_records = []
@@ -198,9 +212,8 @@ def process_root_dir(root_dir, threshold, output_manifest):
     if all_records:
         df = pd.DataFrame(all_records)
 
-        df['sample_num'] = df['ID'].str.extract(r'amos_(\d{4})').astype(int)
-        df = df.sort_values(by='sample_num', ascending=True)
-        df = df.drop(columns=['sample_num'])
+        # Sort records by ID
+        df = df.sort_values(by='ID', ascending=True)
 
         output_path = Path(output_manifest)
         output_path.parent.mkdir(parents=True, exist_ok=True)

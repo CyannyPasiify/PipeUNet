@@ -104,27 +104,27 @@ Routine 03 recursively scans all sample directories within the `root_dir/grouped
 python 04_extract_binary_masks.py --root_dir root_dir/grouped --label_explanation root_dir/descriptor/label_map.yaml
 ```
 
-Routine 03 recursively scans all NIfTI `nii.gz` mask files in the `root_dir/grouped` directory, and splits each multi-label segmentation mask into a set of binary segmentation masks. The label values in the original masks are defined in `label_map.yaml` as follows: 
+Routine 04 recursively scans all NIfTI `nii.gz` mask files in the `root_dir/grouped` directory, and splits each multi-label segmentation mask into a set of binary segmentation masks. The label values in the original masks are defined in `label_map.yaml` as follows: 
 
-> Format: `{label_name}` = `{label_index}`
+> Format: `{label_index}` = `{label_name}`
 
-- background = 0
-- spleen = 1
-- right kidney = 2
-- left kidney = 3
-- gall bladder = 4
-- esophagus = 5
-- liver = 6
-- stomach = 7
-- aorta = 8
-- postcava = 9
-- pancreas = 10
-- right adrenal gland = 11
-- left adrenal gland = 12
-- duodenum = 13
-- bladder = 14
-- prostate = 15
-- uterus = 16
+- 0 = background
+- 1 = spleen
+- 2 = right kidney
+- 3 = left kidney
+- 4 = gall bladder
+- 5 = esophagus
+- 6 = liver
+- 7 = stomach
+- 8 = aorta
+- 9 = postcava
+- 10 = pancreas
+- 11 = right adrenal gland
+- 12 = left adrenal gland
+- 13 = duodenum
+- 14 = bladder
+- 15 = prostate
+- 16 = uterus
 
 These binary masks are then saved in the same subdirectory as the original mask file, with the respective suffixes `{label_index:02d}_{label_name.replace(' ', '_')}` appended to the filenames.
 
@@ -197,7 +197,7 @@ Morphological opening and closing operations are executed using a 5×5 all-ones 
 $$
 \operatorname{Optimize} \left(mask_i\right) = SC^i_{res} \odot mask_i + SC^i_{m+} \odot \operatorname{Open_{5×5}} \left(mask_i\right) + SC^i_{m-} \odot \operatorname{Close_{5×5}} \left(mask_i\right)
 $$
-Label index sequence across the 17 labels for each individual voxel at spatial position $(x,y,z)$ :
+Label index sequence across the 17 labels for each individual voxel at spatial position (x,y,z):
 $$
 \operatorname{Idx} \left(x,y,z\right) = \left[mask_0\left(x,y,z\right),mask_1\left(x,y,z\right),...,mask_{16}\left(x,y,z\right)\right]
 $$
@@ -216,7 +216,7 @@ mask\left(x,y,z\right) = \begin{cases}
    \end{cases}
 $$
 
-**Note** that this segmentation mask rectification procedure is not **PERFECT**, which may erroneously fill bona fide holes and remove valid isolated regions, as no single algorithm can comprehensively address all labeling artifacts. Nevertheless, this correction procedure reduced the total number of small 3D connected regions (< 100 mm³) from 1297 to 243 (indicated by `root_dir/descriptor/small_connected_region_100_manifest.xlsx` above and `root_dir/descriptor/small_connected_region_100_after_modification_manifest.xlsx` below) — a substantial improvement that indicates the remediation of extensive labeling errors and omissions in the original masks.
+**Note** that this segmentation mask rectification procedure is not **PERFECT**, which may erroneously fill bona fide holes and remove valid isolated regions, as no single algorithm can comprehensively address all labeling artifacts. Nevertheless, this correction procedure reduced the total number of small 3D connected regions (< 100 mm³) from 8768 to 443 (indicated by `root_dir/descriptor/small_connected_region_100_manifest.xlsx` above and `root_dir/descriptor/small_connected_region_100_after_modification_manifest.xlsx` below) — a substantial improvement that indicates the remediation of extensive labeling errors and omissions in the original masks.
 
 ```sh
 python utils/small_connected_region_detect.py --root_dir root_dir/grouped --region_volume_thresh 100.0 --output_manifest root_dir/descriptor/small_connected_region_100_after_modification_manifest.xlsx
@@ -230,7 +230,7 @@ You may re-run `utils/small_connected_region_detect.py` with a threshold of **10
 python 05_gen_dataset_manifest.py --root_dir root_dir/grouped --output_manifest_file root_dir/grouped/dataset_manifest.xlsx
 ```
 
-Routine 05 recursively scans all NIfTI `.nii.gz` files in the `root_dir/grouped` directory. For each sample in the subdirectories, it collates the corresponding volume file, multi-label mask file and individual binary mask files, then generates a manifest file named `dataset_manifest.xlsx` that indexes all files pertaining to each individual sample. Note that samples sourced from the test set contain only a volume file (no corresponding mask files).
+Routine 05 recursively scans all NIfTI `nii.gz` files in the `root_dir/grouped` directory. For each sample in the subdirectories, it collates the corresponding volume file, multi-label mask file and individual binary mask files, then generates a manifest file named `dataset_manifest.xlsx` that indexes all files pertaining to each individual sample. Note that samples sourced from the test set contain only a volume file (no corresponding mask files).
 
 This routine raises an error if inconsistencies are detected in the **spatial size, affine transformation matrix, voxel spacing, or origin coordinates** across all NIfTI files for a single sample. An error is also raised if the data types of all mask NIfTI files associated with the same sample are mismatched.
 
@@ -244,33 +244,62 @@ The AMOS22 dataset can be further partitioned into two standalone sub-datasets: 
 Sample files for the whole AMOS22 dataset, as well as the AMOS-CT and AMOS-MRI sub-datasets, are documented in dedicated manifest files (named with the format `dataset_manifest*.xlsx`) under their respective root directories. Each manifest file contains a primary worksheet titled **Manifest**, with the following attributes included:
 
 - `ID`: Sample identifier, formatted as `amos_{seq}` (e.g., `amos_0001`).
+
 - `seq`: AMOS unique identifier, represented as a 4-digit numerical value (e.g., 0001).
+
 - `sex`: Patient's biological sex (M = Male, F = Female).
+
 - `subset`: Dataset split label (`train`, `val`, or `test`), consistent with the split definitions recorded in `dataset.json`.
+
 - `manufacturer_model_name`: Scanner model used for the examination (e.g., `Brilliance16`, `Aquilion ONE`).
+
 - `manufacturer`: Manufacturer of the scanning equipment (e.g., `Philips`, `TOSHIBA`, `SIEMENS`).
+
 - `birth_date`: Patient's date of birth, formatted as `YYYYMMDD`.
+
 - `age`: Patient's age at the time of examination, formatted as a 3-digit number followed by **Y** (e.g., `062Y`), or marked as `UND` (undefined).
+
 - `acquisition_date`: Date of examination acquisition, formatted as `YYYYMMDD`.
+
 - `site`: Clinical site where the examination was acquired.
+
 - `valid_labels`: All label indexes the mask contains.
+
 - `info`: Sample information YAML file path relative to `root_dir`.
+
 - `volume`: Volume NIfTI `nii.gz` file path relative to `root_dir`.
+
 - `mask`: Multi-label mask NIfTI `nii.gz` file path relative to `root_dir`.
+
 - `mask_{label_index}_{label_name}`: NIfTI `nii.gz` file path relative to `root_dir`, representing binary mask with `label_index` `label_name`.
+
+- `mask_{label_index}_{label_name}_existence`: Existence status of the corresponding ROI. Value definition: `0` = no such ROI present in the mask, `1` = ROI present, `<empty>` = mask file is unavailable.
+
 - `szx`: Volume size of X dimension for all NIfTI files associated with this sample.
+
 - `szy`: Volume size of Y dimension for all NIfTI files associated with this sample.
+
 - `szz`: Volume size of Z dimension for all NIfTI files associated with this sample.
-- `spx`: Spacing of X dimension for all NIfTI files associated with this sample.
-- `spy`: Spacing of Y dimension for all NIfTI files associated with this sample.
-- `spz`: Spacing of Z dimension for all NIfTI files associated with this sample.
-- `orientation_from`: Orientation code for all NIfTI files associated with this sample from the start side under L-R P-A I-S system, e.g., RAI.
-- `orientation_to`: Orientation code for all NIfTI files associated with this sample from the end side under L-R P-A I-S system, e.g., LPS.
-- `orientation_from`: Orientation code for the start side of all NIfTI files associated with this sample, defined under the L-R (Left-Right) / P-A (Posterior-Anterior) / I-S (Inferior-Superior) coordinate system, may be oblique (e.g., `RPI`, `Oblique(closest to LPI)`).
-- `orientation_to`: Orientation code for the end side of all NIfTI files associated with this sample, defined under the L-R / P-A / I-S coordinate system, may be oblique (e.g., `LAS`, `Oblique(closest to RAS)`).
-- `vol_dtype`: Data type of the elements within the volume NIfTI file, e.g., float32.
-- `mask_dtype`: Data type of the elements within all mask NIfTI files associated with this sample, e.g., uint8.
-- `transform`: 4×4 affine transformation matrix of the NIfTI file.
+
+- `spx`: Spacing (unit: mm) of X dimension for all NIfTI files associated with this sample.
+
+- `spy`: Spacing (unit: mm) of Y dimension for all NIfTI files associated with this sample.
+
+- `spz`: Spacing (unit: mm) of Z dimension for all NIfTI files associated with this sample.
+
+- `orientation_from`: Orientation code for all NIfTI files associated with this sample from the start side, defined under the L-R (Left-Right) / P-A (Posterior-Anterior) / I-S (Inferior-Superior) coordinate system, may be oblique (e.g., `RPI`, `Oblique(closest to LPI)`).
+
+- `orientation_to`: Orientation code for all NIfTI files associated with this sample from the start side, defined under the L-R / P-A / I-S coordinate system, may be oblique (e.g., `LAS`, `Oblique(closest to RAS)`).
+
+- `vol_dtype`: Data type of the elements within the volume NIfTI file (e.g., `float32`).
+
+  > Note: The data type of volumes is standardized to `float32` for all samples in `grouped`.
+
+- `mask_dtype`: Data type of the elements within all mask NIfTI files associated with this sample (e.g., `uint8`).
+
+  > Note: The data type of multi-label masks and binary masks is standardized to `uint8` for all samples in `grouped`.
+
+- `transform`: Affine transformation matrix (4×4) for all NIfTI files associated with this sample.
 
 ### 7️⃣Split dataset and derive worksheet in dataset manifest: Run routine 06
 
