@@ -25,6 +25,7 @@ Parameters:
     -p, --phase: List of phases to process (default: ['pre', 'post'])
     -mt, --mask_type: List of mask types to process (default: [''])
     -rt, --radiomics_type: Radiomics type suffix for directory name (default: '')
+    -srt, --small_region_thresh: Threshold for removing small connected regions (default: 10 voxels)
     --skip_existing: Skip processing if output habitat directory already exists and contains files
 
 Usage Examples:
@@ -32,6 +33,7 @@ Usage Examples:
     python 06_split_habitat.py --model_parameter 5_means_anchors.yaml --root_dir /path/to/root --phase pre --mask_type "" "peritumor"
     python 06_split_habitat.py --model_parameter 5_means_anchors.yaml --root_dir /path/to/root --skip_existing
     python 06_split_habitat.py --model_parameter 5_means_anchors.yaml --root_dir /path/to/root --phase pre --mask_type "" --radiomics_type custom
+    python 06_split_habitat.py --model_parameter 5_means_anchors.yaml --root_dir /path/to/root --small_region_thresh 10
 """
 
 import argparse
@@ -43,6 +45,7 @@ from typing import List, Tuple, Dict, Optional, Pattern
 from tqdm import tqdm
 from sklearn.cluster import KMeans
 from monai.transforms import LoadImage, SaveImage
+from scipy.ndimage import label
 
 
 def parse_args() -> argparse.Namespace:
@@ -98,6 +101,13 @@ Examples:
         type=str,
         default='',
         help='Radiomics type suffix for directory name (default: \'\')'
+    )
+
+    parser.add_argument(
+        '-srt', '--small_region_thresh',
+        type=int,
+        default=10,
+        help='Threshold for removing small connected regions (default: 10 voxels)'
     )
 
     parser.add_argument(
@@ -165,6 +175,42 @@ def load_kmeans_model(model_path: str) -> KMeans:
     kmeans.inertia_ = 0.0  # Initialize inertia
 
     return kmeans
+
+
+def remove_small_regions(habitat_map: np.ndarray, threshold: int) -> np.ndarray:
+    """
+    Remove small connected regions from a habitat map.
+    
+    Args:
+        habitat_map: Habitat map array
+        threshold: Minimum number of voxels for a region to be kept
+        
+    Returns:
+        np.ndarray: Habitat map with small regions removed
+    """
+    # Create a copy of the habitat map
+    cleaned_map = habitat_map.copy()
+    
+    # Get unique labels (excluding 0 which is background)
+    unique_labels = np.unique(habitat_map)
+    unique_labels = unique_labels[unique_labels > 0]
+    
+    # Process each label separately
+    for label in unique_labels:
+        # Create binary mask for current label
+        label_mask = (habitat_map == label).astype(np.uint8)
+        
+        # Label connected regions in the binary mask
+        labeled_mask, num_regions = label(label_mask)
+        
+        # Remove small regions
+        for i in range(1, num_regions + 1):
+            region = (labeled_mask == i)
+            if np.sum(region) < threshold:
+                cleaned_map[region] = 0
+                print(f"Removed small region {i} with {np.sum(region)} voxels for label {label}")
+    
+    return cleaned_map
 
 
 def load_sample_features(sample_dir: Path, phase: str, mask_type: str, radiomics_type: str = '') -> Tuple[
@@ -245,7 +291,7 @@ def load_sample_features(sample_dir: Path, phase: str, mask_type: str, radiomics
 
 
 def generate_habitat_map(kmeans: KMeans, features: np.ndarray, binary_mask: np.ndarray, mask_meta: Dict,
-                         output_path: Path) -> np.ndarray:
+                         output_path: Path, small_region_thresh: int = 10) -> np.ndarray:
     """
     Generate and save a habitat map using a pre-trained K-Means model.
     
@@ -255,6 +301,7 @@ def generate_habitat_map(kmeans: KMeans, features: np.ndarray, binary_mask: np.n
         binary_mask: Binary mask array indicating foreground voxels
         mask_meta: Metadata from the mask file
         output_path: Path to save the habitat map
+        small_region_thresh: Threshold for removing small connected regions
         
     Returns:
         np.ndarray: Generated habitat map as uint8 array
@@ -287,6 +334,11 @@ def generate_habitat_map(kmeans: KMeans, features: np.ndarray, binary_mask: np.n
     # Reshape back to original image shape
     habitat_map: np.ndarray = habitat_map.reshape(x_dim, y_dim, z_dim)
 
+    # Remove small connected regions
+    if small_region_thresh > 0:
+        habitat_map = remove_small_regions(habitat_map, small_region_thresh)
+        print(f"Removed small connected regions with threshold: {small_region_thresh}")
+
     # Save habitat map using MONAI's SaveImage
     save_image = SaveImage(
         output_dir=str(output_path.parent),
@@ -305,7 +357,7 @@ def generate_habitat_map(kmeans: KMeans, features: np.ndarray, binary_mask: np.n
 
 
 def process_mask_type(root_dir: Path, mask_type: str, phases: List[str], kmeans: KMeans,
-                      radiomics_type: str = '', skip_existing: bool = False) -> None:
+                      radiomics_type: str = '', skip_existing: bool = False, small_region_thresh: int = 10) -> None:
     """
     Process all samples for a specific mask type.
     
@@ -316,6 +368,7 @@ def process_mask_type(root_dir: Path, mask_type: str, phases: List[str], kmeans:
         kmeans: Pre-trained K-Means model
         radiomics_type: Radiomics type suffix
         skip_existing: Skip processing if output habitat directory already exists and contains files
+        small_region_thresh: Threshold for removing small connected regions
     """
     print(f"Processing mask type: '{mask_type}'")
 
@@ -327,6 +380,9 @@ def process_mask_type(root_dir: Path, mask_type: str, phases: List[str], kmeans:
         for sample_dir in sample_dirs:
             for phase in phases:
                 try:
+                    # Update progress bar description with current sample and phase
+                    pbar.set_description(f"Processing: {sample_dir.name} ({phase})")
+                    
                     # Create output directory and filenames according to new format
                     base_name: str = sample_dir.name
                     n_clusters: int = kmeans.n_clusters
@@ -376,7 +432,7 @@ def process_mask_type(root_dir: Path, mask_type: str, phases: List[str], kmeans:
                     features, binary_mask, mask_meta = load_sample_features(sample_dir, phase, mask_type, radiomics_type)
                     
                     # Generate and save combined habitat map
-                    habitat_map: np.ndarray = generate_habitat_map(kmeans, features, binary_mask, mask_meta, comb_output_path)
+                    habitat_map: np.ndarray = generate_habitat_map(kmeans, features, binary_mask, mask_meta, comb_output_path, small_region_thresh)
                     
                     # Export binary masks for each label (excluding 0)
                     unique_labels: np.ndarray = np.arange(1, n_clusters + 1)
@@ -424,6 +480,7 @@ def main() -> None:
     print(f"Mask types: {args.mask_type}")
     print(f"Phases: {args.phase}")
     print(f"Radiomics type: '{args.radiomics_type}'")
+    print(f"Small region threshold: {args.small_region_thresh} voxels")
 
     # Load K-Means model
     print("\nLoading K-Means model...")
@@ -433,7 +490,7 @@ def main() -> None:
     # Process each mask type
     print("\nStarting habitat classification...")
     for mask_type in args.mask_type:
-        process_mask_type(Path(args.root_dir), mask_type, args.phase, kmeans, args.radiomics_type, args.skip_existing)
+        process_mask_type(Path(args.root_dir), mask_type, args.phase, kmeans, args.radiomics_type, args.skip_existing, args.small_region_thresh)
 
     print("\nHabitat classification completed successfully!")
 

@@ -20,14 +20,14 @@ Parameters:
     -p, --peri_expand_range: List of peritumor expansion distances in millimeters (default: [3.0, 5.0, 7.0])
     -m, --mask_type: List of mask types to process (default: [''])
     -v, --volume_type: List of volume types to process (default: [''])
-    -vr, --valid_value_range: Valid intensity value range [min, max] (default: [-140, 1000])
+    -vr, --valid_value_range: Valid intensity value range [min, max] (default: [-140, 3000])
     -st, --small_thresh: Threshold for removing small connected regions (default: 10 voxels)
     --skip_existing: Skip processing if peritumor files already exist
 
 Usage Examples:
     python 02_extract_peritumor.py -r /path/to/root
     python 02_extract_peritumor.py --root_dir /path/to/root --peri_expand_range 3.0 5.0 7.0
-    python 02_extract_peritumor.py -r /path/to/root --valid_value_range -140 1000 --small_thresh 10
+    python 02_extract_peritumor.py -r /path/to/root --valid_value_range -140 3000 --small_thresh 10
     python 02_extract_peritumor.py -r /path/to/root --skip_existing
     python 02_extract_peritumor.py -r /path/to/root --mask_type '' 'std_resampled' --volume_type '' 'std_resampled'
 """
@@ -57,7 +57,7 @@ def parse_args() -> argparse.Namespace:
 Examples:
   %(prog)s -r /path/to/root
   %(prog)s --root_dir /path/to/root --peri_expand_range 3.0 5.0 7.0 --mask_type '' 'std_resampled'
-  %(prog)s -r /path/to/root --valid_value_range -140 1000 --small_thresh 10
+  %(prog)s -r /path/to/root --valid_value_range -140 3000 --small_thresh 10
   %(prog)s -r /path/to/root --skip_existing
         """)
     
@@ -96,8 +96,8 @@ Examples:
         '-vr', '--valid_value_range',
         type=float,
         nargs=2,
-        default=[-140, 1000],
-        help='Valid intensity value range [min, max] (default: [-140, 1000])'
+        default=[-140, 3000],
+        help='Valid intensity value range [min, max] (default: [-140, 3000])'
     )
     
     parser.add_argument(
@@ -238,6 +238,39 @@ def remove_small_regions(mask: np.ndarray, threshold: int) -> np.ndarray:
     return result
 
 
+def keep_largest_connected_component(mask: np.ndarray) -> np.ndarray:
+    """
+    Keep only the largest connected component in a binary mask.
+    
+    Args:
+        mask: Binary mask array
+        
+    Returns:
+        np.ndarray: Mask with only the largest connected component
+    """
+    # Label connected regions
+    labeled_mask, num_regions = label(mask)
+    
+    if num_regions == 0:
+        return np.zeros_like(mask, dtype=np.uint8)
+    
+    # Find the largest connected component
+    largest_size = 0
+    largest_component = 0
+    
+    for i in range(1, num_regions + 1):
+        region_size = np.sum(labeled_mask == i)
+        if region_size > largest_size:
+            largest_size = region_size
+            largest_component = i
+    
+    # Create mask with only the largest component
+    result = np.zeros_like(mask, dtype=np.uint8)
+    result[labeled_mask == largest_component] = 1
+    
+    return result
+
+
 def extract_peritumor_region(mask_path: Path, volume_path: Optional[Path], expand_distance: float, valid_range: Tuple[float, float], small_thresh: int) -> np.ndarray:
     """
     Extract peritumor region by expanding the foreground boundary and subtracting the original foreground.
@@ -299,20 +332,27 @@ def extract_peritumor_region(mask_path: Path, volume_path: Optional[Path], expan
     # Dilate the filled mask
     dilated_mask: np.ndarray = binary_dilation(filled_mask, structure=structuring_element)
     
-    # Subtract the original mask to get peritumor region
-    peritumor_mask: np.ndarray = dilated_mask - filled_mask
-    
     # Convert to uint8
-    peritumor_mask: np.ndarray = peritumor_mask.astype(np.uint8)
+    dilated_mask: np.ndarray = dilated_mask.astype(np.uint8)
     
-    # Load the volume file to get intensity values
+    # Load the volume file to get intensity values and perform threshold suppression
     if volume_path and volume_path.exists():
         image_data: np.ndarray
         image_data, _ = load_image(str(volume_path))
         
-        # Filter by intensity values
-        peritumor_mask = filter_by_intensity(image_data, peritumor_mask, valid_range)
-        
+        # Filter by intensity values (threshold suppression)
+        dilated_mask = filter_by_intensity(image_data, dilated_mask, valid_range)
+    
+    # Keep only the largest connected component
+    dilated_mask = keep_largest_connected_component(dilated_mask)
+    
+    # Subtract the original filled mask to get peritumor region
+    peritumor_mask: np.ndarray = (dilated_mask.astype(bool)
+                                  & np.logical_not(filled_mask.astype(bool))).astype(np.uint8)
+    
+    # Convert to uint8
+    peritumor_mask: np.ndarray = peritumor_mask.astype(np.uint8)
+    
     # Remove small connected regions
     peritumor_mask = remove_small_regions(peritumor_mask, small_thresh)
     
