@@ -22,9 +22,9 @@ Parameters:
     --skip_existing: Skip processing if resampled output files already exist
 
 Usage Examples:
-    python 03_resample_samples.py -r /path/to/root
-    python 03_resample_samples.py --root_dir /path/to/root --respacing 1.0 1.0 1.0 --thresh -140.0 1000.0
-    python 03_resample_samples.py -r /path/to/root --skip_existing
+    python 02_resample_samples.py -r /path/to/root
+    python 02_resample_samples.py --root_dir /path/to/root --respacing 1.0 1.0 1.0 --thresh -140.0 1000.0
+    python 02_resample_samples.py -r /path/to/root --skip_existing
 """
 
 import argparse

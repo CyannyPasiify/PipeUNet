@@ -25,11 +25,11 @@ Parameters:
     --skip_existing: Skip processing if peritumor files already exist
 
 Usage Examples:
-    python 02_extract_peritumor.py -r /path/to/root
-    python 02_extract_peritumor.py --root_dir /path/to/root --peri_expand_range 3.0 5.0 7.0
-    python 02_extract_peritumor.py -r /path/to/root --valid_value_range -140 3000 --small_thresh 10
-    python 02_extract_peritumor.py -r /path/to/root --skip_existing
-    python 02_extract_peritumor.py -r /path/to/root --mask_type '' 'std_resampled' --volume_type '' 'std_resampled'
+    python 03_extract_peritumor.py -r /path/to/root
+    python 03_extract_peritumor.py --root_dir /path/to/root --peri_expand_range 3.0 5.0 7.0
+    python 03_extract_peritumor.py -r /path/to/root --valid_value_range -140 3000 --small_thresh 10
+    python 03_extract_peritumor.py -r /path/to/root --skip_existing
+    python 03_extract_peritumor.py -r /path/to/root --mask_type '' 'std_resampled' --volume_type '' 'std_resampled'
 """
 
 import argparse

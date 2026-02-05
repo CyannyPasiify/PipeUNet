@@ -21,7 +21,7 @@ Parameters:
     -k, --k_cluster: Range of k values to try (default: [2, 12])
     -it, --iter: Number of iterations (default: 300)
     -o, --output_model_dir: Directory to save K-Means model parameters
-    -g, --gpu: GPU device ID to use for cuML (default: None, uses default GPU)
+    -g, --gpu: GPU device ID to use for cuML (default: None, uses CPU)
     -sp, --select_prob: Probability to select each voxel as KMeans sample (default: 0.05 = 5%)
 
 Usage Examples:
@@ -127,7 +127,7 @@ Examples:
         '-g', '--gpu',
         type=int,
         default=None,
-        help='GPU device ID to use for cuML (default: None, uses default GPU)'
+        help='GPU device ID to use for cuML (default: None, uses CPU)'
     )
 
     parser.add_argument(

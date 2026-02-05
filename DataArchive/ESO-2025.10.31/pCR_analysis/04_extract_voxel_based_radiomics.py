@@ -237,10 +237,9 @@ def extract_voxel_based_radiomics(image_path: Path, mask_path: Path, config_path
             # Place the bounding box region back into the full array
             # Use kernelRadius from config for expansion
             full_feature_array[
-                x_min - kernel_radius:x_max + 1 + kernel_radius,
-                y_min - kernel_radius:y_max + 1 + kernel_radius,
-                z_min - kernel_radius:z_max + 1 + kernel_radius] = bb_feature_array
-
+                max(0, x_min - kernel_radius):min(full_shape[0], x_max + 1 + kernel_radius),
+                max(0, y_min - kernel_radius):min(full_shape[1], y_max + 1 + kernel_radius),
+                max(0, z_min - kernel_radius):min(full_shape[2], z_max + 1 + kernel_radius)] = bb_feature_array
             feature_maps[key] = full_feature_array
 
     return feature_maps

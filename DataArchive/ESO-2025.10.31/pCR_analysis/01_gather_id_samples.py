@@ -3,13 +3,13 @@
 """
 接收-r/--root_dir指定根目录，-m/--manifest_file指定的Excel清单文件路径，-s/--sheet_name指定工作表名称（默认Manifest）。-o/--output_dir指定输出根目录。工作表中包含以下关键信息列： 
  ID：记录文件所属样本的ID（{site}_{pid}_{phase}）。 
-    site：记录样本的中心编号 str。 
-    phase：记录样本的时期，pre/post。 
-    pid：记录样本受试者编号 str。 
-    valid_labels：记录不为空的二值蒙版对应的标签列表，每个标签按照{label_index}_{label_name}格式记录，逗号','分隔。 
-    info：记录元信息文件的路径，相对于数据集根，使用POSIX路径连接符。 
-    volume：记录图像文件的路径，相对于数据集根，使用POSIX路径连接符。 
-    mask：记录蒙版文件的路径，相对于数据集根，使用POSIX路径连接符。 
+ site：记录样本的中心编号 str。
+ phase：记录样本的时期，pre/post。
+ pid：记录样本受试者编号 str。
+ valid_labels：记录不为空的二值蒙版对应的标签列表，每个标签按照{label_index}_{label_name}格式记录，逗号','分隔。
+ info：记录元信息文件的路径，相对于数据集根，使用POSIX路径连接符。
+ volume：记录图像文件的路径，相对于数据集根，使用POSIX路径连接符。
+ mask：记录蒙版文件的路径，相对于数据集根，使用POSIX路径连接符。
  按照site和pid分组，检查每组内是否分别包含phase为pre和post的2个表项，如果不符合则在控制台报告异常。 
  对检查通过的组，在-o输出根目录下创建{site}/{site}_{pid}样本目录。提取2个表项的共同属性[site,pid]，以及各自的[info,volume,mask]属性，读取2个info YAML文件的内容，保留其中值相等的属性并输出到新样本目录，文件名为{site}_{pid}_info.yaml。2个表项对应的volume,mask相对路径对应的文件直接拷贝到新样本目录，文件名不变。 
   对全部变量和函数参数添加类型注解。 
