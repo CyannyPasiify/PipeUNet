@@ -146,7 +146,10 @@ def find_sample_dirs(root_dir: str) -> List[Path]:
         if site_dir.is_dir():
             for sample_dir in site_dir.iterdir():
                 if sample_dir.is_dir() and re.match(r'^[^_]+_[^_]+$', sample_dir.name):
-                    sample_dirs.append(sample_dir)
+                    # Check if the directory contains {site}_{pid}_info.yaml file
+                    info_file: Path = sample_dir / f"{sample_dir.name}_info.yaml"
+                    if info_file.exists():
+                        sample_dirs.append(sample_dir)
 
     return sorted(sample_dirs)
 

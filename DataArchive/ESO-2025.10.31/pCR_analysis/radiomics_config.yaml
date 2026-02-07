@@ -21,4 +21,3 @@ setting:
   voxelArrayShift: 0
   resampledPixelSpacing:
   binWidth: 10
-  # voxelBatch: 5000

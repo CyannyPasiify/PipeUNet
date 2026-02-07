@@ -8,7 +8,6 @@ testing两个子目录，-o/--output_dir指定导出目录，然后创建train�
 SaveImage按照patientxxx_frameyy_volume.nii.gz形式保存图像文件，按照patientxxx_frameyy_mask.nii.gz形式保存蒙
 版文件。如果遇到无法匹配的图像或蒙版，以及图像和蒙版规格不一致的情况，则在控制台报告问题，并跳过此文件。
 """
-import pathlib
 
 """
 Data Pair Confirmation and Reorganization Script for ACDC Dataset
@@ -28,7 +27,6 @@ Usage Examples:
 import re
 import yaml
 import argparse
-import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 from monai.transforms import LoadImage, SaveImage
@@ -37,7 +35,7 @@ from monai.transforms import LoadImage, SaveImage
 def parse_args():
     """
     Parse command line arguments using argparse.
-    
+
     Returns:
         argparse.Namespace: Parsed arguments containing root_dir and output_dir
     """
@@ -71,10 +69,10 @@ Examples:
 def find_image_mask_pairs(patient_dir):
     """
     Find matching image and mask file pairs in a patient directory.
-    
+
     Args:
         patient_dir (Path): Path to the patient directory
-        
+
     Returns:
         tuple: (matched_pairs, unmatched_images, unmatched_masks)
             - matched_pairs: List of tuples (image_path, mask_path, frame_id)
@@ -125,11 +123,11 @@ def find_image_mask_pairs(patient_dir):
 def check_metadata_consistency(image_meta, mask_meta):
     """
     Check if image and mask metadata are consistent.
-    
+
     Args:
         image_meta (dict): Image metadata dictionary
         mask_meta (dict): Mask metadata dictionary
-        
+
     Returns:
         bool: True if metadata is consistent, False otherwise
     """
@@ -151,11 +149,11 @@ def check_metadata_consistency(image_meta, mask_meta):
 def copy_metadata_to_mask(image_meta, mask_data):
     """
     Copy image metadata to mask to ensure consistency.
-    
+
     Args:
         image_meta (dict): Image metadata dictionary
         mask_data: Mask image data array
-        
+
     Returns:
         tuple: (mask_data_with_meta, updated_meta)
     """
@@ -167,10 +165,10 @@ def copy_metadata_to_mask(image_meta, mask_data):
 def parse_info_cfg(info_cfg_path):
     """
     Parse Info.cfg file to extract patient information.
-    
+
     Args:
         info_cfg_path (str or Path): Path to the Info.cfg file
-        
+
     Returns:
         dict: Dictionary containing ED, ES, Group, Height, NbFrame, Weight information
     """
@@ -182,19 +180,19 @@ def parse_info_cfg(info_cfg_path):
         'NbFrame': None,
         'Weight': None
     }
-    
+
     try:
         with open(info_cfg_path, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
                     continue
-                
+
                 if ':' in line:
                     key, value = line.split(':', 1)
                     key = key.strip()
                     value = value.strip().split('#')[0].strip()
-                    
+
                     if key in info:
                         if key in ['Height', 'Weight']:
                             try:
@@ -210,19 +208,19 @@ def parse_info_cfg(info_cfg_path):
                             info[key] = value
     except Exception as e:
         pass
-    
+
     return info
 
 
 def determine_phase(frame_id, ed, es):
     """
     Determine the cardiac phase (ED/ES/UND) based on frame number.
-    
+
     Args:
         frame_id (str): Frame number as string
         ed (int): End Diastolic frame number
         es (int): End Systolic frame number
-        
+
     Returns:
         str: 'ED', 'ES', or 'UND' based on frame number
     """
@@ -241,7 +239,7 @@ def determine_phase(frame_id, ed, es):
 def process_pairs(root_dir, output_dir):
     """
     Process all image-mask pairs and reorganize them into the output directory.
-    
+
     Args:
         root_dir (str or Path): Root directory containing training and testing subdirectories
         output_dir (str or Path): Output directory for reorganized data
@@ -287,7 +285,7 @@ def process_pairs(root_dir, output_dir):
             for image_path, mask_path, frame_id in matched_pairs:
                 phase = determine_phase(frame_id, patient_info['ED'], patient_info['ES'])
                 group = patient_info['Group'] if patient_info['Group'] else 'Unknown'
-                
+
                 pair_dir = output_subdir / f'patient{patient_id}_frame{frame_id}_{phase}_{group}'
                 pair_dir.mkdir(parents=True, exist_ok=True)
 
@@ -302,8 +300,8 @@ def process_pairs(root_dir, output_dir):
                         mask_data, mask_meta = copy_metadata_to_mask(image_meta, mask_data)
                         total_issues += 1
 
-                    volume_filestem: pathlib.Path = pair_dir / f'patient{patient_id}_frame{frame_id}_volume'
-                    mask_filestem: pathlib.Path = pair_dir / f'patient{patient_id}_frame{frame_id}_mask'
+                    volume_filestem: Path = pair_dir / f'patient{patient_id}_frame{frame_id}_volume'
+                    mask_filestem: Path = pair_dir / f'patient{patient_id}_frame{frame_id}_mask'
 
                     saver_image = SaveImage(output_dir=str(pair_dir), output_postfix='', output_dtype=np.float32)
                     saver_mask = SaveImage(output_dir=str(pair_dir), output_postfix='', output_dtype=np.uint8)
