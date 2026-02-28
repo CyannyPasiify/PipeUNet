@@ -82,7 +82,7 @@ from Dataset.ds_pipe import DatasetManifestWithLabelSequential, DatasetManifestN
 
 # 定义预处理和增强管线
 from Preprocess.preproc_pipe import DataPreprocessingPipeline
-from Augmentation.aug_pipe import DataAugmentationPipeline
+from Transform.aug_pipe import DataAugmentationPipeline
 
 class EsophagusDataModule(L.LightningDataModule):
     """
