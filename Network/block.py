@@ -29,7 +29,7 @@ NLActType = Type[Union[
 class ConvNormAct(nn.Module):
     def __init__(
             self,
-            conv_layer: Type[nn.Conv3d, nn.ConvTranspose3d],
+            conv_layer: Type[Union[nn.Conv3d, nn.ConvTranspose3d]],
             norm_layer: NormLayerType,
             act_layer: NLActType,
             conv_layer_kwargs: Dict[str, Any],
