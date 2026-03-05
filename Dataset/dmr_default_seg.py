@@ -42,8 +42,8 @@ class DatasetManifestRetrieverSegmentationDefault:
                     self._column_group_inv_map[key].add(group)
 
         # manifest: {
-        #   'volume': ['modality_0.nii.gz', 'modality_1.nii.gz', 'modality_2.nii.gz'],
-        #   'mask': ['label_0.nii.gz', 'label_1.nii.gz', 'label_2.nii.gz']
+        #   'volume': ['modality_0.nii.gz', 'modality_1.nii.gz', 'modality_2.nii.gz', ...],
+        #   'mask': ['label_0.nii.gz', 'label_1.nii.gz', 'label_2.nii.gz', ...]
         # }
         self.manifest: List[Dict[str, Any]] = self._load_and_validate_manifest()
 

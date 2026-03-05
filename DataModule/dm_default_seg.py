@@ -393,7 +393,7 @@ if __name__ == "__main__":
         },
         batch_size=3,
         shuffle=False,
-        num_workers=0,
+        num_workers=4,
         pin_memory=True,
         drop_last=False,
         persistent_workers=False,
