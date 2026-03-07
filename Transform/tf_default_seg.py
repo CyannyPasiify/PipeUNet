@@ -1,4 +1,21 @@
 # -*- coding: utf-8 -*-
+"""
+Default Segmentation Transform Module
+
+This module provides default transform pipelines for segmentation tasks using MONAI.
+
+Classes:
+    TransformSegmentationDefaultBase: Base class for segmentation transforms
+    TransformSegmentationDefaultTrain: Transform pipeline for training
+    TransformSegmentationDefaultInferencePre: Transform pipeline for inference preprocessing
+    TransformSegmentationDefaultInferencePost: Transform pipeline for inference postprocessing
+
+Key Features:
+    - Supports volume and mask preprocessing
+    - Provides train-specific augmentations (e.g., random cropping)
+    - Includes inference-specific pre and post processing
+    - Supports random state management for reproducibility
+"""
 import os
 import torch
 import numpy as np
@@ -15,23 +32,52 @@ DtypeLike = Union[np.dtype, type, str, None]
 
 
 class TransformSegmentationDefaultBase(mT.Transform):
+    """
+    Base class for segmentation transforms
+    
+    Provides common functionality for all segmentation transform pipelines
+    """
     def __init__(
             self,
             volume_key: Optional[str],
             mask_key: Optional[str]
     ) -> None:
+        """
+        Initialize the base transform
+        
+        Args:
+            volume_key: Key for volume data in the input dictionary
+            mask_key: Key for mask data in the input dictionary
+        """
         self.volume_key: Optional[str] = volume_key
         self.mask_key: Optional[str] = mask_key
-        self.transform_dict: Dict[str, mT.Transform] = {}
-        self._comp_transform: mT.Compose = mT.Compose()
+        self.transform_dict: Dict[str, mT.Transform] = {}  # Dictionary to store individual transforms
+        # Make a Composed transform with the same functionality as much as possible for convenient use
+        # May not be valid in some cases
+        self._comp_transform: mT.Compose = mT.Compose()  # Composed transform pipeline
 
     def get_composed_transform(self) -> mT.Compose:
+        """
+        Get the composed transform pipeline
+        
+        Returns:
+            Composed transform pipeline
+        """
         return self._comp_transform
 
     def __call__(
             self,
             data: Dict[str, Union[Sequence[PathLike], PathLike]]
     ) -> Union[List[Dict[str, Any]], Dict[str, MetaTensor]]:
+        """
+        Apply the composed transform to the data
+        
+        Args:
+            data: Input data dictionary
+            
+        Returns:
+            Transformed data
+        """
         result_data = self._comp_transform(data)
         return result_data
 
@@ -39,6 +85,15 @@ class TransformSegmentationDefaultBase(mT.Transform):
             self,
             data: Dict[str, Union[Sequence[PathLike], PathLike]]
     ) -> Union[List[Dict[str, Any]], Dict[str, MetaTensor]]:
+        """
+        Execute transforms individually with logging
+        
+        Args:
+            data: Input data dictionary
+            
+        Returns:
+            Transformed data
+        """
         result_data: Dict[str, Any] = data
         for name, transform in self.transform_dict.items():
             if isinstance(result_data, List):
@@ -52,6 +107,12 @@ class TransformSegmentationDefaultBase(mT.Transform):
 
 
 class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
+    """
+    Transform pipeline for training segmentation models
+    
+    Includes a sequence of transforms for data loading, preprocessing, augmentation,
+    and preparation for model training
+    """
     def __init__(
             self,
             volume_key: str = 'volume',
@@ -77,9 +138,37 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
             param_tf_allow_missing_keys: bool = False,
             random_seed: Optional[int] = None
     ) -> None:
+        """
+        Initialize the training transform pipeline
+        
+        Args:
+            volume_key: Key for volume data in the input dictionary
+            mask_key: Key for mask data in the input dictionary
+            param_volume_tf_duplicate_items_dup_keys_volume: Key for duplicated volume data
+            param_mask_tf_duplicate_items_dup_keys_mask: Key for duplicated mask data
+            param_tf_spacing_pixdim: Voxel spacing for resampling
+            param_tf_spacing_mode_volume: Interpolation mode for volume resampling
+            param_tf_spacing_mode_mask: Interpolation mode for mask resampling
+            param_tf_padding_mode_volume: Padding mode for volume resampling
+            param_tf_padding_mode_mask: Padding mode for mask resampling
+            param_tf_spatial_pad_spatial_size: Spatial size for padding
+            param_tf_spatial_pad_mode: Padding mode for spatial padding
+            param_tf_rand_crop_by_label_classes_spatial_size: Spatial size for random cropping
+            param_tf_rand_crop_by_label_classes_ratios: Ratios for class-based cropping
+            param_tf_rand_crop_by_label_classes_num_classes: Number of classes for cropping
+            param_tf_rand_crop_by_label_classes_num_samples: Number of samples to generate
+            param_tf_scale_intensity_range_a_min: Minimum intensity value for scaling
+            param_tf_scale_intensity_range_a_max: Maximum intensity value for scaling
+            param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
+            param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
+            param_tf_scale_intensity_range_clip: Whether to clip intensity values
+            param_tf_allow_missing_keys: Whether to allow missing keys
+            random_seed: Random seed for reproducibility
+        """
         super().__init__(volume_key, mask_key)
         self.random_seed: Optional[int] = random_seed
 
+        # Initialize individual transforms
         self._tf_load_image: mT.LoadImaged = mT.LoadImaged(
             keys=[volume_key, mask_key],
             ensure_channel_first=True,
@@ -125,6 +214,8 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
             dtype=torch.float,
             allow_missing_keys=param_tf_allow_missing_keys
         )
+        
+        # Build transform dictionary
         self.transform_dict: Dict[str, mT.Transform] = {
             'LoadImaged': self._tf_load_image,
             'DuplicateItemsd': self._tf_duplicate_items,
@@ -134,10 +225,17 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
             'RandCropByLabelClassesd': self._tf_rand_crop_by_label_classes,
             'CastToTyped': self._tf_cast_to_type
         }
+        
+        # Initialize transforms with random seed
         self._initialize_transforms()
+        
+        # Compose transforms into a pipeline
         self._comp_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
 
     def _initialize_transforms(self) -> None:
+        """
+        Initialize transforms with random seed for reproducibility
+        """
         if self.random_seed is None: return
         for name, transform in self.transform_dict.items():
             if hasattr(transform, 'set_random_state'):
@@ -146,6 +244,12 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
                 transform.set_random_state(state=random_state)
 
     def get_state(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get the current state of all transforms for reproducibility
+        
+        Returns:
+            Dictionary containing the random states of all applicable transforms
+        """
         state_dict: Dict[str, Dict[str, Any]] = {}
         for name, transform in self.transform_dict.items():
             if hasattr(transform, 'get_random_state'):
@@ -159,6 +263,12 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
         return state_dict
 
     def set_state(self, state_dict: Dict[str, Dict[str, Any]]) -> None:
+        """
+        Set the state of transforms from a saved state dictionary
+        
+        Args:
+            state_dict: Dictionary containing the random states of transforms
+        """
         for name, state in state_dict.items():
             if name not in self.transform_dict:
                 raise ValueError(f"{name} do not exists")
@@ -173,6 +283,12 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
 
 
 class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase):
+    """
+    Transform pipeline for inference preprocessing
+    
+    Includes a sequence of transforms for data loading, preprocessing,
+    and preparation for model inference
+    """
     def __init__(
             self,
             volume_key: str = 'volume',
@@ -190,7 +306,28 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
             param_tf_scale_intensity_range_b_max: Optional[float] = 1.0,
             param_tf_scale_intensity_range_clip: bool = True
     ) -> None:
+        """
+        Initialize the inference preprocessing transform pipeline
+        
+        Args:
+            volume_key: Key for volume data in the input dictionary
+            mask_key: Key for mask data in the input dictionary (optional)
+            param_volume_tf_duplicate_items_dup_keys_volume: Key for duplicated volume data
+            param_mask_tf_duplicate_items_dup_keys_mask: Key for duplicated mask data (optional)
+            param_tf_spacing_pixdim: Voxel spacing for resampling
+            param_tf_spacing_mode_volume: Interpolation mode for volume resampling
+            param_tf_spacing_mode_mask: Interpolation mode for mask resampling
+            param_tf_padding_mode_volume: Padding mode for volume resampling
+            param_tf_padding_mode_mask: Padding mode for mask resampling
+            param_tf_scale_intensity_range_a_min: Minimum intensity value for scaling
+            param_tf_scale_intensity_range_a_max: Maximum intensity value for scaling
+            param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
+            param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
+            param_tf_scale_intensity_range_clip: Whether to clip intensity values
+        """
         super().__init__(volume_key, mask_key)
+        
+        # Initialize individual transforms
         self._tf_load_image: mT.LoadImaged = mT.LoadImaged(
             keys=[volume_key, mask_key],
             ensure_channel_first=True,
@@ -221,6 +358,8 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
             dtype=torch.float,
             allow_missing_keys=True
         )
+        
+        # Build transform dictionary
         self.transform_dict: Dict[str, mT.Transform] = {
             'LoadImaged': self._tf_load_image,
             'DuplicateItemsd': self._tf_duplicate_items,
@@ -228,10 +367,18 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
             'ScaleIntensityRanged': self._tf_scale_intensity_range,
             'CastToTyped': self._tf_cast_to_type
         }
+        
+        # Compose transforms into a pipeline
         self._comp_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
 
 
 class TransformSegmentationDefaultInferencePost(TransformSegmentationDefaultBase):
+    """
+    Transform pipeline for inference postprocessing
+    
+    Includes a sequence of transforms for post-processing model outputs,
+    such as resampling to match original dimensions and intensity scaling
+    """
     def __init__(
             self,
             volume_key: Optional[str] = None,
@@ -249,9 +396,29 @@ class TransformSegmentationDefaultInferencePost(TransformSegmentationDefaultBase
             param_tf_cast_to_type_dtype_volume: Union[DtypeLike, torch.dtype] = torch.float32,
             param_tf_cast_to_type_dtype_mask: Union[DtypeLike, torch.dtype] = torch.uint8
     ) -> None:
+        """
+        Initialize the inference postprocessing transform pipeline
+        
+        Args:
+            volume_key: Key for volume data in the input dictionary (optional)
+            mask_key: Key for mask data in the input dictionary
+            ref_key: Key for reference data used for resampling
+            param_tf_resample_to_match_mode_volume: Interpolation mode for volume resampling
+            param_tf_resample_to_match_mode_mask: Interpolation mode for mask resampling
+            param_tf_resample_to_match_padding_mode_volume: Padding mode for volume resampling
+            param_tf_resample_to_match_padding_mode_mask: Padding mode for mask resampling
+            param_tf_scale_intensity_range_a_min: Minimum intensity value for scaling
+            param_tf_scale_intensity_range_a_max: Maximum intensity value for scaling
+            param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
+            param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
+            param_tf_scale_intensity_range_clip: Whether to clip intensity values
+            param_tf_cast_to_type_dtype_volume: Data type for volume casting
+            param_tf_cast_to_type_dtype_mask: Data type for mask casting
+        """
         super().__init__(volume_key, mask_key)
         self.ref_key: str = ref_key
 
+        # Initialize individual transforms
         self.tf_resample_to_match: mT.ResampleToMatchd = mT.ResampleToMatchd(
             keys=[volume_key, mask_key],
             key_dst=ref_key,
@@ -276,11 +443,14 @@ class TransformSegmentationDefaultInferencePost(TransformSegmentationDefaultBase
             allow_missing_keys=True
         )
 
+        # Build transform dictionary
         self.transform_dict: Dict[str, mT.Transform] = {
             'ResampleToMatchd': self.tf_resample_to_match,
             'ScaleIntensityRanged': self._tf_scale_intensity_range,
             'CastToTyped': self._tf_cast_to_type
         }
+        
+        # Compose transforms into a pipeline
         self._comp_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
 
 

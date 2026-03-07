@@ -1,4 +1,39 @@
 # -*- coding: utf-8 -*-
+"""
+UNet 3D Neural Network Architecture
+
+This module implements a 3D U-Net architecture for volumetric image segmentation.
+The U-Net is an encoder-decoder framework with skip connections that preserves
+spatial information at multiple scales.
+
+Architecture Overview:
+    The network consists of the following components:
+    - Focuser: Initial feature extraction stem
+    - Encoder: Multi-scale feature extraction with primary and advanced stages
+    - Repeater (Bottleneck): Shortcut and deepest feature processing layer
+    - Decoder: Upsampling and feature reconstruction with skip connections
+    - Auxiliary Classifier: Deep supervision at multiple decoder stages
+    - Distributor: Feature refinement before final classification
+    - Classifier: Final segmentation output layer
+
+Key Features:
+    - Multi-scale representation learning
+    - Skip connections for preserving spatial details
+    - Deep supervision through auxiliary classifiers
+    - Configurable depth and channel dimensions
+    - I/O shape tracking for debugging
+
+Classes:
+    UNet: Main U-Net architecture
+    UNetFocuser: Initial feature extraction module
+    UNetEncoderPriorBank: Optional prior injection module
+    UNetEncoder: Multi-stage encoder
+    UNetRepeater: Stage feature repeater and bottleneck processing module
+    UNetDecoder: Multi-stage decoder with upsampling
+    UNetAuxiliaryClassifier: Deep supervision classifier
+    UNetDistributor: Feature refinement module
+    UNetClassifier: Final output classifier
+"""
 import torch
 import torch.nn as nn
 from typing import Optional, Tuple, List, Collection, Sequence, Union, Dict, Any, Type, Iterable, cast
@@ -66,37 +101,98 @@ from Network.block import IODescriptive, ConvNormAct, ConvBNReLU, Concat
 #                                                                                                                     Z/(2^(S)))
 
 class UNet(nn.Module, IODescriptive):
+    """
+    3D U-Net Architecture for Volumetric Image Segmentation
+    
+    A deep encoder-decoder network with skip connections for medical image
+    segmentation. Features multi-scale feature extraction and deep supervision.
+    
+    Architecture Flow:
+                                    (skip paths)
+                               ┌────────────────────┐
+                               ↑      Repeater      ↓
+        Input → Focuser → Encoder → (bottleneck) → Decoder → Distributor → Classifier
+                                                        ↓
+                                                (auxiliary outputs)
+    
+    Attributes:
+        stages: Total number of resolution stages
+        focuser: Initial feature extraction module
+        encoder: Multi-scale encoder (primary + advanced stages)
+        repeater: Shortcut and bottleneck feature processing
+        decoder: Multi-scale decoder with skip connections
+        auxiliary_classifier: Deep supervision outputs
+        distributor: Feature refinement module
+        classifier: Final segmentation output
+        reserve_io: Whether to store intermediate I/O tensors
+    """
     def __init__(
             self,
-            focuser_in_channels: int = 1,  # FCin
-            focuser_out_channels: int = 16,  # FCout
-            encoder_primary_in_channels: Sequence[int] = (16, 32),  # EPCin[S1]
-            encoder_primary_out_channels: Sequence[int] = (32, 64),  # EPCout[S1]
-            encoder_primary_depth: Union[int, Sequence[int]] = 2,  # EPD/EPD[S1]
-            encoder_advanced_in_channels: Sequence[int] = (64, 128),  # EACin[S2]
-            encoder_advanced_out_channels: Sequence[int] = (128, 256),  # EACout[S2]
-            encoder_advanced_depth: Union[int, Sequence[int]] = 2,  # EAD/EAD[S2]
-            bottleneck_in_channels: int = 256,  # RBCin
-            bottleneck_out_channels: int = 512,  # RBCout
-            bottleneck_depth: int = 2,  # RBD
-            decoder_advanced_in_channels: Sequence[int] = (512, 256),  # DACin[S2]
-            decoder_advanced_upsample_channels: Sequence[int] = (256, 128),  # DAUC[S2]
-            decoder_advanced_shortcut_channels: Sequence[int] = (256, 128),  # DASC[S2]
-            decoder_advanced_out_channels: Sequence[int] = (256, 128),  # DACout[S2]
-            decoder_advanced_depth: Union[int, Sequence[int]] = 2,  # DAD[S2]
-            decoder_primary_in_channels: Sequence[int] = (128, 64),  # DPCin[S1]
-            decoder_primary_upsample_channels: Sequence[int] = (64, 32),  # DPUC[S1]
-            decoder_primary_shortcut_channels: Sequence[int] = (64, 32),  # DPSC[S1]
-            decoder_primary_out_channels: Sequence[int] = (64, 32),  # DPCout[S1]
-            decoder_primary_depth: Union[int, Sequence[int]] = 2,  # DPD[S1],
-            auxiliary_classifier_in_channels: Sequence[int] = (256, 128, 64, 32),  # ACCin[S2+S1]
-            auxiliary_classifier_out_channels: Sequence[int] = (2, 2, 2, 2),  # ACCout[S2+S1]
-            distributor_in_channels: int = 32,  # DCin
-            distributor_out_channels: int = 16,  # DCout
-            classifier_in_channels: int = 16,  # CCin
-            classifier_out_channels: int = 2,  # CCout
-            reserve_io: bool = False
+            focuser_in_channels: int = 1,  # FCin: Input channels (in accordance with modalities)
+            focuser_out_channels: int = 16,  # FCout: Initial feature channels
+            encoder_primary_in_channels: Sequence[int] = (16, 32),  # EPCin[S1]: Primary encoder input channels
+            encoder_primary_out_channels: Sequence[int] = (32, 64),  # EPCout[S1]: Primary encoder output channels
+            encoder_primary_depth: Union[int, Sequence[int]] = 2,  # EPD[S1]: Primary encoder layer depth
+            encoder_advanced_in_channels: Sequence[int] = (64, 128),  # EACin[S2]: Advanced encoder input channels
+            encoder_advanced_out_channels: Sequence[int] = (128, 256),  # EACout[S2]: Advanced encoder output channels
+            encoder_advanced_depth: Union[int, Sequence[int]] = 2,  # EAD[S2]: Advanced encoder layer depth
+            bottleneck_in_channels: int = 256,  # RBCin: Bottleneck input channels
+            bottleneck_out_channels: int = 512,  # RBCout: Bottleneck output channels
+            bottleneck_depth: int = 2,  # RBD: Bottleneck layer depth
+            decoder_advanced_in_channels: Sequence[int] = (512, 256),  # DACin[S2]: Advanced decoder input channels
+            decoder_advanced_upsample_channels: Sequence[int] = (256, 128),  # DAUC[S2]: Advanced decoder upsample channels
+            decoder_advanced_shortcut_channels: Sequence[int] = (256, 128),  # DASC[S2]: Advanced decoder shortcut channels
+            decoder_advanced_out_channels: Sequence[int] = (256, 128),  # DACout[S2]: Advanced decoder output channels
+            decoder_advanced_depth: Union[int, Sequence[int]] = 2,  # DAD[S2]: Advanced decoder layer depth
+            decoder_primary_in_channels: Sequence[int] = (128, 64),  # DPCin[S1]: Primary decoder input channels
+            decoder_primary_upsample_channels: Sequence[int] = (64, 32),  # DPUC[S1]: Primary decoder upsample channels
+            decoder_primary_shortcut_channels: Sequence[int] = (64, 32),  # DPSC[S1]: Primary decoder shortcut channels
+            decoder_primary_out_channels: Sequence[int] = (64, 32),  # DPCout[S1]: Primary decoder output channels
+            decoder_primary_depth: Union[int, Sequence[int]] = 2,  # DPD[S1]: Primary decoder layer depth
+            auxiliary_classifier_in_channels: Sequence[int] = (256, 128, 64, 32),  # ACCin[S1+S2]: Auxiliary classifier input channels
+            auxiliary_classifier_out_channels: Sequence[int] = (2, 2, 2, 2),  # ACCout[S1+S2]: Auxiliary classifier output channels (classes)
+            distributor_in_channels: int = 32,  # DCin: Distributor input channels
+            distributor_out_channels: int = 16,  # DCout: Distributor output channels
+            classifier_in_channels: int = 16,  # CCin: Classifier input channels
+            classifier_out_channels: int = 2,  # CCout: Number of output classes
+            reserve_io: bool = False  # Whether to store intermediate I/O for debugging
     ):
+        """
+        Initialize UNet architecture
+        
+        Args:
+            focuser_in_channels: Number of input channels (in accordance with modalities)
+            focuser_out_channels: Number of output channels from focuser module
+            encoder_primary_in_channels: Input channels for each primary encoder stage
+            encoder_primary_out_channels: Output channels for each primary encoder stage
+            encoder_primary_depth: Number of layers in each primary encoder stage
+            encoder_advanced_in_channels: Input channels for each advanced encoder stage
+            encoder_advanced_out_channels: Output channels for each advanced encoder stage
+            encoder_advanced_depth: Number of layers in each advanced encoder stage
+            bottleneck_in_channels: Input channels for bottleneck
+            bottleneck_out_channels: Output channels from bottleneck
+            bottleneck_depth: Number of layers in bottleneck
+            decoder_advanced_in_channels: Input channels for each advanced decoder stage
+            decoder_advanced_upsample_channels: Upsample channels for each advanced decoder stage
+            decoder_advanced_shortcut_channels: Shortcut channels for each advanced decoder stage
+            decoder_advanced_out_channels: Output channels for each advanced decoder stage
+            decoder_advanced_depth: Number of layers in each advanced decoder stage
+            decoder_primary_in_channels: Input channels for each primary decoder stage
+            decoder_primary_upsample_channels: Upsample channels for each primary decoder stage
+            decoder_primary_shortcut_channels: Shortcut channels for each primary decoder stage
+            decoder_primary_out_channels: Output channels for each primary decoder stage
+            decoder_primary_depth: Number of layers in each primary decoder stage
+            auxiliary_classifier_in_channels: Input channels for auxiliary classifiers
+            auxiliary_classifier_out_channels: Output channels (classes) for auxiliary classifiers
+            distributor_in_channels: Input channels for distributor
+            distributor_out_channels: Output channels from distributor
+            classifier_in_channels: Input channels for final classifier
+            classifier_out_channels: Number of output classes
+            reserve_io: If True, store intermediate I/O tensors for debugging
+            
+        Raises:
+            AssertionError: If channel dimensions don't match between connected modules
+        """
         super(UNet, self).__init__()
         # region Assertions
         # Encoder layer count match
@@ -158,6 +254,8 @@ class UNet(nn.Module, IODescriptive):
 
         # Count the feature spatial size variants
         self.stages: int = len(encoder_primary_in_channels) + len(encoder_advanced_in_channels) + 1
+        
+        # Initialize network modules
         self.focuser: UNetFocuser = UNetFocuser(focuser_in_channels, focuser_out_channels, reserve_io)
         self.encoder: UNetEncoder = UNetEncoder(
             encoder_primary_in_channels,
@@ -203,8 +301,26 @@ class UNet(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_source: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
-        assert input_source.ndim == 5
-        assert divmod(input_source.size(2), 2 ** (self.stages - 1))[1] == 0
+        """
+        Forward pass through UNet
+        
+        Args:
+            input_source: Input tensor of shape (B, C, X, Y, Z)
+            
+        Returns:
+            Tuple of (main_logits, auxiliary_logits_list)
+            - main_logits: Final segmentation output (B, num_classes, X, Y, Z)
+            - auxiliary_logits_list: List of auxiliary outputs for deep supervision
+            
+        Raises:
+            AssertionError: If input is not 5D or spatial dimensions not divisible by 2^(stages-1)
+        """
+        # Validate input dimensions
+        assert input_source.ndim == 5, f"Expected 5D input (B,C,D,H,W), got {input_source.ndim}D"
+        assert divmod(input_source.size(2), 2 ** (self.stages - 1))[1] == 0, \
+            f"Spatial dimension must be divisible by {2 ** (self.stages - 1)}"
+        
+        # Forward pass through network components
         f_feat: torch.Tensor = self.focuser(input_source)
         enc_feats: List[torch.Tensor]
         dn_feats: List[torch.Tensor]
@@ -217,6 +333,7 @@ class UNet(nn.Module, IODescriptive):
         aux_cls_logits: List[torch.Tensor] = self.auxiliary_classifier(dec_feats)
         cls_logits: torch.Tensor = self.classifier(d_feat)
 
+        # Store I/O tensors for debugging if enabled
         if self.reserve_io:
             setattr(self, 'input_source', input_source.cpu())
             setattr(self, 'cls_logits', cls_logits.cpu())
@@ -230,6 +347,18 @@ class UNet(nn.Module, IODescriptive):
             indent_placeholder: str = '  ',
             target_level: int = 0
     ) -> str:
+        """
+        Generate hierarchical I/O shape description
+        
+        Args:
+            max_level: Maximum recursion level for nested modules
+            indent: Current indentation level
+            indent_placeholder: String used for indentation
+            target_level: Target level for this description
+            
+        Returns:
+            Formatted I/O description string with nested module information
+        """
         if (not self.reserve_io or target_level > max_level
                 or not (
                         hasattr(self, 'input_source')
@@ -245,6 +374,7 @@ class UNet(nn.Module, IODescriptive):
                      f"{prefix}    cls_logits: {tuple(self.cls_logits.size())}\n"
                      f"{prefix}  O: \n"
                      f"{prefix}    aux_cls_logits: {[tuple(lt.size()) for lt in self.aux_cls_logits]}\n")
+        # Recursively get I/O descriptions from submodules
         for module in [self.focuser, self.encoder, self.repeater, self.decoder, self.auxiliary_classifier,
                        self.distributor, self.classifier]:
             if hasattr(module, 'io_description'):
@@ -262,12 +392,37 @@ class UNet(nn.Module, IODescriptive):
 # (B,Cin,X,Y,Z)  │ UNet-Focuser │  (B,Cout,X,Y,Z)
 #                └──────────────┘
 class UNetFocuser(nn.Module, IODescriptive):
+    """
+    UNet Focuser Module - Initial Feature Extractor
+    
+    A stem feature extractor that processes the input before the encoder.
+    Designed to generate or enhance key regions in the input data.
+    
+    Architecture:
+        Input → Conv3d(3x3x3) → BatchNorm → ReLU → Output
+    
+    Note:
+        This module should NOT be used to formulate Feature Pyramid.
+        If feature pyramid is needed, move the processing to the Encoder.
+    
+    Attributes:
+        pipe: Sequential container with ConvBNReLU layer
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
+            in_channels: int,  # Cin: Number of input channels
+            out_channels: int,  # Cout: Number of output channels
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetFocuser
+        
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetFocuser, self).__init__()
         self.pipe: nn.Sequential = nn.Sequential(
             ConvBNReLU(in_channels, out_channels, 3, padding='same', reserve_io=reserve_io)
@@ -276,6 +431,15 @@ class UNetFocuser(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_source: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through focuser
+        
+        Args:
+            input_source: Input tensor of shape (B, Cin, X, Y, Z)
+            
+        Returns:
+            Output tensor of shape (B, Cout, X, Y, Z)
+        """
         output_feat: torch.Tensor = self.pipe(input_source)
 
         if self.reserve_io:
@@ -316,14 +480,47 @@ class UNetFocuser(nn.Module, IODescriptive):
 #                  │ PriorBank    │
 #                  └──────────────┘
 class UNetEncoderPriorBank(nn.Module, IODescriptive):
+    """
+    UNet Encoder Prior Bank Module - Optional Prior Feature Injection
+    
+    A placeholder module for injecting prior features into each encoder stage.
+    This allows external information to be incorporated into the encoding process.
+    
+    Note:
+        This is a placeholder implementation that returns None.
+        Subclass and override to implement custom prior injection logic.
+    
+    Use Cases:
+        - Inject anatomical priors
+        - Add multi-modal information
+        - Incorporate pre-computed features
+    
+    Attributes:
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetEncoderPriorBank
+        
+        Args:
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetEncoderPriorBank, self).__init__()
         self.reserve_io: bool = reserve_io
 
     def forward(self, prior_source: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+        """
+        Forward pass through prior bank
+        
+        Args:
+            prior_source: Sequence of prior tensors to inject
+            
+        Returns:
+            List of processed prior features (None in base implementation)
+        """
         return None
 
     def io_description(
@@ -345,14 +542,42 @@ class UNetEncoderPriorBank(nn.Module, IODescriptive):
 #                │ Bank-Injector     │
 #                └───────────────────┘
 class UNetEncoderPriorBankInjector(nn.Module, IODescriptive):
+    """
+    UNet Encoder Prior Bank Injector Module - Single Stage Prior Injection
+    
+    A placeholder module for injecting prior features at a single encoder stage.
+    Used within the PriorBank to process individual stage injections.
+    
+    Note:
+        This is a placeholder implementation that returns None.
+        Subclass and override to implement custom injection processing.
+    
+    Attributes:
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetEncoderPriorBankInjector
+        
+        Args:
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetEncoderPriorBankInjector, self).__init__()
         self.reserve_io: bool = reserve_io
 
     def forward(self, inject_source: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through injector
+        
+        Args:
+            inject_source: Prior tensor to inject
+            
+        Returns:
+            Processed injection feature (None in base implementation)
+        """
         return None
 
     def io_description(
@@ -425,16 +650,52 @@ class UNetEncoderPriorBankInjector(nn.Module, IODescriptive):
 #                                                      │                   │  [S2-1]:(B,ACout[S2-1],X/(2^(S1+S2)),Y/(2^(S1+S2)),Z/(2^(S1+S2)))
 #                                                      └───────────────────┘
 class UNetEncoder(nn.Module, IODescriptive):
+    """
+    UNet Encoder Module - Multi-Scale Feature Extraction
+    
+    The encoder consists of two parts:
+    - Primary Extractor: Initial feature extraction stages
+    - Advanced Extractor: Deeper feature extraction stages
+    
+    Each stage reduces spatial dimensions by 2x while increasing channel depth.
+    Features from each stage are saved for skip connections in the decoder.
+    
+    Architecture:
+        Input → Primary Extractor (S1 stages) → Advanced Extractor (S2 stages)
+                  ↓                                    ↓
+            (output_feats,                    (output_feats,
+             downsample_feats)                 downsample_feats)
+    
+    Attributes:
+        primary_extractor: Primary feature extraction stages
+        advanced_extractor: Advanced feature extraction stages
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            primary_in_channels: Sequence[int],  # PCin[S1]
-            primary_out_channels: Sequence[int],  # PCout[S1]
-            primary_depth: Union[int, Sequence[int]],  # PD/PD[S1]
-            advanced_in_channels: Sequence[int],  # ACin[S2]
-            advanced_out_channels: Sequence[int],  # ACout[S2]
-            advanced_depth: Union[int, Sequence[int]],  # AD/AD[S2]
+            primary_in_channels: Sequence[int],  # PCin[S1]: Primary stage input channels
+            primary_out_channels: Sequence[int],  # PCout[S1]: Primary stage output channels
+            primary_depth: Union[int, Sequence[int]],  # PD[S1]: Primary stage layer depth
+            advanced_in_channels: Sequence[int],  # ACin[S2]: Advanced stage input channels
+            advanced_out_channels: Sequence[int],  # ACout[S2]: Advanced stage output channels
+            advanced_depth: Union[int, Sequence[int]],  # AD[S2]: Advanced stage layer depth
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetEncoder
+        
+        Args:
+            primary_in_channels: Input channels for each primary stage
+            primary_out_channels: Output channels for each primary stage
+            primary_depth: Layer depth for each primary stage (int or sequence)
+            advanced_in_channels: Input channels for each advanced stage
+            advanced_out_channels: Output channels for each advanced stage
+            advanced_depth: Layer depth for each advanced stage (int or sequence)
+            reserve_io: If True, store I/O tensors for debugging
+            
+        Raises:
+            AssertionError: If channel/depth sequence lengths don't match
+        """
         super(UNetEncoder, self).__init__()
         assert len(primary_in_channels) == len(primary_out_channels)
         assert len(advanced_in_channels) == len(advanced_out_channels)
@@ -442,6 +703,8 @@ class UNetEncoder(nn.Module, IODescriptive):
             assert len(primary_in_channels) == len(primary_depth)
         if isinstance(advanced_depth, Sequence):
             assert len(advanced_in_channels) == len(advanced_depth)
+        
+        # Initialize primary and advanced extractors
         self.primary_extractor: UNetEncoderPrimaryExtractor = UNetEncoderPrimaryExtractor(
             primary_in_channels,
             primary_out_channels,
@@ -462,6 +725,21 @@ class UNetEncoder(nn.Module, IODescriptive):
             input_feat: torch.Tensor,
             inject_feats: Optional[Sequence[torch.Tensor]] = None
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        """
+        Forward pass through encoder
+        
+        Args:
+            input_feat: Input tensor of shape (B, C, X, Y, Z)
+            inject_feats: Optional prior features to inject at each stage
+            
+        Returns:
+            Tuple of (output_features, downsample_features)
+            - output_features: List of features from each stage for skip connections
+            - downsample_features: List of downsampled features passed between stages
+            
+        Raises:
+            AssertionError: If inject_feats length doesn't match total stages
+        """
         assert (inject_feats is None or
                 len(inject_feats) == self.primary_extractor.stages + self.advanced_extractor.stages)
 
@@ -561,13 +839,44 @@ class UNetEncoder(nn.Module, IODescriptive):
 #                                     │  └──────────────────────┘                                                                        │
 #                                     └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 class UNetEncoderPrimaryExtractor(nn.Module, IODescriptive):
+    """
+    UNet Encoder Primary Extractor Module - Shallow Feature Extraction
+    
+    Extracts features from the shallow (primary) part of the encoder.
+    Represents primary semantics with relatively high spatial resolution.
+    
+    Architecture:
+        For each stage s:
+            stage_input → Stage → output_feats[s] → Downsample → dn_feats[s]
+    
+    Each stage consists of:
+    - Stage: Conv-BN-ReLU layers for feature extraction
+    - Downsample: 2x downsampling for next stage
+    
+    Attributes:
+        stages: Number of extraction stages
+        pipe: ModuleList of (Stage, Downsample) sequences
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]
-            out_channels: Sequence[int],  # Cout[S]
-            depth: Union[int, Sequence[int]],  # D/D[S]
+            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
+            out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
+            depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetEncoderPrimaryExtractor
+        
+        Args:
+            in_channels: Input channels for each stage
+            out_channels: Output channels for each stage
+            depth: Number of ConvBNReLU layers per stage (int or sequence)
+            reserve_io: If True, store I/O tensors for debugging
+            
+        Raises:
+            AssertionError: If channel/depth sequence lengths don't match
+        """
         super(UNetEncoderPrimaryExtractor, self).__init__()
         assert len(in_channels) == len(out_channels)
         if isinstance(depth, Sequence):
@@ -577,6 +886,7 @@ class UNetEncoderPrimaryExtractor(nn.Module, IODescriptive):
         self.stages: int = len(in_channels)
         self.pipe: nn.ModuleList = nn.ModuleList()
 
+        # Create stage-downsample sequence for each resolution level
         for ic, oc, dp in zip(in_channels, out_channels, depth):
             self.pipe.append(nn.Sequential(
                 UNetEncoderPrimaryExtractorStage(ic, oc, dp, reserve_io),
@@ -590,6 +900,21 @@ class UNetEncoderPrimaryExtractor(nn.Module, IODescriptive):
             input_feat: torch.Tensor,
             inject_feats: Optional[Sequence[torch.Tensor]] = None
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        """
+        Forward pass through primary extractor
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin[0], X, Y, Z)
+            inject_feats: Optional prior features to inject at each stage
+            
+        Returns:
+            Tuple of (output_features, downsample_features)
+            - output_features: Features from each stage for skip connections
+            - downsample_features: Downsampled features for next stage
+            
+        Raises:
+            AssertionError: If inject_feats length doesn't match stages
+        """
         output_feats: List[torch.Tensor] = []
         dn_feats: List[torch.Tensor] = []
         if inject_feats is None:
@@ -662,14 +987,41 @@ class UNetEncoderPrimaryExtractor(nn.Module, IODescriptive):
 # (B,Cin,X,Y,Z)  │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │  (B,Cout,X,Y,Z)
 #                └──────────────┘ (B,Cin,X,Y,Z)                └──────────────┘ (B,Cin,X,Y,Z)                └──────────────┘
 class UNetEncoderPrimaryExtractorStage(nn.Module, IODescriptive):
+    """
+    UNet Encoder Primary Extractor Stage Module - Single Resolution Feature Processing
+    
+    Processes features at a single resolution level within the primary extractor.
+    Consists of D Conv-BN-ReLU layers for feature extraction and transformation.
+    
+    Architecture:
+        Input → [Conv-BN-ReLU] × (D-1) → Conv-BN-ReLU (Cin→Cout) → Output
+    
+    The first D-1 layers maintain channel dimensions, the last layer changes
+    from Cin to Cout.
+    
+    Attributes:
+        pipe: Sequential container with D ConvBNReLU layers
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
-            depth: int,  # D
+            in_channels: int,  # Cin: Input channels
+            out_channels: int,  # Cout: Output channels
+            depth: int,  # D: Number of ConvBNReLU layers
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetEncoderPrimaryExtractorStage
+        
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            depth: Number of ConvBNReLU layers
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetEncoderPrimaryExtractorStage, self).__init__()
+        # Create D-1 layers that maintain channel dimensions
+        # followed by 1 layer that changes from Cin to Cout
         self.pipe: nn.Sequential = nn.Sequential(
             *[ConvBNReLU(in_channels, in_channels, 3, padding='same', reserve_io=reserve_io)
               for _ in range(depth - 1)],
@@ -679,6 +1031,16 @@ class UNetEncoderPrimaryExtractorStage(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Forward pass through encoder stage
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin, X, Y, Z)
+            inject_feat: Optional injection tensor (currently unused)
+            
+        Returns:
+            Output tensor of shape (B, Cout, X, Y, Z)
+        """
         # inject_feat is always ignored now
         output_feat: torch.Tensor = self.pipe(input_feat)
 
@@ -726,10 +1088,31 @@ class UNetEncoderPrimaryExtractorStage(nn.Module, IODescriptive):
 #                │ Extractor-Downsample │
 #                └──────────────────────┘
 class UNetEncoderPrimaryExtractorDownsample(nn.Module, IODescriptive):
+    """
+    UNet Encoder Primary Extractor Downsample Module
+    
+    Downsamples features by 2x in each spatial dimension using max pooling.
+    This reduces spatial resolution while preserving channel dimensions.
+    
+    Architecture:
+        Input → MaxPool3d(2x2x2, stride=2) → Output
+    
+    Spatial dimensions are halved: (X, Y, Z) → (X/2, Y/2, Z/2)
+    
+    Attributes:
+        pipe: Sequential container with max pooling layer
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetEncoderPrimaryExtractorDownsample
+        
+        Args:
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetEncoderPrimaryExtractorDownsample, self).__init__()
         self.pipe: nn.Sequential = nn.Sequential(
             nn.MaxPool3d(2, 2)
@@ -738,6 +1121,15 @@ class UNetEncoderPrimaryExtractorDownsample(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through downsampling layer
+        
+        Args:
+            input_feat: Input tensor of shape (B, C, X, Y, Z)
+            
+        Returns:
+            Output tensor of shape (B, C, X/2, Y/2, Z/2)
+        """
         output_feat: torch.Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
@@ -803,13 +1195,45 @@ class UNetEncoderPrimaryExtractorDownsample(nn.Module, IODescriptive):
 #                                     │  └───────────────────────┘                                                                         │
 #                                     └────────────────────────────────────────────────────────────────────────────────────────────────────┘
 class UNetEncoderAdvancedExtractor(nn.Module, IODescriptive):
+    """
+    UNet Encoder Advanced Extractor Module - Deep Feature Extraction
+    
+    Extracts features from the deep (advanced) part of the encoder.
+    Represents advanced semantics with lower spatial resolution but higher
+    semantic abstraction.
+    
+    Architecture:
+        For each stage s:
+            stage_input → Stage → output_feats[s] → Downsample → dn_feats[s]
+    
+    Each stage consists of:
+    - Stage: Conv-BN-ReLU layers for feature extraction
+    - Downsample: 2x downsampling for next stage
+    
+    Attributes:
+        stages: Number of extraction stages
+        pipe: ModuleList of (Stage, Downsample) sequences
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]
-            out_channels: Sequence[int],  # Cout[S]
-            depth: Union[int, Sequence[int]],  # D/D[S]
+            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
+            out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
+            depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetEncoderAdvancedExtractor
+        
+        Args:
+            in_channels: Input channels for each stage
+            out_channels: Output channels for each stage
+            depth: Number of ConvBNReLU layers per stage (int or sequence)
+            reserve_io: If True, store I/O tensors for debugging
+            
+        Raises:
+            AssertionError: If channel/depth sequence lengths don't match
+        """
         super(UNetEncoderAdvancedExtractor, self).__init__()
         assert len(in_channels) == len(out_channels)
         if isinstance(depth, Sequence):
@@ -819,6 +1243,7 @@ class UNetEncoderAdvancedExtractor(nn.Module, IODescriptive):
         self.stages: int = len(in_channels)
         self.pipe: nn.ModuleList = nn.ModuleList()
 
+        # Create stage-downsample sequence for each resolution level
         for ic, oc, dp in zip(in_channels, out_channels, depth):
             self.pipe.append(nn.Sequential(
                 UNetEncoderAdvancedExtractorStage(ic, oc, dp, reserve_io),
@@ -832,6 +1257,21 @@ class UNetEncoderAdvancedExtractor(nn.Module, IODescriptive):
             input_feat: torch.Tensor,
             inject_feats: Optional[Sequence[torch.Tensor]] = None
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        """
+        Forward pass through advanced extractor
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin[0], X, Y, Z)
+            inject_feats: Optional prior features to inject at each stage
+            
+        Returns:
+            Tuple of (output_features, downsample_features)
+            - output_features: Features from each stage for skip connections
+            - downsample_features: Downsampled features for next stage
+            
+        Raises:
+            AssertionError: If inject_feats length doesn't match stages
+        """
         output_feats: List[torch.Tensor] = []
         dn_feats: List[torch.Tensor] = []
         if inject_feats is None:
@@ -904,14 +1344,41 @@ class UNetEncoderAdvancedExtractor(nn.Module, IODescriptive):
 # (B,Cin,X,Y,Z)  │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │  (B,Cout,X,Y,Z)
 #                └──────────────┘ (B,Cin,X,Y,Z)                └──────────────┘ (B,Cin,X,Y,Z)                └──────────────┘
 class UNetEncoderAdvancedExtractorStage(nn.Module, IODescriptive):
+    """
+    UNet Encoder Advanced Extractor Stage Module - Single Resolution Feature Processing
+    
+    Processes features at a single resolution level within the advanced extractor.
+    Consists of D Conv-BN-ReLU layers for feature extraction and transformation.
+    
+    Architecture:
+        Input → [Conv-BN-ReLU] × (D-1) → Conv-BN-ReLU (Cin→Cout) → Output
+    
+    The first D-1 layers maintain channel dimensions, the last layer changes
+    from Cin to Cout.
+    
+    Attributes:
+        pipe: Sequential container with D ConvBNReLU layers
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
-            depth: int,  # D
+            in_channels: int,  # Cin: Input channels
+            out_channels: int,  # Cout: Output channels
+            depth: int,  # D: Number of ConvBNReLU layers
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetEncoderAdvancedExtractorStage
+        
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            depth: Number of ConvBNReLU layers
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetEncoderAdvancedExtractorStage, self).__init__()
+        # Create D-1 layers that maintain channel dimensions
+        # followed by 1 layer that changes from Cin to Cout
         self.pipe: nn.Sequential = nn.Sequential(
             *[ConvBNReLU(in_channels, in_channels, 3, padding='same', reserve_io=reserve_io)
               for _ in range(depth - 1)],
@@ -921,6 +1388,16 @@ class UNetEncoderAdvancedExtractorStage(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Forward pass through encoder stage
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin, X, Y, Z)
+            inject_feat: Optional injection tensor (currently unused)
+            
+        Returns:
+            Output tensor of shape (B, Cout, X, Y, Z)
+        """
         # inject_feat is always ignored now
         output_feat: torch.Tensor = self.pipe(input_feat)
 
@@ -968,10 +1445,31 @@ class UNetEncoderAdvancedExtractorStage(nn.Module, IODescriptive):
 #                │ Extractor-Downsample  │
 #                └───────────────────────┘
 class UNetEncoderAdvancedExtractorDownsample(nn.Module, IODescriptive):
+    """
+    UNet Encoder Advanced Extractor Downsample Module
+    
+    Downsamples features by 2x in each spatial dimension using max pooling.
+    This reduces spatial resolution while preserving channel dimensions.
+    
+    Architecture:
+        Input → MaxPool3d(2x2x2, stride=2) → Output
+    
+    Spatial dimensions are halved: (X, Y, Z) → (X/2, Y/2, Z/2)
+    
+    Attributes:
+        pipe: Sequential container with max pooling layer
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetEncoderAdvancedExtractorDownsample
+        
+        Args:
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetEncoderAdvancedExtractorDownsample, self).__init__()
         self.pipe: nn.Sequential = nn.Sequential(
             nn.MaxPool3d(2, 2)
@@ -980,6 +1478,15 @@ class UNetEncoderAdvancedExtractorDownsample(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through downsampling layer
+        
+        Args:
+            input_feat: Input tensor of shape (B, C, X, Y, Z)
+            
+        Returns:
+            Output tensor of shape (B, C, X/2, Y/2, Z/2)
+        """
         output_feat: torch.Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
@@ -1046,18 +1553,50 @@ class UNetEncoderAdvancedExtractorDownsample(nn.Module, IODescriptive):
 #         (Unused)  │                       │
 #                   └───────────────────────┘
 class UNetRepeater(nn.Module, IODescriptive):
+    """
+    UNet Repeater Module - Stage Feature Processing and Bottleneck
+    
+    Processes features from encoder stages and applies bottleneck processing
+    to the deepest feature. Consists of:
+    - S-1 shortcut modules for skip connections
+    - 1 bottleneck module for deepest feature processing
+    
+    Architecture:
+        input_feats[0]   ──→  [Shortcut]  ──→ output_feats[S-1]
+        input_feats[1]   ──→  [Shortcut]  ──→ output_feats[S-2]
+                                   ⋮
+        input_feats[S-1] ──→ [Bottleneck] ──→ output_feats[0]
+    
+    The repeater processes features in reverse order (deepest first).
+    
+    Attributes:
+        pipe: ModuleList containing S-1 shortcuts and 1 bottleneck
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            stages: int,  # S
-            bottleneck_in_channels: int,  # Cin
-            bottleneck_out_channels: int,  # Cout
-            bottleneck_depth: int,  # D
+            stages: int,  # S: Total number of stages
+            bottleneck_in_channels: int,  # Cin: Bottleneck input channels
+            bottleneck_out_channels: int,  # Cout: Bottleneck output channels
+            bottleneck_depth: int,  # D: Bottleneck layer depth
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetRepeater
+        
+        Args:
+            stages: Total number of stages (including bottleneck)
+            bottleneck_in_channels: Input channels for bottleneck
+            bottleneck_out_channels: Output channels from bottleneck
+            bottleneck_depth: Number of layers in bottleneck
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetRepeater, self).__init__()
+        # Create S-1 shortcut modules for skip connections
         self.pipe: nn.ModuleList = nn.ModuleList(
             [UNetRepeaterShortcut(reserve_io) for _ in range(stages - 1)]
         )
+        # Add bottleneck module for deepest feature processing
         self.pipe.append(
             UNetRepeaterBottleneck(bottleneck_in_channels, bottleneck_out_channels, bottleneck_depth, reserve_io)
         )
@@ -1065,9 +1604,19 @@ class UNetRepeater(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feats: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+        """
+        Forward pass through repeater
+        
+        Args:
+            input_feats: List of feature tensors from encoder stages
+            
+        Returns:
+            List of processed features (reversed order from input)
+        """
         output_feats: List[torch.Tensor] = []
         module: nn.Module
         feat: torch.Tensor
+        # Process features in reverse order (deepest first)
         for module, feat in zip(reversed(self.pipe), reversed(input_feats)):
             output_feats.append(module(feat))
 
@@ -1111,10 +1660,31 @@ class UNetRepeater(nn.Module, IODescriptive):
 #                │ Shortcut      │
 #                └───────────────┘
 class UNetRepeaterShortcut(nn.Module, IODescriptive):
+    """
+    UNet Repeater Shortcut Module - Skip Connection Path
+    
+    A simple identity pass-through that delivers features from encoder
+    to decoder stage by stage, forming skip connections.
+    
+    Architecture:
+        Input → Identity → Output
+    
+    This module preserves encoder features for fusion in the decoder.
+    
+    Attributes:
+        pipe: Sequential container with identity layer
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetRepeaterShortcut
+        
+        Args:
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetRepeaterShortcut, self).__init__()
         self.pipe: nn.Sequential = nn.Sequential(
             nn.Identity()
@@ -1123,6 +1693,15 @@ class UNetRepeaterShortcut(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through shortcut (identity)
+        
+        Args:
+            input_feat: Input tensor of shape (B, C, X, Y, Z)
+            
+        Returns:
+            Output tensor identical to input (B, C, X, Y, Z)
+        """
         output_feat: torch.Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
@@ -1168,14 +1747,41 @@ class UNetRepeaterShortcut(nn.Module, IODescriptive):
 # (B,Cin,X,Y,Z)  │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │  (B,Cout,X,Y,Z)
 #                └──────────────┘ (B,Cin,X,Y,Z)                └──────────────┘ (B,Cin,X,Y,Z)                └──────────────┘
 class UNetRepeaterBottleneck(nn.Module, IODescriptive):
+    """
+    UNet Repeater Bottleneck Module - Deepest Feature Processing
+    
+    Processes the deepest features from the encoder with multiple Conv-BN-ReLU layers.
+    This is the bottleneck of the U-Net architecture where the most advanced
+    semantic features are extracted.
+    
+    Architecture:
+        Input → [Conv-BN-ReLU] × (D-1) → Conv-BN-ReLU (Cin→Cout) → Output
+    
+    The bottleneck increases channel depth while maintaining spatial dimensions.
+    
+    Attributes:
+        pipe: Sequential container with D ConvBNReLU layers
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
-            depth: int,  # D
+            in_channels: int,  # Cin: Input channels
+            out_channels: int,  # Cout: Output channels
+            depth: int,  # D: Number of ConvBNReLU layers
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetRepeaterBottleneck
+        
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            depth: Number of ConvBNReLU layers
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetRepeaterBottleneck, self).__init__()
+        # Create D-1 layers that maintain channel dimensions
+        # followed by 1 layer that changes from Cin to Cout
         self.pipe: nn.Sequential = nn.Sequential(
             *[ConvBNReLU(in_channels, in_channels, 3, padding='same', reserve_io=reserve_io)
               for _ in range(depth - 1)],
@@ -1185,6 +1791,16 @@ class UNetRepeaterBottleneck(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Forward pass through bottleneck
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin, X, Y, Z)
+            inject_feat: Optional injection tensor (currently unused)
+            
+        Returns:
+            Output tensor of shape (B, Cout, X, Y, Z)
+        """
         # inject_feat is always ignored now
         output_feat: torch.Tensor = self.pipe(input_feat)
 
@@ -1233,14 +1849,47 @@ class UNetRepeaterBottleneck(nn.Module, IODescriptive):
 #                  │ PriorBank    │
 #                  └──────────────┘
 class UNetDecoderPriorBank(nn.Module, IODescriptive):
+    """
+    UNet Decoder Prior Bank Module - Optional Prior Feature Injection
+    
+    A placeholder module for injecting prior features into each decoder stage.
+    This allows external information to be incorporated into the decoding process.
+    
+    Note:
+        This is a placeholder implementation that returns None.
+        Subclass and override to implement custom prior injection logic.
+    
+    Use Cases:
+        - Inject anatomical priors
+        - Add multi-modal information
+        - Incorporate pre-computed features
+    
+    Attributes:
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderPriorBank
+        
+        Args:
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetDecoderPriorBank, self).__init__()
         self.reserve_io: bool = reserve_io
 
     def forward(self, prior_source: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+        """
+        Forward pass through prior bank
+        
+        Args:
+            prior_source: Sequence of prior source tensors
+            
+        Returns:
+            None (placeholder implementation)
+        """
         return None
 
     def io_description(
@@ -1262,14 +1911,47 @@ class UNetDecoderPriorBank(nn.Module, IODescriptive):
 #                │ Bank-Injector     │
 #                └───────────────────┘
 class UNetDecoderPriorBankInjector(nn.Module, IODescriptive):
+    """
+    UNet Decoder Prior Bank Injector Module - Prior Feature Processing
+    
+    A placeholder module for processing prior features before injection into
+    decoder stages. This allows custom transformation of prior information.
+    
+    Note:
+        This is a placeholder implementation that returns None.
+        Subclass and override to implement custom injection processing.
+    
+    Use Cases:
+        - Transform prior features to match decoder dimensions
+        - Apply learned projections to prior information
+        - Normalize or scale prior features
+    
+    Attributes:
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderPriorBankInjector
+        
+        Args:
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetDecoderPriorBankInjector, self).__init__()
         self.reserve_io: bool = reserve_io
 
     def forward(self, inject_source: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through injector
+        
+        Args:
+            inject_source: Source tensor to inject
+            
+        Returns:
+            None (placeholder implementation)
+        """
         return None
 
     def io_description(
@@ -1333,20 +2015,61 @@ class UNetDecoderPriorBankInjector(nn.Module, IODescriptive):
 #                                                                                              (Unused)  │                    │
 #                                                                                                        └────────────────────┘
 class UNetDecoder(nn.Module, IODescriptive):
+    """
+    UNet Decoder Module - Multi-Scale Feature Reconstruction
+
+    The decoder reconstructs the spatial resolution while combining features
+    from the encoder via skip connections. Consists of two parts:
+    - Advanced Aggregator: Processes deeper features with skip connections
+    - Primary Aggregator: Processes shallower features with skip connections
+
+    Architecture:
+                        shortcut_feats[S1]          shortcut_feats[S2]
+                              ↓                         ↓
+        bottleneck_feat ──→ Advanced Aggregator ──→ Primary Aggregator
+                              ↓                         ↓
+                        output_feats[S1]            output_feats[S2]
+
+    Each stage upsamples by 2x and fuses with corresponding encoder features.
+
+    Attributes:
+        advanced_aggregator: Advanced feature aggregation stages
+        primary_aggregator: Primary feature aggregation stages
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            advanced_in_channels: Sequence[int],  # ACin[S1]
-            advanced_upsample_channels: Sequence[int],  # AUC[S1]
-            advanced_shortcut_channels: Sequence[int],  # ASC[S1]
-            advanced_out_channels: Sequence[int],  # ACout[S1]
-            advanced_depth: Union[int, Sequence[int]],  # AD[S1]
-            primary_in_channels: Sequence[int],  # PCin[S2]
-            primary_upsample_channels: Sequence[int],  # PUC[S2]
-            primary_shortcut_channels: Sequence[int],  # PSC[S2]
-            primary_out_channels: Sequence[int],  # PCout[S2]
-            primary_depth: Union[int, Sequence[int]],  # PD[S2]
+            advanced_in_channels: Sequence[int],  # ACin[S1]: Advanced stage input channels
+            advanced_upsample_channels: Sequence[int],  # AUC[S1]: Advanced upsample channels
+            advanced_shortcut_channels: Sequence[int],  # ASC[S1]: Advanced shortcut (skip) channels
+            advanced_out_channels: Sequence[int],  # ACout[S1]: Advanced output channels
+            advanced_depth: Union[int, Sequence[int]],  # AD[S1]: Advanced stage layer depth
+            primary_in_channels: Sequence[int],  # PCin[S2]: Primary stage input channels
+            primary_upsample_channels: Sequence[int],  # PUC[S2]: Primary upsample channels
+            primary_shortcut_channels: Sequence[int],  # PSC[S2]: Primary shortcut (skip) channels
+            primary_out_channels: Sequence[int],  # PCout[S2]: Primary output channels
+            primary_depth: Union[int, Sequence[int]],  # PD[S2]: Primary stage layer depth
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoder
+
+        Args:
+            advanced_in_channels: Input channels for each advanced decoder stage
+            advanced_upsample_channels: Upsample channels for each advanced stage
+            advanced_shortcut_channels: Shortcut channels from encoder for each advanced stage
+            advanced_out_channels: Output channels for each advanced decoder stage
+            advanced_depth: Layer depth for each advanced stage (int or sequence)
+            primary_in_channels: Input channels for each primary decoder stage
+            primary_upsample_channels: Upsample channels for each primary stage
+            primary_shortcut_channels: Shortcut channels from encoder for each primary stage
+            primary_out_channels: Output channels for each primary decoder stage
+            primary_depth: Layer depth for each primary stage (int or sequence)
+            reserve_io: If True, store I/O tensors for debugging
+
+        Raises:
+            AssertionError: If channel/depth sequence lengths don't match
+        """
         super(UNetDecoder, self).__init__()
         assert len(advanced_in_channels) == len(advanced_upsample_channels)
         assert len(advanced_shortcut_channels) == len(advanced_out_channels)
@@ -1360,6 +2083,7 @@ class UNetDecoder(nn.Module, IODescriptive):
         if isinstance(primary_depth, Sequence):
             assert len(primary_in_channels) == len(primary_depth)
 
+        # Initialize advanced and primary aggregators
         self.advanced_aggregator: UNetDecoderAdvancedAggregator = UNetDecoderAdvancedAggregator(
             advanced_in_channels,
             advanced_upsample_channels,
@@ -1385,6 +2109,20 @@ class UNetDecoder(nn.Module, IODescriptive):
             shortcut_feats: Sequence[torch.Tensor],
             inject_feats: Optional[Sequence[torch.Tensor]] = None
     ) -> List[torch.Tensor]:
+        """
+        Forward pass through decoder
+
+        Args:
+            input_feat: Bottleneck feature tensor (B, C, X, Y, Z)
+            shortcut_feats: List of encoder features for skip connections
+            inject_feats: Optional prior features to inject at each stage
+
+        Returns:
+            List of decoded features from each stage
+
+        Raises:
+            AssertionError: If shortcut_feats or inject_feats lengths don't match stages
+        """
         assert len(shortcut_feats) == self.advanced_aggregator.stages + self.primary_aggregator.stages
         assert (inject_feats is None or
                 len(inject_feats) == self.advanced_aggregator.stages + self.primary_aggregator.stages)
@@ -1486,15 +2224,50 @@ class UNetDecoder(nn.Module, IODescriptive):
 #                                     │                                                                          └────────────────────┘                                           (Unused)  └───────────────────────┘  │
 #                                     └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
+    """
+    UNet Decoder Advanced Aggregator Module - Deep Feature Aggregation
+    
+    Aggregates features from the deep (advanced) part of the decoder.
+    Progressively upsamples and fuses features with skip connections from
+    the encoder's advanced extractor.
+    
+    Architecture:
+        For each stage s:
+            input_feat[s] → Upsample → FusionPortal(+shortcut) → Stage → output_feats[s]
+    
+    Each stage consists of:
+    - Upsample: 2x upsampling using transposed convolution
+    - FusionPortal: Concatenates upsampled features with skip connections
+    - Stage: Conv-BN-ReLU layers for feature refinement
+    
+    Attributes:
+        stages: Number of aggregation stages
+        pipe: Sequential container of (Upsample, FusionPortal, Stage) sequences
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]
-            upsample_channels: Sequence[int],  # UC[S]
-            shortcut_channels: Sequence[int],  # SC[S]
-            out_channels: Sequence[int],  # Cout[S]
-            depth: Union[int, Sequence[int]],  # D/D[S]
+            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
+            upsample_channels: Sequence[int],  # UC[S]: Upsample channels for each stage
+            shortcut_channels: Sequence[int],  # SC[S]: Shortcut channels for each stage
+            out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
+            depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderAdvancedAggregator
+        
+        Args:
+            in_channels: Input channels for each stage
+            upsample_channels: Channels after upsampling for each stage
+            shortcut_channels: Channels from skip connections for each stage
+            out_channels: Output channels for each stage
+            depth: Number of ConvBNReLU layers per stage (int or sequence)
+            reserve_io: If True, store I/O tensors for debugging
+            
+        Raises:
+            AssertionError: If channel/depth sequence lengths don't match
+        """
         super(UNetDecoderAdvancedAggregator, self).__init__()
         assert len(in_channels) == len(upsample_channels)
         assert len(shortcut_channels) == len(out_channels)
@@ -1506,6 +2279,7 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
         self.stages: int = len(in_channels)
         self.pipe: nn.Sequential = nn.Sequential()
 
+        # Create upsample-fusion-stage sequences for each resolution level
         for ic, uc, sc, oc, dp in zip(in_channels, upsample_channels, shortcut_channels, out_channels, depth):
             self.pipe.append(nn.Sequential(
                 UNetDecoderAdvancedAggregatorUpsample(ic, uc, reserve_io),
@@ -1521,6 +2295,20 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
             shortcut_feats: Sequence[torch.Tensor],
             inject_feats: Optional[Sequence[torch.Tensor]] = None
     ) -> List[torch.Tensor]:
+        """
+        Forward pass through advanced aggregator
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin[0], X, Y, Z)
+            shortcut_feats: Skip connection features from encoder
+            inject_feats: Optional prior features to inject at each stage
+            
+        Returns:
+            List of output features from each stage
+            
+        Raises:
+            AssertionError: If shortcut_feats or inject_feats length doesn't match stages
+        """
         assert len(shortcut_feats) == self.stages
         output_feats: List[torch.Tensor] = []
         stage_feat: torch.Tensor = input_feat
@@ -1586,12 +2374,35 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
 #                │ Aggregator-Upsample   │
 #                └───────────────────────┘
 class UNetDecoderAdvancedAggregatorUpsample(nn.Module, IODescriptive):
+    """
+    UNet Decoder Advanced Aggregator Upsample Module
+    
+    Upsamples features by 2x in each spatial dimension using transposed convolution.
+    This increases spatial resolution while changing channel dimensions.
+    
+    Architecture:
+        Input → ConvTranspose3d(2x2x2, stride=2) → Output
+    
+    Spatial dimensions are doubled: (X, Y, Z) → (X*2, Y*2, Z*2)
+    
+    Attributes:
+        pipe: Sequential container with transposed convolution layer
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
+            in_channels: int,  # Cin: Input channels
+            out_channels: int,  # Cout: Output channels
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderAdvancedAggregatorUpsample
+        
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetDecoderAdvancedAggregatorUpsample, self).__init__()
         self.pipe: nn.Sequential = nn.Sequential(
             nn.ConvTranspose3d(in_channels, out_channels, kernel_size=2, stride=2)
@@ -1600,6 +2411,15 @@ class UNetDecoderAdvancedAggregatorUpsample(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through upsampling layer
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin, X, Y, Z)
+            
+        Returns:
+            Output tensor of shape (B, Cout, X*2, Y*2, Z*2)
+        """
         output_feat: torch.Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
@@ -1631,7 +2451,7 @@ class UNetDecoderAdvancedAggregatorUpsample(nn.Module, IODescriptive):
 
 
 # 00-05-00-01 UNet-Decoder-AdvancedAggregator-FusionPortal
-# Fuse features from higher semantic layer of Decoder and relative shortcut layer (from Encoder)
+# Fuse features from the deep (advanced, higher semantic) part of Decoder and relative shortcut layer (from Encoder)
 # Pinout Diagram: [Valid]
 #                ┌────────────────────┐
 #    stage_feat ─│ 00-05-00-01        │─ output_feat
@@ -1640,16 +2460,45 @@ class UNetDecoderAdvancedAggregatorUpsample(nn.Module, IODescriptive):
 #      (B,C2,*)  │ -FusionPortal      │
 #                └────────────────────┘
 class UNetDecoderAdvancedAggregatorFusionPortal(nn.Module, IODescriptive):
+    """
+    UNet Decoder Advanced Aggregator Fusion Portal Module
+    
+    Fuses features from the decoder's higher semantic layer with the
+    corresponding encoder shortcut features via concatenation.
+
+    Architecture:
+         [stage_feat (B, C1, *), shortcut_feat (B, C2, *)] → Concat(dim=1) → output_feat (B, C1+C2, *)
+
+    Attributes:
+        concat: Concatenation layer along channel dimension
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderAdvancedAggregatorFusionPortal
+        
+        Args:
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetDecoderAdvancedAggregatorFusionPortal, self).__init__()
         self.concat: Concat = Concat(dim=1, reserve_io=reserve_io)
 
         self.reserve_io: bool = reserve_io
 
     def forward(self, stage_feat: torch.Tensor, shortcut_feat: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through fusion portal
+        
+        Args:
+            stage_feat: Upsampled decoder features of shape (B, C1, X, Y, Z)
+            shortcut_feat: Skip connection features of shape (B, C2, X, Y, Z)
+            
+        Returns:
+            Concatenated features of shape (B, C1+C2, X, Y, Z)
+        """
         output_feat: torch.Tensor = self.concat(stage_feat, shortcut_feat)
 
         if self.reserve_io:
@@ -1698,14 +2547,41 @@ class UNetDecoderAdvancedAggregatorFusionPortal(nn.Module, IODescriptive):
 # (B,Cin,X,Y,Z)  │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │  (B,Cout,X,Y,Z)
 #                └──────────────┘ (B,Cout,X,Y,Z)               └──────────────┘ (B,Cout,X,Y,Z)               └──────────────┘
 class UNetDecoderAdvancedAggregatorStage(nn.Module, IODescriptive):
+    """
+    UNet Decoder Advanced Aggregator Stage Module - Single Resolution Feature Processing
+    
+    Processes features at a single resolution level within the advanced aggregator.
+    Consists of D Conv-BN-ReLU layers for feature refinement after fusion.
+    
+    Architecture:
+        Input → Conv-BN-ReLU (Cin→Cout) → [Conv-BN-ReLU] × (D-1) → Output
+    
+    The first layer changes from Cin to Cout, the remaining D-1 layers maintain
+    Cout channels. This differs from encoder stages where the channel change
+    happens in the last layer.
+    
+    Attributes:
+        pipe: Sequential container with D ConvBNReLU layers
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
-            depth: int,  # D
+            in_channels: int,  # Cin: Input channels
+            out_channels: int,  # Cout: Output channels
+            depth: int,  # D: Number of ConvBNReLU layers
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderAdvancedAggregatorStage
+        
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            depth: Number of ConvBNReLU layers
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetDecoderAdvancedAggregatorStage, self).__init__()
+        # First layer changes from Cin to Cout, remaining layers maintain Cout
         self.pipe: nn.Sequential = nn.Sequential(
             ConvBNReLU(in_channels, out_channels, 3, padding='same', reserve_io=reserve_io),
             *[ConvBNReLU(out_channels, out_channels, 3, padding='same', reserve_io=reserve_io)
@@ -1715,6 +2591,16 @@ class UNetDecoderAdvancedAggregatorStage(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Forward pass through aggregator stage
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin, X, Y, Z)
+            inject_feat: Optional injection tensor (currently unused)
+            
+        Returns:
+            Output tensor of shape (B, Cout, X, Y, Z)
+        """
         # inject_feat is always ignored now
         output_feat: torch.Tensor = self.pipe(input_feat)
 
@@ -1790,15 +2676,50 @@ class UNetDecoderAdvancedAggregatorStage(nn.Module, IODescriptive):
 #                                     │                                                                          └────────────────────┘                                           (Unused)  └───────────────────────┘  │
 #                                     └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
+    """
+    UNet Decoder Primary Aggregator Module - Shallow Feature Aggregation
+    
+    Aggregates features from the shallow (primary) part of the decoder.
+    Progressively upsamples and fuses features with skip connections from
+    the encoder's primary extractor.
+    
+    Architecture:
+        For each stage s:
+            input_feat[s] → Upsample → FusionPortal(+shortcut) → Stage → output_feats[s]
+    
+    Each stage consists of:\n
+    - Upsample: 2x upsampling using transposed convolution
+    - FusionPortal: Concatenates upsampled features with skip connections
+    - Stage: Conv-BN-ReLU layers for feature refinement
+    
+    Attributes:
+        stages: Number of aggregation stages
+        pipe: Sequential container of (Upsample, FusionPortal, Stage) sequences
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]
-            upsample_channels: Sequence[int],  # UC[S]
-            shortcut_channels: Sequence[int],  # SC[S]
-            out_channels: Sequence[int],  # Cout[S]
-            depth: Union[int, Sequence[int]],  # D/D[S]
+            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
+            upsample_channels: Sequence[int],  # UC[S]: Upsample channels for each stage
+            shortcut_channels: Sequence[int],  # SC[S]: Shortcut channels for each stage
+            out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
+            depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderPrimaryAggregator
+        
+        Args:
+            in_channels: Input channels for each stage
+            upsample_channels: Channels after upsampling for each stage
+            shortcut_channels: Channels from skip connections for each stage
+            out_channels: Output channels for each stage
+            depth: Number of ConvBNReLU layers per stage (int or sequence)
+            reserve_io: If True, store I/O tensors for debugging
+            
+        Raises:
+            AssertionError: If channel/depth sequence lengths don't match
+        """
         super(UNetDecoderPrimaryAggregator, self).__init__()
         assert len(in_channels) == len(upsample_channels)
         assert len(shortcut_channels) == len(out_channels)
@@ -1810,6 +2731,7 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
         self.stages: int = len(in_channels)
         self.pipe: nn.Sequential = nn.Sequential()
 
+        # Create upsample-fusion-stage sequences for each resolution level
         for ic, uc, sc, oc, dp in zip(in_channels, upsample_channels, shortcut_channels, out_channels, depth):
             self.pipe.append(nn.Sequential(
                 UNetDecoderPrimaryAggregatorUpsample(ic, uc, reserve_io),
@@ -1825,6 +2747,20 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
             shortcut_feats: Sequence[torch.Tensor],  # [s]:(B,SC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
             inject_feats: Optional[Sequence[torch.Tensor]] = None  # [s]:(B,*,X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
     ) -> List[torch.Tensor]:
+        """
+        Forward pass through primary aggregator
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin[0], X, Y, Z)
+            shortcut_feats: Skip connection features from encoder
+            inject_feats: Optional prior features to inject at each stage
+            
+        Returns:
+            List of output features from each stage
+            
+        Raises:
+            AssertionError: If shortcut_feats or inject_feats length doesn't match stages
+        """
         assert len(shortcut_feats) == self.stages
         output_feats: List[torch.Tensor] = []
         stage_feat: torch.Tensor = input_feat
@@ -1890,12 +2826,35 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
 #                │ Aggregator-Upsample  │
 #                └──────────────────────┘
 class UNetDecoderPrimaryAggregatorUpsample(nn.Module, IODescriptive):
+    """
+    UNet Decoder Primary Aggregator Upsample Module
+    
+    Upsamples features by 2x in each spatial dimension using transposed convolution.
+    This is used in the primary decoder stages to increase spatial resolution.
+    
+    Architecture:
+        Input → ConvTranspose3d(2x2x2, stride=2) → Output
+    
+    Spatial dimensions are doubled: (X, Y, Z) → (2X, 2Y, 2Z)
+    
+    Attributes:
+        pipe: Sequential container with transposed convolution
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
+            in_channels: int,  # Cin: Input channels
+            out_channels: int,  # Cout: Output channels
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderPrimaryAggregatorUpsample
+        
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetDecoderPrimaryAggregatorUpsample, self).__init__()
         self.pipe: nn.Sequential = nn.Sequential(
             nn.ConvTranspose3d(in_channels, out_channels, kernel_size=2, stride=2)
@@ -1904,6 +2863,15 @@ class UNetDecoderPrimaryAggregatorUpsample(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through upsampling layer
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin, X, Y, Z)
+            
+        Returns:
+            Output tensor of shape (B, Cout, 2X, 2Y, 2Z)
+        """
         output_feat: torch.Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
@@ -1935,7 +2903,7 @@ class UNetDecoderPrimaryAggregatorUpsample(nn.Module, IODescriptive):
 
 
 # 00-05-01-01 UNet-Decoder-PrimaryAggregator-FusionPortal
-# Fuse features from higher semantic layer of Decoder and relative shortcut layer (from Encoder)
+# Fuse features from the shallow (primary, lower semantic) part of Decoder and relative shortcut layer (from Encoder)
 # Pinout Diagram: [Valid]
 #                ┌───────────────────┐
 #    stage_feat ─│ 00-05-01-01       │─ output_feat
@@ -1944,16 +2912,45 @@ class UNetDecoderPrimaryAggregatorUpsample(nn.Module, IODescriptive):
 #      (B,C2,*)  │ -FusionPortal     │
 #                └───────────────────┘
 class UNetDecoderPrimaryAggregatorFusionPortal(nn.Module, IODescriptive):
+    """
+    UNet Decoder Primary Aggregator Fusion Portal Module
+    
+    Fuses features from the decoder's lower semantic layer with the
+    corresponding encoder shortcut features via concatenation.
+    
+    Architecture:
+         [stage_feat (B, C1, *), shortcut_feat (B, C2, *)] → Concat(dim=1) → output_feat (B, C1+C2, *)
+    
+    Attributes:
+        concat: Concatenation layer along channel dimension
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderPrimaryAggregatorFusionPortal
+        
+        Args:
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetDecoderPrimaryAggregatorFusionPortal, self).__init__()
         self.concat: Concat = Concat(dim=1, reserve_io=reserve_io)
 
         self.reserve_io: bool = reserve_io
 
     def forward(self, stage_feat: torch.Tensor, shortcut_feat: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through fusion portal
+        
+        Args:
+            stage_feat: Upsampled feature from decoder (B, C1, X, Y, Z)
+            shortcut_feat: Skip connection feature from encoder (B, C2, X, Y, Z)
+            
+        Returns:
+            Concatenated feature tensor (B, C1+C2, X, Y, Z)
+        """
         output_feat: torch.Tensor = self.concat(stage_feat, shortcut_feat)
 
         if self.reserve_io:
@@ -2002,14 +2999,39 @@ class UNetDecoderPrimaryAggregatorFusionPortal(nn.Module, IODescriptive):
 # (B,Cin,X,Y,Z)  │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │ {output_feat}   {input_feat} │ Conv-BN-ReLU │  (B,Cout,X,Y,Z)
 #                └──────────────┘ (B,Cout,X,Y,Z)               └──────────────┘ (B,Cout,X,Y,Z)               └──────────────┘
 class UNetDecoderPrimaryAggregatorStage(nn.Module, IODescriptive):
+    """
+    UNet Decoder Primary Aggregator Stage Module
+    
+    One stage within the primary decoder aggregator that processes fused features.
+    Consists of D Conv-BN-ReLU layers for feature refinement.
+    
+    Architecture:
+        Input → Conv-BN-ReLU (Cin→Cout) → [Conv-BN-ReLU] × (D-1) → Output
+    
+    The first layer changes channel dimensions, subsequent layers maintain them.
+    
+    Attributes:
+        pipe: Sequential container with D ConvBNReLU layers
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
-            depth: int,  # D
+            in_channels: int,  # Cin: Input channels
+            out_channels: int,  # Cout: Output channels
+            depth: int,  # D: Number of ConvBNReLU layers
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDecoderPrimaryAggregatorStage
+        
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            depth: Number of ConvBNReLU layers
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetDecoderPrimaryAggregatorStage, self).__init__()
+        # First layer changes from Cin to Cout, subsequent layers maintain Cout
         self.pipe: nn.Sequential = nn.Sequential(
             ConvBNReLU(in_channels, out_channels, 3, padding='same', reserve_io=reserve_io),
             *[ConvBNReLU(out_channels, out_channels, 3, padding='same', reserve_io=reserve_io)
@@ -2019,6 +3041,16 @@ class UNetDecoderPrimaryAggregatorStage(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Forward pass through decoder stage
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin, X, Y, Z)
+            inject_feat: Optional injection tensor (currently unused)
+            
+        Returns:
+            Output tensor of shape (B, Cout, X, Y, Z)
+        """
         # inject_feat is always ignored now
         output_feat: torch.Tensor = self.pipe(input_feat)
 
@@ -2082,14 +3114,40 @@ class UNetDecoderPrimaryAggregatorStage(nn.Module, IODescriptive):
 # (B,Cin[S-1],X[S-1],Y[S-1],Z[S-1])  │ Conv-BN-ReLU │ {output_feat}   {input} │ Conv3d │  (B,Cout[S-1],X[S-1],Y[S-1],Z[S-1])
 #                                    └──────────────┘ (B,Cin[S-1],X,Y,Z)      └────────┘
 class UNetAuxiliaryClassifier(nn.Module, IODescriptive):
+    """
+    UNet Auxiliary Classifier Module - Deep Supervision Outputs
+    
+    Provides auxiliary classification outputs at multiple decoder stages
+    for deep supervision during training. Each output corresponds to
+    a different spatial resolution.
+    
+    Architecture:
+        For each stage s:
+            input_feats[s] → Conv-BN-ReLU(3x3x3) → Conv3d(1x1x1) → aux_logits[s]
+    
+    Deep supervision helps train intermediate features and improves gradient flow.
+    
+    Attributes:
+        pipe: ModuleList with S classifiers (each: ConvBNReLU + Conv3d)
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]
-            out_channels: Sequence[int],  # Cout[S]
+            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
+            out_channels: Sequence[int],  # Cout[S]: Output classes for each stage
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetAuxiliaryClassifier
+        
+        Args:
+            in_channels: Input channels for each auxiliary classifier
+            out_channels: Number of output classes for each auxiliary classifier
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetAuxiliaryClassifier, self).__init__()
         self.pipe: nn.ModuleList = nn.ModuleList()
+        # Create a classifier for each stage
         for ic, oc in zip(in_channels, out_channels):
             self.pipe.append(nn.Sequential(
                 ConvBNReLU(ic, ic, 3, padding='same', reserve_io=reserve_io),
@@ -2099,6 +3157,18 @@ class UNetAuxiliaryClassifier(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feats: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+        """
+        Forward pass through auxiliary classifiers
+        
+        Args:
+            input_feats: List of feature tensors from decoder stages
+            
+        Returns:
+            List of auxiliary logits for deep supervision
+            
+        Raises:
+            AssertionError: If input_feats length doesn't match number of classifiers
+        """
         assert len(input_feats) == len(self.pipe)
         aux_logits: List[torch.Tensor] = []
         for module, feat in zip(self.pipe, input_feats):
@@ -2145,12 +3215,33 @@ class UNetAuxiliaryClassifier(nn.Module, IODescriptive):
 # (B,Cin,X,Y,Z)  │ UNet-Distributor │  (B,Cout,X,Y,Z)
 #                └──────────────────┘
 class UNetDistributor(nn.Module, IODescriptive):
+    """
+    UNet Distributor Module - Post-Decoder Feature Refinement
+    
+    A stem feature aggregator that processes decoder output before classification.
+    Intended to generate or filter discriminative features for the final classifier.
+    
+    Architecture:
+        Input → Conv3d(3x3x3) → BatchNorm → ReLU → Output
+    
+    Attributes:
+        pipe: Sequential container with ConvBNReLU layer
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
+            in_channels: int,  # Cin: Number of input channels
+            out_channels: int,  # Cout: Number of output channels
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetDistributor
+        
+        Args:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetDistributor, self).__init__()
         self.pipe: nn.Sequential = nn.Sequential(
             ConvBNReLU(in_channels, out_channels, 3, padding='same', reserve_io=reserve_io)
@@ -2159,6 +3250,15 @@ class UNetDistributor(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through distributor
+        
+        Args:
+            input_feat: Input tensor of shape (B, Cin, X, Y, Z)
+            
+        Returns:
+            Output tensor of shape (B, Cout, X, Y, Z)
+        """
         output_feat: torch.Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
@@ -2197,12 +3297,37 @@ class UNetDistributor(nn.Module, IODescriptive):
 # (B,Cin,X,Y,Z)  │ UNet-Classifier │  (B,Cout,X,Y,Z)
 #                └─────────────────┘
 class UNetClassifier(nn.Module, IODescriptive):
+    """
+    UNet Classifier Module - Final Segmentation Output Layer
+    
+    A pointwise (1x1x1) convolution that maps features to class logits.
+    This is the final layer that produces the segmentation output.
+    
+    Architecture:
+        Input → Conv3d(1x1x1) → Logits
+        
+    Note:
+        This module returns raw logits, not probabilities.
+        Apply sigmoid or softmax externally for normalization.
+    
+    Attributes:
+        pipe: Sequential container with 1x1x1 convolution
+        reserve_io: Whether to store I/O tensors for debugging
+    """
     def __init__(
             self,
-            in_channels: int,  # Cin
-            out_channels: int,  # Cout
+            in_channels: int,  # Cin: Number of input feature channels
+            out_channels: int,  # Cout: Number of output classes
             reserve_io: bool = False
     ):
+        """
+        Initialize UNetClassifier
+        
+        Args:
+            in_channels: Number of input feature channels
+            out_channels: Number of output classes
+            reserve_io: If True, store I/O tensors for debugging
+        """
         super(UNetClassifier, self).__init__()
         self.pipe: nn.Sequential = nn.Sequential(
             nn.Conv3d(in_channels, out_channels, 1)
@@ -2212,6 +3337,15 @@ class UNetClassifier(nn.Module, IODescriptive):
         self.reserve_io: bool = reserve_io
 
     def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through classifier
+        
+        Args:
+            input_feat: Input feature tensor of shape (B, Cin, X, Y, Z)
+            
+        Returns:
+            Logits tensor of shape (B, Cout, X, Y, Z)
+        """
         logits: torch.Tensor = self.pipe(input_feat)
 
         if self.reserve_io:

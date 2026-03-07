@@ -1,4 +1,22 @@
 # -*- coding: utf-8 -*-
+"""
+Default Segmentation DataModule
+
+This module provides a PyTorch Lightning DataModule for segmentation tasks,
+managing data loading, preprocessing, and batching for training, validation,
+testing, and prediction phases.
+
+Classes:
+    DataModuleSegmentationDefaultInitArgs: Dataclass for DataModule initialization arguments
+    DataModuleSegmentationDefault: PyTorch Lightning DataModule for segmentation tasks
+
+Key Features:
+    - Supports multiple phases (train, val, test, predict)
+    - Configurable dataset types (PersistentDataset, CacheDataset, LMDBDataset)
+    - Customizable transforms for each phase
+    - Reproducible data loading with random seed management
+    - State management for reproducibility
+"""
 import os
 import torch
 import pathlib as pl
@@ -22,33 +40,53 @@ PipeStage = Literal['fit', 'val', 'test', 'predict']
 
 @dataclass(frozen=True)
 class DataModuleSegmentationDefaultInitArgs:
+    """
+    Dataclass for DataModule initialization arguments
+    
+    Contains all parameters needed to initialize a DataModule for segmentation tasks
+    """
     # Dataset Retriever
-    root_dir: PathLike
-    manifest_file: PathLike
-    column_key_map: Dict[str, str]
-    column_key_relative_path: Iterable[str]
-    column_group_map: Dict[str, Iterable[str]]
-    column_dtype_map: Optional[DtypeArg]
+    root_dir: PathLike  # Root directory for the dataset
+    manifest_file: PathLike  # Path to the Excel manifest file
+    column_key_map: Dict[str, str]  # Mapping from Excel column names to internal keys
+    column_key_relative_path: Iterable[str]  # Columns that contain relative paths
+    column_group_map: Dict[str, Iterable[str]]  # Mapping from group names to list of keys
+    column_dtype_map: Optional[DtypeArg]  # Optional dtype mapping for Excel columns
     # Runtime Dataset
-    dataset_cls: Type[Union[mD.PersistentDataset, mD.CacheDataset, mD.LMDBDataset]]
-    dataset_params: Dict[str, Any]
+    dataset_cls: Type[Union[mD.PersistentDataset, mD.CacheDataset, mD.LMDBDataset]]  # MONAI dataset class to use
+    dataset_params: Dict[str, Any]  # Additional parameters for the dataset class
     # Transform
-    transform_cls: Type[TransformSegmentationDefaultBase]
-    transform_params: Dict[str, Any]
+    transform_cls: Type[TransformSegmentationDefaultBase]  # Transform class to use
+    transform_params: Dict[str, Any]  # Parameters for the transform class
     # Dataloader
-    batch_size: Optional[int] = 1
-    shuffle: Optional[bool] = None
-    num_workers: int = 0
-    pin_memory: bool = False
-    drop_last: bool = False
-    persistent_workers: bool = False
-    generator_random_seed: Optional[int] = None
+    batch_size: Optional[int] = 1  # Batch size for dataloader
+    shuffle: Optional[bool] = None  # Whether to shuffle data
+    num_workers: int = 0  # Number of worker processes
+    pin_memory: bool = False  # Whether to pin memory
+    drop_last: bool = False  # Whether to drop the last incomplete batch
+    persistent_workers: bool = False  # Whether to use persistent workers
+    generator_random_seed: Optional[int] = None  # Random seed for dataloader generator
 
     @staticmethod
     def convert_to_dict(**kwargs) -> Dict[str, Any]:
+        """
+        Convert keyword arguments to a dictionary
+        
+        Args:
+            **kwargs: Keyword arguments to convert
+            
+        Returns:
+            Dictionary of keyword arguments
+        """
         return kwargs
 
     def retriever_args(self) -> Dict[str, Any]:
+        """
+        Get arguments for the dataset manifest retriever
+        
+        Returns:
+            Dictionary of retriever arguments
+        """
         return DataModuleSegmentationDefaultInitArgs.convert_to_dict(
             root_dir=self.root_dir,
             manifest_file=self.manifest_file,
@@ -59,18 +97,36 @@ class DataModuleSegmentationDefaultInitArgs:
         )
 
     def dataset_args(self) -> Dict[str, Any]:
+        """
+        Get arguments for the dataset
+        
+        Returns:
+            Dictionary of dataset arguments
+        """
         return DataModuleSegmentationDefaultInitArgs.convert_to_dict(
             dataset_cls=self.dataset_cls,
             dataset_params=self.dataset_params
         )
 
     def transform_args(self) -> Dict[str, Any]:
+        """
+        Get arguments for the transform
+        
+        Returns:
+            Dictionary of transform arguments
+        """
         return DataModuleSegmentationDefaultInitArgs.convert_to_dict(
             transform_cls=self.transform_cls,
             transform_params=self.transform_params
         )
 
     def dataloader_args(self) -> Dict[str, Any]:
+        """
+        Get arguments for the dataloader
+        
+        Returns:
+            Dictionary of dataloader arguments
+        """
         return DataModuleSegmentationDefaultInitArgs.convert_to_dict(
             batch_size=self.batch_size,
             shuffle=self.shuffle,
@@ -83,6 +139,12 @@ class DataModuleSegmentationDefaultInitArgs:
 
 
 class DataModuleSegmentationDefault(L.LightningDataModule):
+    """
+    PyTorch Lightning DataModule for segmentation tasks
+    
+    Manages data loading, preprocessing, and batching for training, validation,
+    testing, and prediction phases
+    """
     def __init__(
             self,
             train_init_args: Optional[DataModuleSegmentationDefaultInitArgs] = None,
@@ -90,7 +152,18 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             test_init_args: Optional[DataModuleSegmentationDefaultInitArgs] = None,
             predict_init_args: Optional[DataModuleSegmentationDefaultInitArgs] = None
     ) -> None:
+        """
+        Initialize the DataModule
+        
+        Args:
+            train_init_args: Initialization arguments for the training phase
+            val_init_args: Initialization arguments for the validation phase
+            test_init_args: Initialization arguments for the testing phase
+            predict_init_args: Initialization arguments for the prediction phase
+        """
         super().__init__()
+        
+        # Store initialization arguments for each phase
         self.init_args: Dict[str, DataModuleSegmentationDefaultInitArgs] = {}
         for stage, init_args in zip(
                 ['train', 'val', 'test', 'predict'],
@@ -99,13 +172,22 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             if isinstance(init_args, DataModuleSegmentationDefaultInitArgs):
                 self.init_args[stage] = init_args
 
-        # records after initialization
-        self.transforms: Dict[PhaseLike, TransformSegmentationDefaultBase] = {}
-        self.retrievers: Dict[PhaseLike, DatasetManifestRetrieverSegmentationDefault] = {}
-        self.datasets: Dict[PhaseLike, mD.Dataset] = {}
-        self.dataloaders: Dict[PhaseLike, DataLoader] = {}
+        # Records after initialization
+        self.transforms: Dict[PhaseLike, TransformSegmentationDefaultBase] = {}  # Transforms for each phase
+        self.retrievers: Dict[PhaseLike, DatasetManifestRetrieverSegmentationDefault] = {}  # Dataset retrievers for each phase
+        self.datasets: Dict[PhaseLike, mD.Dataset] = {}  # Datasets for each phase
+        self.dataloaders: Dict[PhaseLike, DataLoader] = {}  # Dataloaders for each phase
 
     def prepare_data(self) -> None:
+        """
+        Prepare data for use
+        
+        This method is called once on the main process before training
+        Used to validate that all required data directories and files exist
+        
+        Raises:
+            ValueError: If root directory or manifest file does not exist for any phase
+        """
         stage: str
         init: DataModuleSegmentationDefaultInitArgs
         for stage, init in self.init_args.items():
@@ -117,21 +199,35 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
                 raise ValueError(f"Manifest for '{stage}' dataset not exists: {manifest_file}")
 
     def setup(self, stage: Optional[PipeStage] = None) -> None:
+        """
+        Setup data for each phase
+        
+        This method is called on every process before training/validation/testing/prediction
+        Initializes transforms, retrievers, and datasets for the specified stage
+        
+        Args:
+            stage: Current stage (fit, val, test, predict)
+            
+        Raises:
+            ValueError: If any stage has invalid init arguments
+        """
+        # Setup for training and validation phases
         if stage == 'fit' or stage is None:
             if 'train' in self.init_args:
                 init: DataModuleSegmentationDefaultInitArgs = self.init_args['train']
-                # Transform
+                # Get transform class and parameters
                 transform_cls: Type[TransformSegmentationDefaultBase] = init.transform_cls
                 transform_params: Dict[str, Any] = init.transform_params
 
-                # Create Transform pipe
+                # Create transform pipeline
                 self.transforms['train'] = transform_cls(**transform_params)  # noqa
 
-                # Create Dataset
+                # Create dataset retriever
                 self.retrievers['train'] = DatasetManifestRetrieverSegmentationDefault(**init.retriever_args())
+                # Create dataset with composed transform for acceleration
                 dataset: mD.Dataset = self.retrievers['train'].get_monai_dataset(
                     dataset_class=init.dataset_cls,
-                    transform=self.transforms['train'].get_composed_transform(),  # use composed transform to accelerate
+                    transform=self.transforms['train'].get_composed_transform(),
                     **init.dataset_params
                 )
                 self.datasets['train'] = dataset
@@ -141,20 +237,19 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
 
             if 'val' in self.init_args:
                 init: DataModuleSegmentationDefaultInitArgs = self.init_args['val']
-                # Transform
+                # Get transform class and parameters
                 transform_cls: Type[TransformSegmentationDefaultBase] = init.transform_cls
                 transform_params: Dict[str, Any] = init.transform_params
 
-                # Create Transform pipe
+                # Create transform pipeline
                 self.transforms['val'] = transform_cls(**transform_params)  # noqa
 
-                # Create Dataset
+                # Create dataset retriever
                 self.retrievers['val'] = DatasetManifestRetrieverSegmentationDefault(**init.retriever_args())
-                # Create Dataset
-                self.retrievers['val'] = DatasetManifestRetrieverSegmentationDefault(**init.retriever_args())
+                # Create dataset with composed transform for acceleration
                 dataset: mD.Dataset = self.retrievers['val'].get_monai_dataset(
                     dataset_class=init.dataset_cls,
-                    transform=self.transforms['val'].get_composed_transform(),  # use composed transform to accelerate
+                    transform=self.transforms['val'].get_composed_transform(),
                     **init.dataset_params
                 )
                 self.datasets['val'] = dataset
@@ -162,21 +257,23 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             elif stage is not None:
                 raise ValueError(f"Stage 'val' has invalid init arguments")
 
+        # Setup for validation phase only
         if stage == 'val':
             if 'val' in self.init_args:
                 init: DataModuleSegmentationDefaultInitArgs = self.init_args['val']
-                # Transform
+                # Get transform class and parameters
                 transform_cls: Type[TransformSegmentationDefaultBase] = init.transform_cls
                 transform_params: Dict[str, Any] = init.transform_params
 
-                # Create Transform pipe
+                # Create transform pipeline
                 self.transforms['val'] = transform_cls(**transform_params)  # noqa
 
-                # Create Dataset
+                # Create dataset retriever
                 self.retrievers['val'] = DatasetManifestRetrieverSegmentationDefault(**init.retriever_args())
+                # Create dataset with composed transform for acceleration
                 dataset: mD.Dataset = self.retrievers['val'].get_monai_dataset(
                     dataset_class=init.dataset_cls,
-                    transform=self.transforms['val'].get_composed_transform(),  # use composed transform to accelerate
+                    transform=self.transforms['val'].get_composed_transform(),
                     **init.dataset_params
                 )
                 self.datasets['val'] = dataset
@@ -184,21 +281,23 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             elif stage is not None:
                 raise ValueError(f"Stage 'val' has invalid init arguments")
 
+        # Setup for testing phase
         if stage == 'test' or stage is None:
             if 'test' in self.init_args:
                 init: DataModuleSegmentationDefaultInitArgs = self.init_args['test']
-                # Transform
+                # Get transform class and parameters
                 transform_cls: Type[TransformSegmentationDefaultBase] = init.transform_cls
                 transform_params: Dict[str, Any] = init.transform_params
 
-                # Create Transform pipe
+                # Create transform pipeline
                 self.transforms['test'] = transform_cls(**transform_params)  # noqa
 
-                # Create Dataset
+                # Create dataset retriever
                 self.retrievers['test'] = DatasetManifestRetrieverSegmentationDefault(**init.retriever_args())
+                # Create dataset with composed transform for acceleration
                 dataset: mD.Dataset = self.retrievers['test'].get_monai_dataset(
                     dataset_class=init.dataset_cls,
-                    transform=self.transforms['test'].get_composed_transform(),  # use composed transform to accelerate
+                    transform=self.transforms['test'].get_composed_transform(),
                     **init.dataset_params
                 )
                 self.datasets['test'] = dataset
@@ -206,22 +305,23 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             elif stage is not None:
                 raise ValueError(f"Stage 'test' has invalid init arguments")
 
+        # Setup for prediction phase
         if stage == 'predict' or stage is None:
             if 'predict' in self.init_args:
-                init: DataModuleSegmentationDefaultInitArgs = self.init_args['test']
-                # Transform
+                init: DataModuleSegmentationDefaultInitArgs = self.init_args['predict']  # Fixed: use 'predict' instead of 'test'
+                # Get transform class and parameters
                 transform_cls: Type[TransformSegmentationDefaultBase] = init.transform_cls
                 transform_params: Dict[str, Any] = init.transform_params
 
-                # Create Transform pipe
-                self.transfrom['predict'] = transform_cls(**transform_params)  # noqa
+                # Create transform pipeline
+                self.transforms['predict'] = transform_cls(**transform_params)
 
-                # Create Dataset
+                # Create dataset retriever
                 self.retrievers['predict'] = DatasetManifestRetrieverSegmentationDefault(**init.retriever_args())
+                # Create dataset with composed transform for acceleration
                 dataset: mD.Dataset = self.retrievers['predict'].get_monai_dataset(
                     dataset_class=init.dataset_cls,
                     transform=self.transforms['predict'].get_composed_transform(),
-                    # use composed transform to accelerate
                     **init.dataset_params
                 )
                 self.datasets['predict'] = dataset
@@ -230,16 +330,27 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
                 raise ValueError(f"Stage 'predict' has invalid init arguments")
 
     def train_dataloader(self) -> DataLoader:
+        """
+        Create training dataloader
+        
+        Returns:
+            DataLoader for training data
+            
+        Raises:
+            AttributeError: If training dataset has not been initialized
+        """
         if 'train' not in self.datasets:
             raise AttributeError("Dataset for stage 'train' has not been initialized, please initialize first")
 
         init: DataModuleSegmentationDefaultInitArgs = self.init_args['train']
         dataloader_args: Dict[str, Any] = init.dataloader_args()
+        # Set random seed for reproducibility
         if init.generator_random_seed is not None:
             generator = torch.Generator()
             generator.manual_seed(init.generator_random_seed)
             dataloader_args['generator'] = generator
         del dataloader_args['generator_random_seed']
+
         loader: DataLoader = DataLoader(
             dataset=self.datasets['train'],
             **dataloader_args
@@ -248,11 +359,21 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
         return loader
 
     def val_dataloader(self) -> DataLoader:
+        """
+        Create validation dataloader
+        
+        Returns:
+            DataLoader for validation data
+            
+        Raises:
+            KeyError: If validation dataset has not been initialized
+        """
         if 'val' not in self.datasets:
             raise KeyError("Dataset for stage 'val' has not been initialized, please initialize first")
 
         init: DataModuleSegmentationDefaultInitArgs = self.init_args['val']
         dataloader_args: Dict[str, Any] = init.dataloader_args()
+        # Set random seed for reproducibility
         if init.generator_random_seed is not None:
             generator = torch.Generator()
             generator.manual_seed(init.generator_random_seed)
@@ -266,11 +387,21 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
         return loader
 
     def test_dataloader(self) -> DataLoader:
+        """
+        Create testing dataloader
+        
+        Returns:
+            DataLoader for testing data
+            
+        Raises:
+            KeyError: If testing dataset has not been initialized
+        """
         if 'test' not in self.datasets:
             raise KeyError("Dataset for stage 'test' has not been initialized, please initialize first")
 
         init: DataModuleSegmentationDefaultInitArgs = self.init_args['test']
         dataloader_args: Dict[str, Any] = init.dataloader_args()
+        # Set random seed for reproducibility
         if init.generator_random_seed is not None:
             generator = torch.Generator()
             generator.manual_seed(init.generator_random_seed)
@@ -284,11 +415,21 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
         return loader
 
     def predict_dataloader(self) -> DataLoader:
+        """
+        Create prediction dataloader
+        
+        Returns:
+            DataLoader for prediction data
+            
+        Raises:
+            KeyError: If prediction dataset has not been initialized
+        """
         if 'predict' not in self.datasets:
             raise KeyError("Dataset for stage 'predict' has not been initialized, please initialize first")
 
         init: DataModuleSegmentationDefaultInitArgs = self.init_args['predict']
         dataloader_args: Dict[str, Any] = init.dataloader_args()
+        # Set random seed for reproducibility
         if init.generator_random_seed is not None:
             generator = torch.Generator()
             generator.manual_seed(init.generator_random_seed)
@@ -302,9 +443,18 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
         return loader
 
     def state_dict(self) -> Dict[str, Any]:
+        """
+        Get the state dictionary for the DataModule
+        
+        Returns:
+            Dictionary containing the state of transforms and dataloaders
+            
+        Raises:
+            ValueError: If unable to acquire state for any transform or dataloader
+        """
         state_dict: Dict[PhaseLike, Any] = {}
 
-        # save Transform states
+        # Save transform states
         for phase, transform in self.transforms.items():
             if hasattr(transform, 'get_state'):
                 try:
@@ -314,7 +464,7 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
                 except Exception as e:
                     raise ValueError(f"Fail to acquire {type(transform).__name__} state for phase {phase}: {str(e)}")
 
-        # save Dataloader states
+        # Save dataloader states
         for phase, loader in self.dataloaders.items():
             if hasattr(loader, 'generator') and loader.generator is not None and hasattr(loader.generator, 'get_state'):
                 try:
@@ -327,7 +477,16 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
         return state_dict
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        # load transform states
+        """
+        Load the state dictionary for the DataModule
+        
+        Args:
+            state_dict: Dictionary containing the state of transforms and dataloaders
+            
+        Raises:
+            ValueError: If unable to load state for any transform or dataloader
+        """
+        # Load transform states
         for phase, transform in self.transforms.items():
             transform_name: str = f'transform_{type(transform).__name__}'
             if phase in state_dict and transform_name in state_dict[phase] and hasattr(transform, 'set_state'):
@@ -336,7 +495,7 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
                 except Exception as e:
                     raise ValueError(f"Fail to load {type(transform).__name__} state for phase {phase}: {str(e)}")
 
-        # load Dataloader states
+        # Load dataloader states
         for phase, loader in self.dataloaders.items():
             if ('dataloader_generator' in state_dict[phase] and hasattr(loader, 'generator')
                     and hasattr(loader.generator, 'set_state')):
@@ -364,7 +523,7 @@ if __name__ == "__main__":
         column_dtype_map=None,
         dataset_cls=mD.PersistentDataset,
         dataset_params={
-            'cache_dir': './Samples/cache'
+            'cache_dir': './Samples/datamodule_test/cache'
         },
         transform_cls=TransformSegmentationDefaultTrain,
         transform_params={
@@ -413,7 +572,7 @@ if __name__ == "__main__":
         column_dtype_map=None,
         dataset_cls=mD.PersistentDataset,
         dataset_params={
-            'cache_dir': './Samples/cache'
+            'cache_dir': './Samples/datamodule_test/cache'
         },
         transform_cls=TransformSegmentationDefaultInferencePre,
         transform_params={
@@ -511,10 +670,10 @@ if __name__ == "__main__":
 
     # Get-Set DataModule state
     dm_state = dm.state_dict()
-    state_path: pl.Path = pl.Path('./Samples/ckpt/dm_state.pth')
+    state_path: pl.Path = pl.Path('./Samples/datamodule_test/ckpt/dm_state.pth')
     state_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(dm_state, state_path)
-    loaded_state = torch.load(state_path)
+    loaded_state = torch.load(state_path, weights_only=False)
 
     # Initialize DataModule
     dm_2 = DataModuleSegmentationDefault(

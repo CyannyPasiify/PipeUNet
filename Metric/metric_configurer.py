@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-TorchMetrics包装器模块
+Metrics Configurers
 
-该模块提供了TorchMetrics库中各种分类指标的包装类，
-增强了plot方法以提供额外的控制功能。
+This module provides wrapper classes for various metrics from the TorchMetrics and MONAI libraries,
+enhancing the plot method to provide additional control functionality (for TorchMetrics).
 """
 
 import numpy as np
@@ -17,69 +16,69 @@ from matplotlib.axes import Axes
 
 class BinaryStatScores(torchmetrics.classification.BinaryStatScores):
     """
-    二分类统计指标的包装类。
+    Wrapper class for binary classification statistical metrics.
     """
 
 
 class MultiClassStatScores(torchmetrics.classification.MulticlassStatScores):
     """
-    多分类统计指标的包装类。
+    Wrapper class for multiclass classification statistical metrics.
     """
 
 
 class BinaryAccuracy(torchmetrics.classification.BinaryAccuracy):
     """
-    Accuracy指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for Accuracy metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制Accuracy指标图，并添加额外的控制选项。
+        Plot Accuracy metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为Accuracy添加数据标签时出错: {e}")
+                print(f"Error adding data labels to Accuracy: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -87,10 +86,10 @@ class BinaryAccuracy(torchmetrics.classification.BinaryAccuracy):
 
 class MulticlassAccuracy(torchmetrics.classification.MulticlassAccuracy):
     """
-    Accuracy指标的包装类，增强了plot方法以提供额外的控制功能。
-    在多分类问题中，总是应当设置 average='micro' 以获取正确的 Accuracy 值，
-    TorchMetrics 中的 MulticlassAccuracy 指定 average='none'或'macro' 时，
-    视同 Recall。
+    Wrapper class for Accuracy metric, enhanced with additional plot control functionality.
+    For multiclass problems, average='micro' should always be set to get the correct Accuracy value.
+    When MulticlassAccuracy in TorchMetrics specifies average='none' or 'macro',
+    it is equivalent to Recall.
     """
 
     def __init__(
@@ -116,50 +115,50 @@ class MulticlassAccuracy(torchmetrics.classification.MulticlassAccuracy):
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制Accuracy指标图，并添加额外的控制选项。
+        Plot Accuracy metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为Accuracy添加数据标签时出错: {e}")
+                print(f"Error adding data labels to Accuracy: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -167,57 +166,57 @@ class MulticlassAccuracy(torchmetrics.classification.MulticlassAccuracy):
 
 class BinaryAUROC(torchmetrics.classification.BinaryAUROC):
     """
-    AUROC指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for AUROC metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制AUROC指标图，并添加额外的控制选项。
+        Plot AUROC metric with additional control options.
 
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
 
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为AUROC添加数据标签时出错: {e}")
+                print(f"Error adding data labels to AUROC: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -225,57 +224,57 @@ class BinaryAUROC(torchmetrics.classification.BinaryAUROC):
 
 class MulticlassAUROC(torchmetrics.classification.MulticlassAUROC):
     """
-    AUROC指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for AUROC metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制AUROC指标图，并添加额外的控制选项。
+        Plot AUROC metric with additional control options.
 
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
 
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为AveragePrecision添加数据标签时出错: {e}")
+                print(f"Error adding data labels to AveragePrecision: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -283,57 +282,57 @@ class MulticlassAUROC(torchmetrics.classification.MulticlassAUROC):
 
 class BinaryAveragePrecision(torchmetrics.classification.BinaryAveragePrecision):
     """
-    二分类的AveragePrecision指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for binary classification AveragePrecision metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制二分类Average Precision指标图，并添加额外的控制选项。
+        Plot binary classification Average Precision metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为Average Precision添加数据标签时出错: {e}")
+                print(f"Error adding data labels to Average Precision: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -341,57 +340,57 @@ class BinaryAveragePrecision(torchmetrics.classification.BinaryAveragePrecision)
 
 class MulticlassAveragePrecision(torchmetrics.classification.MulticlassAveragePrecision):
     """
-    AveragePrecision指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for AveragePrecision metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制AveragePrecision指标图，并添加额外的控制选项。
+        Plot AveragePrecision metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为AveragePrecision添加数据标签时出错: {e}")
+                print(f"Error adding data labels to AveragePrecision: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -399,68 +398,32 @@ class MulticlassAveragePrecision(torchmetrics.classification.MulticlassAveragePr
 
 class BinaryConfusionMatrix(torchmetrics.classification.BinaryConfusionMatrix):
     """
-    ConfusionMatrix指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for ConfusionMatrix metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制混淆矩阵，并添加额外的控制选项。
+        Plot confusion matrix with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            figsize: 图表尺寸，如果为None则使用默认尺寸
-            normalize: 归一化方法，可以是'row', 'column', 'all'或None
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
-        if title is not None:
-            ax.set_title(title)
-
-        fig.tight_layout()
-        return fig, ax
-
-
-class BinaryConfusionMatrix(torchmetrics.classification.BinaryConfusionMatrix):
-    """
-    二分类的ConfusionMatrix指标的包装类，增强了plot方法以提供额外的控制功能。
-    """
-
-    def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
-             figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
-        """
-        绘制二分类混淆矩阵，并添加额外的控制选项。
-        
-        Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            figsize: 图表尺寸，如果为None则使用默认尺寸
-            
-        Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
-        """
-        # 调用原始的plot方法
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax)
-
-        # 设置图表尺寸
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
@@ -470,33 +433,32 @@ class BinaryConfusionMatrix(torchmetrics.classification.BinaryConfusionMatrix):
 
 class MulticlassConfusionMatrix(torchmetrics.classification.MulticlassConfusionMatrix):
     """
-    ConfusionMatrix指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for ConfusionMatrix metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制混淆矩阵，并添加额外的控制选项。
+        Plot confusion matrix with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            figsize: 图表尺寸，如果为None则使用默认尺寸
-            normalize: 归一化方法，可以是'row', 'column', 'all'或None
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
@@ -506,115 +468,57 @@ class MulticlassConfusionMatrix(torchmetrics.classification.MulticlassConfusionM
 
 class BinaryF1Score(torchmetrics.classification.BinaryF1Score):
     """
-    F1Score指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for F1Score metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制F1Score指标图，并添加额外的控制选项。
+        Plot F1Score metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为F1Score添加数据标签时出错: {e}")
-
-        fig.tight_layout()
-        return fig, ax
-
-
-class BinaryF1Score(torchmetrics.classification.BinaryF1Score):
-    """
-    二分类的F1Score指标的包装类，增强了plot方法以提供额外的控制功能。
-    """
-
-    def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
-             ylabel: Optional[str] = None, add_data_labels: bool = True,
-             figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
-        """
-        绘制二分类F1 Score指标图，并添加额外的控制选项。
-        
-        Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
-            
-        Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
-        """
-        # 调用原始的plot方法
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax)
-
-        # 设置图表尺寸
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # 设置标题
-        if title is not None:
-            ax.set_title(title)
-
-        # 设置y轴标签
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # 为数据点添加数值标签
-        if add_data_labels:
-            try:
-                # 针对点图获取线和点元素
-                for line in ax.lines:
-                    # 获取点的坐标数据
-                    x_data: np.ndarray = line.get_xdata()
-                    y_data: np.ndarray = line.get_ydata()
-
-                    # 为每个点添加数值标签
-                    for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
-                        ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
-            except Exception as e:
-                print(f"为F1 Score添加数据标签时出错: {e}")
+                print(f"Error adding data labels to F1Score: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -622,57 +526,57 @@ class BinaryF1Score(torchmetrics.classification.BinaryF1Score):
 
 class MulticlassF1Score(torchmetrics.classification.MulticlassF1Score):
     """
-    F1Score指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for F1Score metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制F1Score指标图，并添加额外的控制选项。
+        Plot F1Score metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为F1Score添加数据标签时出错: {e}")
+                print(f"Error adding data labels to F1Score: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -680,115 +584,57 @@ class MulticlassF1Score(torchmetrics.classification.MulticlassF1Score):
 
 class BinaryPrecision(torchmetrics.classification.BinaryPrecision):
     """
-    Precision指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for Precision metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制Precision指标图，并添加额外的控制选项。
+        Plot Precision metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为Precision添加数据标签时出错: {e}")
-
-        fig.tight_layout()
-        return fig, ax
-
-
-class BinaryPrecision(torchmetrics.classification.BinaryPrecision):
-    """
-    二分类的Precision指标的包装类，增强了plot方法以提供额外的控制功能。
-    """
-
-    def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
-             ylabel: Optional[str] = None, add_data_labels: bool = True,
-             figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
-        """
-        绘制二分类Precision指标图，并添加额外的控制选项。
-        
-        Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
-            
-        Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
-        """
-        # 调用原始的plot方法
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax)
-
-        # 设置图表尺寸
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # 设置标题
-        if title is not None:
-            ax.set_title(title)
-
-        # 设置y轴标签
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # 为数据点添加数值标签
-        if add_data_labels:
-            try:
-                # 针对点图获取线和点元素
-                for line in ax.lines:
-                    # 获取点的坐标数据
-                    x_data: np.ndarray = line.get_xdata()
-                    y_data: np.ndarray = line.get_ydata()
-
-                    # 为每个点添加数值标签
-                    for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
-                        ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
-            except Exception as e:
-                print(f"为Precision添加数据标签时出错: {e}")
+                print(f"Error adding data labels to Precision: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -796,57 +642,57 @@ class BinaryPrecision(torchmetrics.classification.BinaryPrecision):
 
 class MulticlassPrecision(torchmetrics.classification.MulticlassPrecision):
     """
-    Precision指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for Precision metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制Precision指标图，并添加额外的控制选项。
+        Plot Precision metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为Precision添加数据标签时出错: {e}")
+                print(f"Error adding data labels to Precision: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -854,7 +700,7 @@ class MulticlassPrecision(torchmetrics.classification.MulticlassPrecision):
 
 class BinaryPrecisionRecallCurve(torchmetrics.classification.BinaryPrecisionRecallCurve):
     """
-    二分类的PrecisionRecallCurve指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for binary classification PrecisionRecallCurve metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
@@ -863,42 +709,42 @@ class BinaryPrecisionRecallCurve(torchmetrics.classification.BinaryPrecisionReca
              grid_kwargs: Optional[Dict[str, Any]] = None
              ) -> Tuple[Figure, Axes]:
         """
-        绘制二分类Precision-Recall曲线，并添加额外的控制选项。
+        Plot binary classification Precision-Recall curve with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            xlabel: x轴标签，如果为None则使用默认标签
-            ylabel: y轴标签，如果为None则使用默认标签
-            score: 是否显示AP分数
-            figsize: 图表尺寸，如果为None则使用默认尺寸
-            grid_kwargs: 传递给ax.grid函数的参数字典，如果为None则使用默认值
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
+            ylabel: Y-axis label, uses default if None
+            score: Whether to display AP score
+            figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax, score=score)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置x轴标签
+        # Set x-axis label
         if xlabel is not None:
             ax.set_xlabel(xlabel)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 设置网格线
+        # Set grid lines
         if grid_kwargs is None:
             grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
         ax.grid(**grid_kwargs)
@@ -909,7 +755,7 @@ class BinaryPrecisionRecallCurve(torchmetrics.classification.BinaryPrecisionReca
 
 class MulticlassPrecisionRecallCurve(torchmetrics.classification.MulticlassPrecisionRecallCurve):
     """
-    PrecisionRecallCurve指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for PrecisionRecallCurve metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
@@ -918,48 +764,48 @@ class MulticlassPrecisionRecallCurve(torchmetrics.classification.MulticlassPreci
              grid_kwargs: Optional[Dict[str, Any]] = None, legend_title: Optional[str] = "Classes"
              ) -> Tuple[Figure, Axes]:
         """
-        绘制Precision-Recall曲线，并添加额外的控制选项。
+        Plot Precision-Recall curve with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            xlabel: x轴标签，如果为None则使用默认标签
-            ylabel: y轴标签，如果为None则使用默认标签
-            score: 是否显示AP分数
-            figsize: 图表尺寸，如果为None则使用默认尺寸
-            grid_kwargs: 传递给ax.grid函数的参数字典，如果为None则使用默认值
-            legend_title: 图例标题
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
+            ylabel: Y-axis label, uses default if None
+            score: Whether to display AP score
+            figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
+            legend_title: Legend title
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax, score=score)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置x轴标签
+        # Set x-axis label
         if xlabel is not None:
             ax.set_xlabel(xlabel)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 设置网格线
+        # Set grid lines
         if grid_kwargs is None:
             grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
         ax.grid(**grid_kwargs)
 
-        # 设置图例标题
+        # Set legend title
         if legend_title is not None and ax.get_legend():
             ax.legend(title=legend_title)
 
@@ -969,57 +815,57 @@ class MulticlassPrecisionRecallCurve(torchmetrics.classification.MulticlassPreci
 
 class BinaryRecall(torchmetrics.classification.BinaryRecall):
     """
-    二分类的Recall指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for binary classification Recall metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制二分类Recall指标图，并添加额外的控制选项。
+        Plot binary classification Recall metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为Recall添加数据标签时出错: {e}")
+                print(f"Error adding data labels to Recall: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -1027,57 +873,57 @@ class BinaryRecall(torchmetrics.classification.BinaryRecall):
 
 class MulticlassRecall(torchmetrics.classification.MulticlassRecall):
     """
-    Recall指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for Recall metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制Recall指标图，并添加额外的控制选项。
+        Plot Recall metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为Recall添加数据标签时出错: {e}")
+                print(f"Error adding data labels to Recall: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -1085,57 +931,57 @@ class MulticlassRecall(torchmetrics.classification.MulticlassRecall):
 
 class BinarySpecificity(torchmetrics.classification.BinarySpecificity):
     """
-    二分类的Specificity指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for binary classification Specificity metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制二分类Specificity指标图，并添加额外的控制选项。
+        Plot binary classification Specificity metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为Specificity添加数据标签时出错: {e}")
+                print(f"Error adding data labels to Specificity: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -1143,57 +989,57 @@ class BinarySpecificity(torchmetrics.classification.BinarySpecificity):
 
 class MulticlassSpecificity(torchmetrics.classification.MulticlassSpecificity):
     """
-    Specificity指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for Specificity metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
              ylabel: Optional[str] = None, add_data_labels: bool = True,
              figsize: Optional[Tuple[int, int]] = None) -> Tuple[Figure, Axes]:
         """
-        绘制Specificity指标图，并添加额外的控制选项。
+        Plot Specificity metric with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            ylabel: y轴标签，如果为None则使用默认标签
-            add_data_labels: 是否为每个数据点添加数值标签
-            figsize: 图表尺寸，如果为None则使用默认尺寸
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 为数据点添加数值标签
+        # Add data labels
         if add_data_labels:
             try:
-                # 针对点图获取线和点元素
+                # Get lines and points for scatter plot
                 for line in ax.lines:
-                    # 获取点的坐标数据
+                    # Get point coordinate data
                     x_data: np.ndarray = line.get_xdata()
                     y_data: np.ndarray = line.get_ydata()
 
-                    # 为每个点添加数值标签
+                    # Add value labels to each point
                     for x, y in zip(x_data, y_data):
-                        # 在点的上方添加数值标签
+                        # Add value label above the point
                         ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
             except Exception as e:
-                print(f"为Specificity添加数据标签时出错: {e}")
+                print(f"Error adding data labels to Specificity: {e}")
 
         fig.tight_layout()
         return fig, ax
@@ -1201,7 +1047,7 @@ class MulticlassSpecificity(torchmetrics.classification.MulticlassSpecificity):
 
 class BinaryROC(torchmetrics.classification.BinaryROC):
     """
-    二分类的ROC指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for binary classification ROC metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
@@ -1210,42 +1056,42 @@ class BinaryROC(torchmetrics.classification.BinaryROC):
              grid_kwargs: Optional[Dict[str, Any]] = None
              ) -> Tuple[Figure, Axes]:
         """
-        绘制二分类ROC曲线，并添加额外的控制选项。
+        Plot binary classification ROC curve with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            xlabel: x轴标签，如果为None则使用默认标签
-            ylabel: y轴标签，如果为None则使用默认标签
-            score: 是否显示AUROC分数
-            figsize: 图表尺寸，如果为None则使用默认尺寸
-            grid_kwargs: 传递给ax.grid函数的参数字典，如果为None则使用默认值
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
+            ylabel: Y-axis label, uses default if None
+            score: Whether to display AUROC score
+            figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax, score=score)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置x轴标签
+        # Set x-axis label
         if xlabel is not None:
             ax.set_xlabel(xlabel)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 设置网格线
+        # Set grid lines
         if grid_kwargs is None:
             grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
         ax.grid(**grid_kwargs)
@@ -1256,7 +1102,7 @@ class BinaryROC(torchmetrics.classification.BinaryROC):
 
 class MulticlassROC(torchmetrics.classification.MulticlassROC):
     """
-    ROC指标的包装类，增强了plot方法以提供额外的控制功能。
+    Wrapper class for ROC metric, enhanced with additional plot control functionality.
     """
 
     def plot(self, ax: Optional[Axes] = None, title: Optional[str] = None,
@@ -1265,48 +1111,48 @@ class MulticlassROC(torchmetrics.classification.MulticlassROC):
              grid_kwargs: Optional[Dict[str, Any]] = None, legend_title: Optional[str] = "Classes") -> Tuple[
         Figure, Axes]:
         """
-        绘制ROC曲线，并添加额外的控制选项。
+        Plot ROC curve with additional control options.
         
         Args:
-            ax: 可选的matplotlib轴对象，如果为None则创建新的
-            title: 图表标题，如果为None则使用默认标题
-            xlabel: x轴标签，如果为None则使用默认标签
-            ylabel: y轴标签，如果为None则使用默认标签
-            score: 是否显示AUROC分数
-            figsize: 图表尺寸，如果为None则使用默认尺寸
-            grid_kwargs: 传递给ax.grid函数的参数字典，如果为None则使用默认值
-            legend_title: 图例标题
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
+            ylabel: Y-axis label, uses default if None
+            score: Whether to display AUROC score
+            figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
+            legend_title: Legend title
             
         Returns:
-            Tuple[Figure, Axes]: 图表和轴对象
+            Tuple[Figure, Axes]: Figure and axes objects
         """
-        # 调用原始的plot方法
+        # Call original plot method
         fig: Figure
         ax: Axes
         fig, ax = super().plot(ax=ax, score=score)
 
-        # 设置图表尺寸
+        # Set figure size
         if figsize is not None:
             fig.set_size_inches(figsize)
 
-        # 设置标题
+        # Set title
         if title is not None:
             ax.set_title(title)
 
-        # 设置x轴标签
+        # Set x-axis label
         if xlabel is not None:
             ax.set_xlabel(xlabel)
 
-        # 设置y轴标签
+        # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # 设置网格线
+        # Set grid lines
         if grid_kwargs is None:
             grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
         ax.grid(**grid_kwargs)
 
-        # 设置图例标题
+        # Set legend title
         if legend_title is not None and ax.get_legend():
             ax.legend(title=legend_title)
 
@@ -1316,61 +1162,62 @@ class MulticlassROC(torchmetrics.classification.MulticlassROC):
 
 def get_metric_configurer() -> Dict[str, Dict[str, Any]]:
     """
-    获取所有包装后的指标配置信息，包括二分类和多分类版本
+    Get configuration information for all wrapped metrics, including binary and multiclass versions.
     
     Returns:
-        Dict[str, Dict[str, Any]]: 指标名称到指标类和配置的映射，包含binary和multiclass两个版本
+        Dict[str, Dict[str, Any]]: Mapping from metric names to metric classes and configurations,
+        containing both binary and multiclass versions
     """
     return {
         'accuracy': {
             'binary': BinaryAccuracy,
             'multiclass': MulticlassAccuracy,
-            'description': 'Accuracy指标，衡量正确预测的比例'
+            'description': 'Accuracy metric, measures the proportion of correct predictions'
         },
         'auroc': {
             'binary': BinaryAUROC,
             'multiclass': MulticlassAUROC,
-            'description': 'AUROC指标，衡量ROC曲线下的面积'
+            'description': 'AUROC metric, measures the area under the ROC curve'
         },
         'average_precision': {
             'binary': BinaryAveragePrecision,
             'multiclass': MulticlassAveragePrecision,
-            'description': 'Average Precision指标，衡量PR曲线下的面积'
+            'description': 'Average Precision metric, measures the area under the PR curve'
         },
         'confusion_matrix': {
             'binary': BinaryConfusionMatrix,
             'multiclass': MulticlassConfusionMatrix,
-            'description': '混淆矩阵，展示各类别预测的正确与错误情况'
+            'description': 'Confusion matrix, shows correct and incorrect predictions for each class'
         },
         'f1_score': {
             'binary': BinaryF1Score,
             'multiclass': MulticlassF1Score,
-            'description': 'F1 Score指标，精确率和召回率的调和平均'
+            'description': 'F1 Score metric, harmonic mean of precision and recall'
         },
         'precision': {
             'binary': BinaryPrecision,
             'multiclass': MulticlassPrecision,
-            'description': '精确率指标，衡量预测为正例中实际为正例的比例'
+            'description': 'Precision metric, measures the proportion of actual positives among predicted positives'
         },
         'precision_recall_curve': {
             'binary': BinaryPrecisionRecallCurve,
             'multiclass': MulticlassPrecisionRecallCurve,
-            'description': '精确率-召回率曲线，展示不同阈值下精确率和召回率的关系'
+            'description': 'Precision-Recall curve, shows the relationship between precision and recall at different thresholds'
         },
         'recall': {
             'binary': BinaryRecall,
             'multiclass': MulticlassRecall,
-            'description': '召回率指标，衡量实际为正例中被正确预测的比例'
+            'description': 'Recall metric, measures the proportion of actual positives correctly predicted'
         },
         'specificity': {
             'binary': BinarySpecificity,
             'multiclass': MulticlassSpecificity,
-            'description': '特异度指标，衡量实际为负例中被正确预测的比例'
+            'description': 'Specificity metric, measures the proportion of actual negatives correctly predicted'
         },
         'roc': {
             'binary': BinaryROC,
             'multiclass': MulticlassROC,
-            'description': 'ROC曲线，展示不同阈值下真正例率和假正例率的关系'
+            'description': 'ROC curve, shows the relationship between true positive rate and false positive rate at different thresholds'
         }
     }
 
@@ -1378,26 +1225,26 @@ def get_metric_configurer() -> Dict[str, Dict[str, Any]]:
 def create_metric(metric_name: str, task_type: Literal['binary', 'multiclass'] = 'multiclass',
                   **kwargs) -> torchmetrics.Metric:
     """
-    创建指定的包装后指标实例
+    Create a specified wrapped metric instance.
     
     Args:
-        metric_name: 指标名称
-        task_type: 任务类型，'binary' 或 'multiclass'
-        **kwargs: 传递给指标构造函数的参数
+        metric_name: Metric name
+        task_type: Task type, 'binary' or 'multiclass'
+        **kwargs: Parameters passed to the metric constructor
         
     Returns:
-        torchmetrics.Metric: 指标实例
+        torchmetrics.Metric: Metric instance
         
     Raises:
-        ValueError: 如果指标名称不存在或任务类型无效
+        ValueError: If the metric name does not exist or the task type is invalid
     """
     configurer: Dict[str, Dict[str, Any]] = get_metric_configurer()
 
     if metric_name not in configurer:
-        raise ValueError(f"未知的指标名称: {metric_name}. 可用的指标名称: {list(configurer.keys())}")
+        raise ValueError(f"Unknown metric name: {metric_name}. Available metric names: {list(configurer.keys())}")
 
     if task_type not in ['binary', 'multiclass']:
-        raise ValueError(f"无效的任务类型: {task_type}. 可用的任务类型: ['binary', 'multiclass']")
+        raise ValueError(f"Invalid task type: {task_type}. Available task types: ['binary', 'multiclass']")
 
     metric_class = configurer[metric_name][task_type]
     return cast(torchmetrics.Metric, metric_class(**kwargs))
