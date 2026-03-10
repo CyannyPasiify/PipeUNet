@@ -182,3 +182,5 @@ cython_debug/
 
 # Custom
 /Samples
+*.pptx
+*.ppt

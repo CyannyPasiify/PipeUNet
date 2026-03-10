@@ -9,6 +9,7 @@ Classes:
     DuplicateItemsd: Creates copies of specified keys in the data dictionary
     RandCropByLabelClassesd: Extends MONAI's RandCropByLabelClassesd to support random state retrieval
 """
+from torch.utils.data import Dataset
 import monai.transforms as mT
 from typing import Collection, Union, Hashable, Dict, Any
 from monai.utils import TransformBackends

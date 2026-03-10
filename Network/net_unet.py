@@ -10,7 +10,7 @@ Architecture Overview:
     The network consists of the following components:
     - Focuser: Initial feature extraction stem
     - Encoder: Multi-scale feature extraction with primary and advanced stages
-    - Repeater (Bottleneck): Shortcut and deepest feature processing layer
+    - Repeater (Bottleneck): Bridge and deepest feature processing layer
     - Decoder: Upsampling and feature reconstruction with skip connections
     - Auxiliary Classifier: Deep supervision at multiple decoder stages
     - Distributor: Feature refinement before final classification
@@ -37,7 +37,7 @@ Classes:
 import torch
 import torch.nn as nn
 from typing import Optional, Tuple, List, Collection, Sequence, Union, Dict, Any, Type, Iterable, cast
-from Network.block import IODescriptive, ConvNormAct, ConvBNReLU, Concat
+from Network.net_block import IODescriptive, ConvNormAct, ConvBNReLU, Concat
 
 
 # 00 UNet
@@ -90,12 +90,12 @@ from Network.block import IODescriptive, ConvNormAct, ConvBNReLU, Concat
 #                               (Unused)  │              │                         │                                                │              │
 #                                         │              │  {input_feats[S+1]} ←─ {{output_feats[0:S]},                             │              │
 #                                         └──────────────┘     │                   {dn_feats[S-1:S]}  }       ┌─────────────────────│              │
-#                                                              │                                              │ {shortcut_feats[S]} │              │
+#                                                              │                                              │   {bridge_feats[S]} │              │
 #                                                              │ ┌───────────────┐                            │                     │              │
 #                                           {input_feats[S+1]} └─│ 00-03-00      │─ {output_feats[S+1]}       │                   ┌─│              │
 #                                                                │ UNet-Repeater │       ↓                    │      {input_feat} │ │              │
 #                                                                │               │  {{input_feat}, ───────────┼───────────────────┘ └──────────────┘
-#                                                                └───────────────┘   {shortcut_feats[0:S]}} ──┘      (B,DACin[0],
+#                                                                └───────────────┘     {bridge_feats[0:S]}} ──┘      (B,DACin[0],
 #                                                                                                                     X/(2^(S)),
 #                                                                                                                     Y/(2^(S)),
 #                                                                                                                     Z/(2^(S)))
@@ -119,7 +119,7 @@ class UNet(nn.Module, IODescriptive):
         stages: Total number of resolution stages
         focuser: Initial feature extraction module
         encoder: Multi-scale encoder (primary + advanced stages)
-        repeater: Shortcut and bottleneck feature processing
+        repeater: Bridge and bottleneck feature processing
         decoder: Multi-scale decoder with skip connections
         auxiliary_classifier: Deep supervision outputs
         distributor: Feature refinement module
@@ -141,12 +141,12 @@ class UNet(nn.Module, IODescriptive):
             bottleneck_depth: int = 2,  # RBD: Bottleneck layer depth
             decoder_advanced_in_channels: Sequence[int] = (512, 256),  # DACin[S2]: Advanced decoder input channels
             decoder_advanced_upsample_channels: Sequence[int] = (256, 128),  # DAUC[S2]: Advanced decoder upsample channels
-            decoder_advanced_shortcut_channels: Sequence[int] = (256, 128),  # DASC[S2]: Advanced decoder shortcut channels
+            decoder_advanced_bridge_channels: Sequence[int] = (256, 128),  # DASC[S2]: Advanced decoder bridge channels
             decoder_advanced_out_channels: Sequence[int] = (256, 128),  # DACout[S2]: Advanced decoder output channels
             decoder_advanced_depth: Union[int, Sequence[int]] = 2,  # DAD[S2]: Advanced decoder layer depth
             decoder_primary_in_channels: Sequence[int] = (128, 64),  # DPCin[S1]: Primary decoder input channels
             decoder_primary_upsample_channels: Sequence[int] = (64, 32),  # DPUC[S1]: Primary decoder upsample channels
-            decoder_primary_shortcut_channels: Sequence[int] = (64, 32),  # DPSC[S1]: Primary decoder shortcut channels
+            decoder_primary_bridge_channels: Sequence[int] = (64, 32),  # DPSC[S1]: Primary decoder bridge channels
             decoder_primary_out_channels: Sequence[int] = (64, 32),  # DPCout[S1]: Primary decoder output channels
             decoder_primary_depth: Union[int, Sequence[int]] = 2,  # DPD[S1]: Primary decoder layer depth
             auxiliary_classifier_in_channels: Sequence[int] = (256, 128, 64, 32),  # ACCin[S1+S2]: Auxiliary classifier input channels
@@ -174,12 +174,12 @@ class UNet(nn.Module, IODescriptive):
             bottleneck_depth: Number of layers in bottleneck
             decoder_advanced_in_channels: Input channels for each advanced decoder stage
             decoder_advanced_upsample_channels: Upsample channels for each advanced decoder stage
-            decoder_advanced_shortcut_channels: Shortcut channels for each advanced decoder stage
+            decoder_advanced_bridge_channels: Bridge channels for each advanced decoder stage
             decoder_advanced_out_channels: Output channels for each advanced decoder stage
             decoder_advanced_depth: Number of layers in each advanced decoder stage
             decoder_primary_in_channels: Input channels for each primary decoder stage
             decoder_primary_upsample_channels: Upsample channels for each primary decoder stage
-            decoder_primary_shortcut_channels: Shortcut channels for each primary decoder stage
+            decoder_primary_bridge_channels: Bridge channels for each primary decoder stage
             decoder_primary_out_channels: Output channels for each primary decoder stage
             decoder_primary_depth: Number of layers in each primary decoder stage
             auxiliary_classifier_in_channels: Input channels for auxiliary classifiers
@@ -213,21 +213,21 @@ class UNet(nn.Module, IODescriptive):
         assert encoder_advanced_out_channels[-1] == bottleneck_in_channels
         assert bottleneck_out_channels == decoder_advanced_in_channels[0]
         # Encoder-Decoder layer count match
-        assert len(encoder_primary_out_channels) == len(decoder_primary_shortcut_channels)
-        assert len(encoder_advanced_out_channels) == len(decoder_advanced_shortcut_channels)
+        assert len(encoder_primary_out_channels) == len(decoder_primary_bridge_channels)
+        assert len(encoder_advanced_out_channels) == len(decoder_advanced_bridge_channels)
         # Encoder-Decoder channel match
-        for oc, sc in zip(encoder_primary_out_channels, reversed(decoder_primary_shortcut_channels)):
+        for oc, sc in zip(encoder_primary_out_channels, reversed(decoder_primary_bridge_channels)):
             assert oc == sc
-        for oc, sc in zip(encoder_advanced_out_channels, reversed(decoder_advanced_shortcut_channels)):
+        for oc, sc in zip(encoder_advanced_out_channels, reversed(decoder_advanced_bridge_channels)):
             assert oc == sc
         # Decoder layer count match
         assert len(decoder_advanced_in_channels) == len(decoder_advanced_upsample_channels)
-        assert len(decoder_advanced_shortcut_channels) == len(decoder_advanced_out_channels)
+        assert len(decoder_advanced_bridge_channels) == len(decoder_advanced_out_channels)
         assert len(decoder_advanced_in_channels) == len(decoder_advanced_out_channels)
         if isinstance(decoder_advanced_depth, Sequence):
             assert len(decoder_advanced_depth) == len(decoder_advanced_in_channels)
         assert len(decoder_primary_in_channels) == len(decoder_primary_upsample_channels)
-        assert len(decoder_primary_shortcut_channels) == len(decoder_primary_out_channels)
+        assert len(decoder_primary_bridge_channels) == len(decoder_primary_out_channels)
         assert len(decoder_primary_in_channels) == len(decoder_primary_out_channels)
         if isinstance(decoder_primary_depth, Sequence):
             assert len(decoder_primary_depth) == len(decoder_primary_in_channels)
@@ -276,12 +276,12 @@ class UNet(nn.Module, IODescriptive):
         self.decoder: UNetDecoder = UNetDecoder(
             decoder_advanced_in_channels,
             decoder_advanced_upsample_channels,
-            decoder_advanced_shortcut_channels,
+            decoder_advanced_bridge_channels,
             decoder_advanced_out_channels,
             decoder_advanced_depth,
             decoder_primary_in_channels,
             decoder_primary_upsample_channels,
-            decoder_primary_shortcut_channels,
+            decoder_primary_bridge_channels,
             decoder_primary_out_channels,
             decoder_primary_depth,
             reserve_io
@@ -327,7 +327,7 @@ class UNet(nn.Module, IODescriptive):
         enc_feats, dn_feats = self.encoder(f_feat)
         # enc_feats to skip, dn_feats[-1] to bottleneck
         rep_feats: List[torch.Tensor] = self.repeater(enc_feats + [dn_feats[-1]])
-        # rep_feats[0] from bottleneck, rep_feats[1:] are shortcut features
+        # rep_feats[0] from bottleneck, rep_feats[1:] are bridge features
         dec_feats: List[torch.Tensor] = self.decoder(rep_feats[0], rep_feats[1:])
         d_feat: torch.Tensor = self.distributor(dec_feats[-1])
         aux_cls_logits: List[torch.Tensor] = self.auxiliary_classifier(dec_feats)
@@ -1530,19 +1530,19 @@ class UNetEncoderAdvancedExtractorDownsample(nn.Module, IODescriptive):
 #                   ┌────────────────┐
 #   input_feats[0] ─│ 00-03-00 [0]   │─ output_feats[S-1]
 #              (*)  │ UNet-Repeater  │  (*)
-#                   │ -Shortcut      │
+#                   │ -Bridge        │
 #                   └────────────────┘
 #                   ⋮       ⋮        ⋮
 #                   ┌────────────────┐
 #   input_feats[s] ─│ 00-03-00 [s]   │─ output_feats[S-s-1]
 #              (*)  │ UNet-Repeater  │  (*)
-#                   │ -Shortcut      │
+#                   │ -Bridge        │
 #                   └────────────────┘
 #                   ⋮       ⋮        ⋮
 #                   ┌────────────────┐
 # input_feats[S-2] ─│ 00-03-00 [S-2] │─ output_feats[1]
 #              (*)  │ UNet-Repeater  │  (*)
-#                   │ -Shortcut      │
+#                   │ -Bridge        │
 #                   └────────────────┘
 #                   ┌───────────────────────┐
 #     {input_feat} ─│ 00-03-01              │─ {output_feat}
@@ -1558,19 +1558,19 @@ class UNetRepeater(nn.Module, IODescriptive):
     
     Processes features from encoder stages and applies bottleneck processing
     to the deepest feature. Consists of:
-    - S-1 shortcut modules for skip connections
+    - S-1 bridge modules for skip connections
     - 1 bottleneck module for deepest feature processing
     
     Architecture:
-        input_feats[0]   ──→  [Shortcut]  ──→ output_feats[S-1]
-        input_feats[1]   ──→  [Shortcut]  ──→ output_feats[S-2]
+        input_feats[0]   ──→   [Bridge]   ──→ output_feats[S-1]
+        input_feats[1]   ──→   [Bridge]   ──→ output_feats[S-2]
                                    ⋮
         input_feats[S-1] ──→ [Bottleneck] ──→ output_feats[0]
     
     The repeater processes features in reverse order (deepest first).
     
     Attributes:
-        pipe: ModuleList containing S-1 shortcuts and 1 bottleneck
+        pipe: ModuleList containing S-1 bridges and 1 bottleneck
         reserve_io: Whether to store I/O tensors for debugging
     """
     def __init__(
@@ -1592,9 +1592,9 @@ class UNetRepeater(nn.Module, IODescriptive):
             reserve_io: If True, store I/O tensors for debugging
         """
         super(UNetRepeater, self).__init__()
-        # Create S-1 shortcut modules for skip connections
+        # Create S-1 bridge modules for skip connections
         self.pipe: nn.ModuleList = nn.ModuleList(
-            [UNetRepeaterShortcut(reserve_io) for _ in range(stages - 1)]
+            [UNetRepeaterBridge(reserve_io) for _ in range(stages - 1)]
         )
         # Add bottleneck module for deepest feature processing
         self.pipe.append(
@@ -1651,17 +1651,17 @@ class UNetRepeater(nn.Module, IODescriptive):
         return desc
 
 
-# 00-03-00 UNet-Repeater-Shortcut
+# 00-03-00 UNet-Repeater-Bridge
 # The feature delivery path from Encoder to Decoder stage by stage, i.e. skip connection
 # Pinout Diagram: [Valid]
 #                ┌───────────────┐
 #    input_feat ─│ 00-03-00      │─ output_feat
 #   (B,C,X,Y,Z)  │ UNet-Repeater │  (B,C,X,Y,Z)
-#                │ Shortcut      │
+#                │ Bridge        │
 #                └───────────────┘
-class UNetRepeaterShortcut(nn.Module, IODescriptive):
+class UNetRepeaterBridge(nn.Module, IODescriptive):
     """
-    UNet Repeater Shortcut Module - Skip Connection Path
+    UNet Repeater Bridge Module - Skip Connection Path
     
     A simple identity pass-through that delivers features from encoder
     to decoder stage by stage, forming skip connections.
@@ -1680,12 +1680,12 @@ class UNetRepeaterShortcut(nn.Module, IODescriptive):
             reserve_io: bool = False
     ):
         """
-        Initialize UNetRepeaterShortcut
+        Initialize UNetRepeaterBridge
         
         Args:
             reserve_io: If True, store I/O tensors for debugging
         """
-        super(UNetRepeaterShortcut, self).__init__()
+        super(UNetRepeaterBridge, self).__init__()
         self.pipe: nn.Sequential = nn.Sequential(
             nn.Identity()
         )
@@ -1694,7 +1694,7 @@ class UNetRepeaterShortcut(nn.Module, IODescriptive):
 
     def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass through shortcut (identity)
+        Forward pass through bridge (identity)
         
         Args:
             input_feat: Input tensor of shape (B, C, X, Y, Z)
@@ -1971,7 +1971,7 @@ class UNetDecoderPriorBankInjector(nn.Module, IODescriptive):
 #                                                          input_feat ─│ 00-05        │─ output_feats[S1+S2]
 #                                                   (B,ACin[0],X,Y,Z)  │ UNet-Decoder │  # Advanced part
 #                                                                      │              │  [0]:   (B,ACout[0],   X*2,          Y*2,          Z*2          )
-#                                               shortcut_feats[S1+S2] ─│              │  [1]:   (B,ACout[1],   X*4,          Y*4,          Z*4          )
+#                                                 bridge_feats[S1+S2] ─│              │  [1]:   (B,ACout[1],   X*4,          Y*4,          Z*4          )
 #                                                     # Advanced part  │              │  ⋮
 #      [0]:   (B,ASC[0],   X*2,          Y*2,          Z*2          )  │              │  [S1-1]:(B,ACout[S1-1],X*(2^S1),     Y*(2^S1),     Z*(2^S1)     )
 #      [1]:   (B,ASC[1],   X*4,          Y*4,          Z*4          )  │              │  # Primary part
@@ -1991,7 +1991,7 @@ class UNetDecoderPriorBankInjector(nn.Module, IODescriptive):
 #                                                          input_feat ─│ 00-05-00           │─ output_feats[0:S1]
 #                                                   (B,ACin[0],X,Y,Z)  │ UNet-Encoder-      │  # Advanced part
 #                                                                      │ AdvancedAggregator │  [0]:   (B,ACout[0],   X*2,     Y*2,     Z*2    )
-#                                                shortcut_feats[0:S1] ─│                    │  [1]:   (B,ACout[1],   X*4,     Y*4,     Z*4    )
+#                                                  bridge_feats[0:S1] ─│                    │  [1]:   (B,ACout[1],   X*4,     Y*4,     Z*4    )
 #                                                     # Advanced part  │                    │  ⋮
 #                     [0]:   (B,ASC[0],   X*2,     Y*2,     Z*2     )  │                    │  [S1-1]:(B,ACout[S1-1],X*(2^S1),Y*(2^S1),Z*(2^S1))
 #                     [1]:   (B,ASC[1],   X*4,     Y*4,     Z*4     )  │                    │    │
@@ -2004,7 +2004,7 @@ class UNetDecoderPriorBankInjector(nn.Module, IODescriptive):
 #                                                                                                │       ┌────────────────────┐
 #                                                                             output_feats[S1-1] └───────│ 00-05-01           │─ output_feats[S1:S1+S2]
 #                                                                                                        │ UNet-Encoder       │  # Primary part
-#                                                                              shortcut_feats[S1:S1+S2] ─│ -PrimaryAggregator │  [0]:   (B,PCout[0],   X*(2^(S1+1)), Y*(2^(S1+1)), Z*(2^(S1+1)) )
+#                                                                                bridge_feats[S1:S1+S2] ─│ -PrimaryAggregator │  [0]:   (B,PCout[0],   X*(2^(S1+1)), Y*(2^(S1+1)), Z*(2^(S1+1)) )
 #                                                                                        # Primary part  │                    │  [1]:   (B,PCout[1],   X*(2^(S1+2)), Y*(2^(S1+2)), Z*(2^(S1+2)) )
 #                                        [0]:   (B,PSC[0],   X*(2^(S1+1)), Y*(2^(S1+1)), Z*(2^(S1+1)) )  │                    │  ⋮
 #                                        [1]:   (B,PSC[1],   X*(2^(S1+2)), Y*(2^(S1+2)), Z*(2^(S1+2)) )  │                    │  [S2-1]:(B,PCout[S2-1],X*(2^(S1+S2)),Y*(2^(S1+S2)),Z*(2^(S1+S2)))
@@ -2024,7 +2024,7 @@ class UNetDecoder(nn.Module, IODescriptive):
     - Primary Aggregator: Processes shallower features with skip connections
 
     Architecture:
-                        shortcut_feats[S1]          shortcut_feats[S2]
+                        bridge_feats[S1]            bridge_feats[S2]
                               ↓                         ↓
         bottleneck_feat ──→ Advanced Aggregator ──→ Primary Aggregator
                               ↓                         ↓
@@ -2041,12 +2041,12 @@ class UNetDecoder(nn.Module, IODescriptive):
             self,
             advanced_in_channels: Sequence[int],  # ACin[S1]: Advanced stage input channels
             advanced_upsample_channels: Sequence[int],  # AUC[S1]: Advanced upsample channels
-            advanced_shortcut_channels: Sequence[int],  # ASC[S1]: Advanced shortcut (skip) channels
+            advanced_bridge_channels: Sequence[int],  # ASC[S1]: Advanced bridge (skip) channels
             advanced_out_channels: Sequence[int],  # ACout[S1]: Advanced output channels
             advanced_depth: Union[int, Sequence[int]],  # AD[S1]: Advanced stage layer depth
             primary_in_channels: Sequence[int],  # PCin[S2]: Primary stage input channels
             primary_upsample_channels: Sequence[int],  # PUC[S2]: Primary upsample channels
-            primary_shortcut_channels: Sequence[int],  # PSC[S2]: Primary shortcut (skip) channels
+            primary_bridge_channels: Sequence[int],  # PSC[S2]: Primary bridge (skip) channels
             primary_out_channels: Sequence[int],  # PCout[S2]: Primary output channels
             primary_depth: Union[int, Sequence[int]],  # PD[S2]: Primary stage layer depth
             reserve_io: bool = False
@@ -2057,12 +2057,12 @@ class UNetDecoder(nn.Module, IODescriptive):
         Args:
             advanced_in_channels: Input channels for each advanced decoder stage
             advanced_upsample_channels: Upsample channels for each advanced stage
-            advanced_shortcut_channels: Shortcut channels from encoder for each advanced stage
+            advanced_bridge_channels: Bridge channels from encoder for each advanced stage
             advanced_out_channels: Output channels for each advanced decoder stage
             advanced_depth: Layer depth for each advanced stage (int or sequence)
             primary_in_channels: Input channels for each primary decoder stage
             primary_upsample_channels: Upsample channels for each primary stage
-            primary_shortcut_channels: Shortcut channels from encoder for each primary stage
+            primary_bridge_channels: Bridge channels from encoder for each primary stage
             primary_out_channels: Output channels for each primary decoder stage
             primary_depth: Layer depth for each primary stage (int or sequence)
             reserve_io: If True, store I/O tensors for debugging
@@ -2072,13 +2072,13 @@ class UNetDecoder(nn.Module, IODescriptive):
         """
         super(UNetDecoder, self).__init__()
         assert len(advanced_in_channels) == len(advanced_upsample_channels)
-        assert len(advanced_shortcut_channels) == len(advanced_out_channels)
+        assert len(advanced_bridge_channels) == len(advanced_out_channels)
         assert len(advanced_in_channels) == len(advanced_out_channels)
         if isinstance(advanced_depth, Sequence):
             assert len(advanced_in_channels) == len(advanced_depth)
 
         assert len(primary_in_channels) == len(primary_upsample_channels)
-        assert len(primary_shortcut_channels) == len(primary_out_channels)
+        assert len(primary_bridge_channels) == len(primary_out_channels)
         assert len(primary_in_channels) == len(primary_out_channels)
         if isinstance(primary_depth, Sequence):
             assert len(primary_in_channels) == len(primary_depth)
@@ -2087,7 +2087,7 @@ class UNetDecoder(nn.Module, IODescriptive):
         self.advanced_aggregator: UNetDecoderAdvancedAggregator = UNetDecoderAdvancedAggregator(
             advanced_in_channels,
             advanced_upsample_channels,
-            advanced_shortcut_channels,
+            advanced_bridge_channels,
             advanced_out_channels,
             advanced_depth,
             reserve_io
@@ -2095,7 +2095,7 @@ class UNetDecoder(nn.Module, IODescriptive):
         self.primary_aggregator: UNetDecoderPrimaryAggregator = UNetDecoderPrimaryAggregator(
             primary_in_channels,
             primary_upsample_channels,
-            primary_shortcut_channels,
+            primary_bridge_channels,
             primary_out_channels,
             primary_depth,
             reserve_io
@@ -2106,7 +2106,7 @@ class UNetDecoder(nn.Module, IODescriptive):
     def forward(
             self,
             input_feat: torch.Tensor,
-            shortcut_feats: Sequence[torch.Tensor],
+            bridge_feats: Sequence[torch.Tensor],
             inject_feats: Optional[Sequence[torch.Tensor]] = None
     ) -> List[torch.Tensor]:
         """
@@ -2114,36 +2114,36 @@ class UNetDecoder(nn.Module, IODescriptive):
 
         Args:
             input_feat: Bottleneck feature tensor (B, C, X, Y, Z)
-            shortcut_feats: List of encoder features for skip connections
+            bridge_feats: List of encoder features for skip connections
             inject_feats: Optional prior features to inject at each stage
 
         Returns:
             List of decoded features from each stage
 
         Raises:
-            AssertionError: If shortcut_feats or inject_feats lengths don't match stages
+            AssertionError: If bridge_feats or inject_feats lengths don't match stages
         """
-        assert len(shortcut_feats) == self.advanced_aggregator.stages + self.primary_aggregator.stages
+        assert len(bridge_feats) == self.advanced_aggregator.stages + self.primary_aggregator.stages
         assert (inject_feats is None or
                 len(inject_feats) == self.advanced_aggregator.stages + self.primary_aggregator.stages)
         if inject_feats is None:
             advanced_feats: List[torch.Tensor] = self.advanced_aggregator(
                 input_feat,
-                shortcut_feats[:self.primary_aggregator.stages]
+                bridge_feats[:self.primary_aggregator.stages]
             )
             primary_feats: List[torch.Tensor] = self.primary_aggregator(
                 advanced_feats[self.advanced_aggregator.stages - 1],
-                shortcut_feats[self.primary_aggregator.stages:]
+                bridge_feats[self.primary_aggregator.stages:]
             )
         else:
             advanced_feats: List[torch.Tensor] = self.advanced_aggregator(
                 input_feat,
-                shortcut_feats[:self.primary_aggregator.stages],
+                bridge_feats[:self.primary_aggregator.stages],
                 inject_feats[:self.primary_aggregator.stages]
             )
             primary_feats: List[torch.Tensor] = self.primary_aggregator(
                 advanced_feats[self.advanced_aggregator.stages - 1],
-                shortcut_feats[self.primary_aggregator.stages:],
+                bridge_feats[self.primary_aggregator.stages:],
                 inject_feats[self.primary_aggregator.stages:]
             )
 
@@ -2151,7 +2151,7 @@ class UNetDecoder(nn.Module, IODescriptive):
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
-            setattr(self, 'shortcut_feats', [ft.cpu() for ft in shortcut_feats])
+            setattr(self, 'bridge_feats', [ft.cpu() for ft in bridge_feats])
             if inject_feats is not None:
                 setattr(self, 'inject_feats', [ft.cpu() for ft in inject_feats])
             setattr(self, 'output_feats', [ft.cpu() for ft in output_feats])
@@ -2167,7 +2167,7 @@ class UNetDecoder(nn.Module, IODescriptive):
         if (not self.reserve_io or target_level > max_level
                 or not (
                         hasattr(self, 'input_feat')
-                        and hasattr(self, 'shortcut_feats')
+                        and hasattr(self, 'bridge_feats')
                         and hasattr(self, 'output_feats')
                 )
         ):
@@ -2176,7 +2176,7 @@ class UNetDecoder(nn.Module, IODescriptive):
         desc: str = (f"{prefix}{self.__class__.__name__}\n"
                      f"{prefix}  I: \n"
                      f"{prefix}    input_feat: {tuple(self.input_feat.size())}\n"
-                     f"{prefix}    shortcut_feats: {[tuple(ft.size()) for ft in self.shortcut_feats]}\n")
+                     f"{prefix}    bridge_feats: {[tuple(ft.size()) for ft in self.bridge_feats]}\n")
         if hasattr(self, 'inject_feats'):
             desc += f"{prefix}  inject_feats: {[tuple(ft.size()) for ft in self.inject_feats]}\n"
         desc += (f"{prefix}  O: \n"
@@ -2194,7 +2194,7 @@ class UNetDecoder(nn.Module, IODescriptive):
 #                                  input_feat ─│ 00-05-00     │─ output_feats[S]
 #                            (B,Cin[0],X,Y,Z)  │ UNet-Decoder │  [0]:  (B,Cout[0],  X*2,    Y*2,    Z*2    )
 #                                              │ -Advanced    │  [1]:  (B,Cout[1],  X*4,    Y*4,    Z*4    )
-#                           shortcut_feats[S] ─│ Aggregator   │  ⋮
+#                             bridge_feats[S] ─│ Aggregator   │  ⋮
 #   [0]:  (B,SC[0],  X*2,    Y*2,    Z*2    )  │              │  [S-1]:(B,Cout[S-1],X*(2^S),Y*(2^S),Z*(2^S))
 #   [1]:  (B,SC[1],  X*4,    Y*4,    Z*4    )  │              │
 #                                           ⋮  │              │
@@ -2209,7 +2209,7 @@ class UNetDecoder(nn.Module, IODescriptive):
 #                         input_feat ─┼──│ 00-05-00-00           │───────────────────────────────────────────────│ 00-05-00-01        │─────────────────────────────────────────────────────│ 00-05-00-02           │──┼─ {output_feat}→
 #                   (B,Cin[0],X,Y,Z)  │  │ UNet-Decoder-Advanced │ {output_feat}                    {input_feat} │ UNet-Decoder-      │ {output_feat}                          {input_feat} │ UNet-Decoder-Advanced │  │  (B,Cout[0],X*2,Y*2,Z*2)
 #                                     │  │ Aggregator-Upsample   │ (B,UC[0],X*2,Y*2,Z*2)                         │ AdvancedAggregator │ (B,UC[0]+SC[0],X*2,Y*2,Z*2)                         │ Aggregator-Stage      │  │
-#                                     │  └───────────────────────┘                              {shortcut_feat} ─│ -FusionPortal      │                                      {inject_feat} ─│ :depth=D/D[0]         │  │
+#                                     │  └───────────────────────┘                                {bridge_feat} ─│ -FusionPortal      │                                      {inject_feat} ─│ :depth=D/D[0]         │  │
 #                                     │                                                   (B,SC[0],X*2,Y*2,Z*2)  │                    │                                    inject_feats[0]  │                       │  │
 #                                     │                                                                          └────────────────────┘                                           (Unused)  └───────────────────────┘  │
 #                                     └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -2219,7 +2219,7 @@ class UNetDecoder(nn.Module, IODescriptive):
 #                     →{output_feat} ─┼──│ 00-05-00-00           │───────────────────────────────────────────────│ 00-05-00-01        │─────────────────────────────────────────────────────│ 00-05-00-02           │──┼─ {output_feat}→
 # (B,Cin[s],X*(2^s),Y*(2^s),Z*(2^s))  │  │ UNet-Decoder-Advanced │ {output_feat}                    {input_feat} │ UNet-Decoder-      │ {output_feat}                          {input_feat} │ UNet-Decoder-Advanced │  │  (B,Cout[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
 #                                     │  │ Aggregator-Upsample   │ (B,UC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1))) │ AdvancedAggregator │ (B,UC[s]+SC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1))) │ Aggregator-Stage      │  │
-#                                     │  └───────────────────────┘                              {shortcut_feat} ─│ -FusionPortal      │                                      {inject_feat} ─│ :depth=D/D[s]         │  │
+#                                     │  └───────────────────────┘                                {bridge_feat} ─│ -FusionPortal      │                                      {inject_feat} ─│ :depth=D/D[s]         │  │
 #                                     │                           (B,SC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))  │                    │                                    inject_feats[s]  │                       │  │
 #                                     │                                                                          └────────────────────┘                                           (Unused)  └───────────────────────┘  │
 #                                     └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -2233,7 +2233,7 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
     
     Architecture:
         For each stage s:
-            input_feat[s] → Upsample → FusionPortal(+shortcut) → Stage → output_feats[s]
+            input_feat[s] → Upsample → FusionPortal(+bridge) → Stage → output_feats[s]
     
     Each stage consists of:
     - Upsample: 2x upsampling using transposed convolution
@@ -2249,7 +2249,7 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
             self,
             in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
             upsample_channels: Sequence[int],  # UC[S]: Upsample channels for each stage
-            shortcut_channels: Sequence[int],  # SC[S]: Shortcut channels for each stage
+            bridge_channels: Sequence[int],  # SC[S]: Bridge channels for each stage
             out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
             depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
@@ -2260,7 +2260,7 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
         Args:
             in_channels: Input channels for each stage
             upsample_channels: Channels after upsampling for each stage
-            shortcut_channels: Channels from skip connections for each stage
+            bridge_channels: Channels from skip connections for each stage
             out_channels: Output channels for each stage
             depth: Number of ConvBNReLU layers per stage (int or sequence)
             reserve_io: If True, store I/O tensors for debugging
@@ -2270,7 +2270,7 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
         """
         super(UNetDecoderAdvancedAggregator, self).__init__()
         assert len(in_channels) == len(upsample_channels)
-        assert len(shortcut_channels) == len(out_channels)
+        assert len(bridge_channels) == len(out_channels)
         assert len(in_channels) == len(out_channels)
         if isinstance(depth, Sequence):
             assert len(in_channels) == len(depth)
@@ -2280,7 +2280,7 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
         self.pipe: nn.Sequential = nn.Sequential()
 
         # Create upsample-fusion-stage sequences for each resolution level
-        for ic, uc, sc, oc, dp in zip(in_channels, upsample_channels, shortcut_channels, out_channels, depth):
+        for ic, uc, sc, oc, dp in zip(in_channels, upsample_channels, bridge_channels, out_channels, depth):
             self.pipe.append(nn.Sequential(
                 UNetDecoderAdvancedAggregatorUpsample(ic, uc, reserve_io),
                 UNetDecoderAdvancedAggregatorFusionPortal(reserve_io),
@@ -2292,7 +2292,7 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
     def forward(
             self,
             input_feat: torch.Tensor,
-            shortcut_feats: Sequence[torch.Tensor],
+            bridge_feats: Sequence[torch.Tensor],
             inject_feats: Optional[Sequence[torch.Tensor]] = None
     ) -> List[torch.Tensor]:
         """
@@ -2300,35 +2300,35 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
         
         Args:
             input_feat: Input tensor of shape (B, Cin[0], X, Y, Z)
-            shortcut_feats: Skip connection features from encoder
+            bridge_feats: Skip connection features from encoder
             inject_feats: Optional prior features to inject at each stage
             
         Returns:
             List of output features from each stage
             
         Raises:
-            AssertionError: If shortcut_feats or inject_feats length doesn't match stages
+            AssertionError: If bridge_feats or inject_feats length doesn't match stages
         """
-        assert len(shortcut_feats) == self.stages
+        assert len(bridge_feats) == self.stages
         output_feats: List[torch.Tensor] = []
         stage_feat: torch.Tensor = input_feat
         if inject_feats is None:
-            for module, shortcut_feat in zip(self.pipe, shortcut_feats):
+            for module, bridge_feat in zip(self.pipe, bridge_feats):
                 stage_feat = module[0](stage_feat)  # Upsample
-                stage_feat = module[1](stage_feat, shortcut_feat)  # FusionPortal
+                stage_feat = module[1](stage_feat, bridge_feat)  # FusionPortal
                 stage_feat = module[2](stage_feat)  # Stage
                 output_feats.append(stage_feat)
         else:
             assert len(inject_feats) == self.stages
-            for module, shortcut_feat, inject_feat in zip(self.pipe, shortcut_feats, inject_feats):
+            for module, bridge_feat, inject_feat in zip(self.pipe, bridge_feats, inject_feats):
                 stage_feat = module[0](stage_feat)  # Upsample
-                stage_feat = module[1](stage_feat, shortcut_feat)  # FusionPortal
+                stage_feat = module[1](stage_feat, bridge_feat)  # FusionPortal
                 stage_feat = module[2](stage_feat, inject_feat)  # Stage
                 output_feats.append(stage_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
-            setattr(self, 'shortcut_feats', [ft.cpu() for ft in shortcut_feats])
+            setattr(self, 'bridge_feats', [ft.cpu() for ft in bridge_feats])
             if inject_feats is not None:
                 setattr(self, 'inject_feats', [ft.cpu() for ft in inject_feats])
             setattr(self, 'output_feats', [ft.cpu() for ft in output_feats])
@@ -2344,7 +2344,7 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
         if (not self.reserve_io or target_level > max_level
                 or not (
                         hasattr(self, 'input_feat')
-                        and hasattr(self, 'shortcut_feats')
+                        and hasattr(self, 'bridge_feats')
                         and hasattr(self, 'output_feats')
                 )
         ):
@@ -2353,7 +2353,7 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
         desc: str = (f"{prefix}{self.__class__.__name__}\n"
                      f"{prefix}  I: \n"
                      f"{prefix}    input_feat: {tuple(self.input_feat.size())}\n"
-                     f"{prefix}    shortcut_feats: {[tuple(ft.size()) for ft in self.shortcut_feats]}\n")
+                     f"{prefix}    bridge_feats: {[tuple(ft.size()) for ft in self.bridge_feats]}\n")
         if hasattr(self, 'inject_feats'):
             desc += f"{prefix}  inject_feats: {[tuple(ft.size()) for ft in self.inject_feats]}\n"
         desc += (f"{prefix}  O: \n"
@@ -2451,23 +2451,23 @@ class UNetDecoderAdvancedAggregatorUpsample(nn.Module, IODescriptive):
 
 
 # 00-05-00-01 UNet-Decoder-AdvancedAggregator-FusionPortal
-# Fuse features from the deep (advanced, higher semantic) part of Decoder and relative shortcut layer (from Encoder)
+# Fuse features from the deep (advanced, higher semantic) part of Decoder and relative bridge layer (from Encoder)
 # Pinout Diagram: [Valid]
-#                ┌────────────────────┐
-#    stage_feat ─│ 00-05-00-01        │─ output_feat
-#      (B,C1,*)  │ UNet-Decoder-      │  (B,C1+C2,*)
-# shortcut_feat ─│ AdvancedAggregator │
-#      (B,C2,*)  │ -FusionPortal      │
-#                └────────────────────┘
+#              ┌────────────────────┐
+#  stage_feat ─│ 00-05-00-01        │─ output_feat
+#    (B,C1,*)  │ UNet-Decoder-      │  (B,C1+C2,*)
+# bridge_feat ─│ AdvancedAggregator │
+#    (B,C2,*)  │ -FusionPortal      │
+#              └────────────────────┘
 class UNetDecoderAdvancedAggregatorFusionPortal(nn.Module, IODescriptive):
     """
     UNet Decoder Advanced Aggregator Fusion Portal Module
     
     Fuses features from the decoder's higher semantic layer with the
-    corresponding encoder shortcut features via concatenation.
+    corresponding encoder bridge features via concatenation.
 
     Architecture:
-         [stage_feat (B, C1, *), shortcut_feat (B, C2, *)] → Concat(dim=1) → output_feat (B, C1+C2, *)
+         [stage_feat (B, C1, *), bridge_feat (B, C2, *)] → Concat(dim=1) → output_feat (B, C1+C2, *)
 
     Attributes:
         concat: Concatenation layer along channel dimension
@@ -2488,22 +2488,22 @@ class UNetDecoderAdvancedAggregatorFusionPortal(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, stage_feat: torch.Tensor, shortcut_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, stage_feat: torch.Tensor, bridge_feat: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through fusion portal
         
         Args:
             stage_feat: Upsampled decoder features of shape (B, C1, X, Y, Z)
-            shortcut_feat: Skip connection features of shape (B, C2, X, Y, Z)
+            bridge_feat: Skip connection features of shape (B, C2, X, Y, Z)
             
         Returns:
             Concatenated features of shape (B, C1+C2, X, Y, Z)
         """
-        output_feat: torch.Tensor = self.concat(stage_feat, shortcut_feat)
+        output_feat: torch.Tensor = self.concat(stage_feat, bridge_feat)
 
         if self.reserve_io:
             setattr(self, 'stage_feat', stage_feat.cpu())
-            setattr(self, 'shortcut_feat', shortcut_feat.cpu())
+            setattr(self, 'bridge_feat', bridge_feat.cpu())
             setattr(self, 'output_feat', output_feat.cpu())
         return output_feat
 
@@ -2517,7 +2517,7 @@ class UNetDecoderAdvancedAggregatorFusionPortal(nn.Module, IODescriptive):
         if (not self.reserve_io or target_level > max_level
                 or not (
                         hasattr(self, 'stage_feat')
-                        and hasattr(self, 'shortcut_feat')
+                        and hasattr(self, 'bridge_feat')
                         and hasattr(self, 'output_feat')
                 )
         ):
@@ -2526,7 +2526,7 @@ class UNetDecoderAdvancedAggregatorFusionPortal(nn.Module, IODescriptive):
         desc: str = (f"{prefix}{self.__class__.__name__}\n"
                      f"{prefix}  I: \n"
                      f"{prefix}    stage_feat: {tuple(self.stage_feat.size())}\n"
-                     f"{prefix}    shortcut_feat: {tuple(self.shortcut_feat.size())}\n"
+                     f"{prefix}    bridge_feat: {tuple(self.bridge_feat.size())}\n"
                      f"{prefix}  O: \n"
                      f"{prefix}    output_feat: {tuple(self.output_feat.size())}\n")
         return desc
@@ -2646,7 +2646,7 @@ class UNetDecoderAdvancedAggregatorStage(nn.Module, IODescriptive):
 #                                  input_feat ─│ 00-05-01     │─ output_feats[S]
 #                            (B,Cin[0],X,Y,Z)  │ UNet-Decoder │  [0]:  (B,Cout[0],  X*2,    Y*2,    Z*2    )
 #                                              │ -Primary     │  [1]:  (B,Cout[1],  X*4,    Y*4,    Z*4    )
-#                           shortcut_feats[S] ─│ Aggregator   │  ⋮
+#                             bridge_feats[S] ─│ Aggregator   │  ⋮
 #   [0]:  (B,SC[0],  X*2,    Y*2,    Z*2    )  │              │  [S-1]:(B,Cout[S-1],X*(2^S),Y*(2^S),Z*(2^S))
 #   [1]:  (B,SC[1],  X*4,    Y*4,    Z*4    )  │              │
 #                                           ⋮  │              │
@@ -2661,7 +2661,7 @@ class UNetDecoderAdvancedAggregatorStage(nn.Module, IODescriptive):
 #                         input_feat ─┼──│ 00-05-01-00           │───────────────────────────────────────────────│ 00-05-01-01        │─────────────────────────────────────────────────────│ 00-05-01-02           │──┼─ {output_feat}→
 #                   (B,Cin[0],X,Y,Z)  │  │ UNet-Decoder-Primary  │ {output_feat}                    {input_feat} │ UNet-Decoder-      │ {output_feat}                          {input_feat} │ UNet-Decoder-Primary  │  │  (B,Cout[0],X*2,Y*2,Z*2)
 #                                     │  │ Aggregator-Upsample   │ (B,UC[0],X*2,Y*2,Z*2)                         │ PrimaryAggregator  │ (B,UC[0]+SC[0],X*2,Y*2,Z*2)                         │ Aggregator-Stage      │  │
-#                                     │  └───────────────────────┘                              {shortcut_feat} ─│ -FusionPortal      │                                      {inject_feat} ─│ :depth=D/D[0]         │  │
+#                                     │  └───────────────────────┘                                {bridge_feat} ─│ -FusionPortal      │                                      {inject_feat} ─│ :depth=D/D[0]         │  │
 #                                     │                                                   (B,SC[0],X*2,Y*2,Z*2)  │                    │                                    inject_feats[0]  │                       │  │
 #                                     │                                                                          └────────────────────┘                                           (Unused)  └───────────────────────┘  │
 #                                     └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -2671,7 +2671,7 @@ class UNetDecoderAdvancedAggregatorStage(nn.Module, IODescriptive):
 #                     →{output_feat} ─┼──│ 00-05-01-00           │───────────────────────────────────────────────│ 00-05-01-01        │─────────────────────────────────────────────────────│ 00-05-01-02           │──┼─ {output_feat}→
 # (B,Cin[s],X*(2^s),Y*(2^s),Z*(2^s))  │  │ UNet-Decoder-Primary  │ {output_feat}                    {input_feat} │ UNet-Decoder-      │ {output_feat}                          {input_feat} │ UNet-Decoder-Primary  │  │  (B,Cout[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
 #                                     │  │ Aggregator-Upsample   │ (B,UC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1))) │ PrimaryAggregator  │ (B,UC[s]+SC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1))) │ Aggregator-Stage      │  │
-#                                     │  └───────────────────────┘                              {shortcut_feat} ─│ -FusionPortal      │                                      {inject_feat} ─│ :depth=D/D[s]         │  │
+#                                     │  └───────────────────────┘                                {bridge_feat} ─│ -FusionPortal      │                                      {inject_feat} ─│ :depth=D/D[s]         │  │
 #                                     │                           (B,SC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))  │                    │                                    inject_feats[s]  │                       │  │
 #                                     │                                                                          └────────────────────┘                                           (Unused)  └───────────────────────┘  │
 #                                     └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -2685,7 +2685,7 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
     
     Architecture:
         For each stage s:
-            input_feat[s] → Upsample → FusionPortal(+shortcut) → Stage → output_feats[s]
+            input_feat[s] → Upsample → FusionPortal(+bridge) → Stage → output_feats[s]
     
     Each stage consists of:\n
     - Upsample: 2x upsampling using transposed convolution
@@ -2701,7 +2701,7 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
             self,
             in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
             upsample_channels: Sequence[int],  # UC[S]: Upsample channels for each stage
-            shortcut_channels: Sequence[int],  # SC[S]: Shortcut channels for each stage
+            bridge_channels: Sequence[int],  # SC[S]: Bridge channels for each stage
             out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
             depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
@@ -2712,7 +2712,7 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
         Args:
             in_channels: Input channels for each stage
             upsample_channels: Channels after upsampling for each stage
-            shortcut_channels: Channels from skip connections for each stage
+            bridge_channels: Channels from skip connections for each stage
             out_channels: Output channels for each stage
             depth: Number of ConvBNReLU layers per stage (int or sequence)
             reserve_io: If True, store I/O tensors for debugging
@@ -2722,7 +2722,7 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
         """
         super(UNetDecoderPrimaryAggregator, self).__init__()
         assert len(in_channels) == len(upsample_channels)
-        assert len(shortcut_channels) == len(out_channels)
+        assert len(bridge_channels) == len(out_channels)
         assert len(in_channels) == len(out_channels)
         if isinstance(depth, Sequence):
             assert len(in_channels) == len(depth)
@@ -2732,7 +2732,7 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
         self.pipe: nn.Sequential = nn.Sequential()
 
         # Create upsample-fusion-stage sequences for each resolution level
-        for ic, uc, sc, oc, dp in zip(in_channels, upsample_channels, shortcut_channels, out_channels, depth):
+        for ic, uc, sc, oc, dp in zip(in_channels, upsample_channels, bridge_channels, out_channels, depth):
             self.pipe.append(nn.Sequential(
                 UNetDecoderPrimaryAggregatorUpsample(ic, uc, reserve_io),
                 UNetDecoderPrimaryAggregatorFusionPortal(reserve_io),
@@ -2744,7 +2744,7 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
     def forward(
             self,
             input_feat: torch.Tensor,  # (B,Cin[0],X,Y,Z)
-            shortcut_feats: Sequence[torch.Tensor],  # [s]:(B,SC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
+            bridge_feats: Sequence[torch.Tensor],  # [s]:(B,SC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
             inject_feats: Optional[Sequence[torch.Tensor]] = None  # [s]:(B,*,X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
     ) -> List[torch.Tensor]:
         """
@@ -2752,35 +2752,35 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
         
         Args:
             input_feat: Input tensor of shape (B, Cin[0], X, Y, Z)
-            shortcut_feats: Skip connection features from encoder
+            bridge_feats: Skip connection features from encoder
             inject_feats: Optional prior features to inject at each stage
             
         Returns:
             List of output features from each stage
             
         Raises:
-            AssertionError: If shortcut_feats or inject_feats length doesn't match stages
+            AssertionError: If bridge_feats or inject_feats length doesn't match stages
         """
-        assert len(shortcut_feats) == self.stages
+        assert len(bridge_feats) == self.stages
         output_feats: List[torch.Tensor] = []
         stage_feat: torch.Tensor = input_feat
         if inject_feats is None:
-            for module, shortcut_feat in zip(self.pipe, shortcut_feats):
+            for module, bridge_feat in zip(self.pipe, bridge_feats):
                 stage_feat = module[0](stage_feat)  # Upsample
-                stage_feat = module[1](stage_feat, shortcut_feat)  # FusionPortal
+                stage_feat = module[1](stage_feat, bridge_feat)  # FusionPortal
                 stage_feat = module[2](stage_feat)  # Stage
                 output_feats.append(stage_feat)
         else:
             assert len(inject_feats) == self.stages
-            for module, shortcut_feat, inject_feat in zip(self.pipe, shortcut_feats, inject_feats):
+            for module, bridge_feat, inject_feat in zip(self.pipe, bridge_feats, inject_feats):
                 stage_feat = module[0](stage_feat)  # Upsample
-                stage_feat = module[1](stage_feat, shortcut_feat)  # FusionPortal
+                stage_feat = module[1](stage_feat, bridge_feat)  # FusionPortal
                 stage_feat = module[2](stage_feat, inject_feat)  # Stage
                 output_feats.append(stage_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
-            setattr(self, 'shortcut_feats', [ft.cpu() for ft in shortcut_feats])
+            setattr(self, 'bridge_feats', [ft.cpu() for ft in bridge_feats])
             if inject_feats is not None:
                 setattr(self, 'inject_feats', [ft.cpu() for ft in inject_feats])
             setattr(self, 'output_feats', [ft.cpu() for ft in output_feats])
@@ -2796,7 +2796,7 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
         if (not self.reserve_io or target_level > max_level
                 or not (
                         hasattr(self, 'input_feat')
-                        and hasattr(self, 'shortcut_feats')
+                        and hasattr(self, 'bridge_feats')
                         and hasattr(self, 'output_feats')
                 )
         ):
@@ -2805,7 +2805,7 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
         desc: str = (f"{prefix}{self.__class__.__name__}\n"
                      f"{prefix}  I: \n"
                      f"{prefix}    input_feat: {tuple(self.input_feat.size())}\n"
-                     f"{prefix}    shortcut_feats: {[tuple(ft.size()) for ft in self.shortcut_feats]}\n")
+                     f"{prefix}    bridge_feats: {[tuple(ft.size()) for ft in self.bridge_feats]}\n")
         if hasattr(self, 'inject_feats'):
             desc += f"{prefix}  inject_feats: {[tuple(ft.size()) for ft in self.inject_feats]}\n"
         desc += (f"{prefix}  O: \n"
@@ -2903,23 +2903,23 @@ class UNetDecoderPrimaryAggregatorUpsample(nn.Module, IODescriptive):
 
 
 # 00-05-01-01 UNet-Decoder-PrimaryAggregator-FusionPortal
-# Fuse features from the shallow (primary, lower semantic) part of Decoder and relative shortcut layer (from Encoder)
+# Fuse features from the shallow (primary, lower semantic) part of Decoder and relative bridge layer (from Encoder)
 # Pinout Diagram: [Valid]
-#                ┌───────────────────┐
-#    stage_feat ─│ 00-05-01-01       │─ output_feat
-#      (B,C1,*)  │ UNet-Decoder-     │  (B,C1+C2,*)
-# shortcut_feat ─│ PrimaryAggregator │
-#      (B,C2,*)  │ -FusionPortal     │
-#                └───────────────────┘
+#              ┌───────────────────┐
+#  stage_feat ─│ 00-05-01-01       │─ output_feat
+#    (B,C1,*)  │ UNet-Decoder-     │  (B,C1+C2,*)
+# bridge_feat ─│ PrimaryAggregator │
+#    (B,C2,*)  │ -FusionPortal     │
+#              └───────────────────┘
 class UNetDecoderPrimaryAggregatorFusionPortal(nn.Module, IODescriptive):
     """
     UNet Decoder Primary Aggregator Fusion Portal Module
     
     Fuses features from the decoder's lower semantic layer with the
-    corresponding encoder shortcut features via concatenation.
+    corresponding encoder bridge features via concatenation.
     
     Architecture:
-         [stage_feat (B, C1, *), shortcut_feat (B, C2, *)] → Concat(dim=1) → output_feat (B, C1+C2, *)
+         [stage_feat (B, C1, *), bridge_feat (B, C2, *)] → Concat(dim=1) → output_feat (B, C1+C2, *)
     
     Attributes:
         concat: Concatenation layer along channel dimension
@@ -2940,22 +2940,22 @@ class UNetDecoderPrimaryAggregatorFusionPortal(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, stage_feat: torch.Tensor, shortcut_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, stage_feat: torch.Tensor, bridge_feat: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through fusion portal
         
         Args:
             stage_feat: Upsampled feature from decoder (B, C1, X, Y, Z)
-            shortcut_feat: Skip connection feature from encoder (B, C2, X, Y, Z)
+            bridge_feat: Skip connection feature from encoder (B, C2, X, Y, Z)
             
         Returns:
             Concatenated feature tensor (B, C1+C2, X, Y, Z)
         """
-        output_feat: torch.Tensor = self.concat(stage_feat, shortcut_feat)
+        output_feat: torch.Tensor = self.concat(stage_feat, bridge_feat)
 
         if self.reserve_io:
             setattr(self, 'stage_feat', stage_feat.cpu())
-            setattr(self, 'shortcut_feat', shortcut_feat.cpu())
+            setattr(self, 'bridge_feat', bridge_feat.cpu())
             setattr(self, 'output_feat', output_feat.cpu())
         return output_feat
 
@@ -2969,7 +2969,7 @@ class UNetDecoderPrimaryAggregatorFusionPortal(nn.Module, IODescriptive):
         if (not self.reserve_io or target_level > max_level
                 or not (
                         hasattr(self, 'stage_feat')
-                        and hasattr(self, 'shortcut_feat')
+                        and hasattr(self, 'bridge_feat')
                         and hasattr(self, 'output_feat')
                 )
         ):
@@ -2978,7 +2978,7 @@ class UNetDecoderPrimaryAggregatorFusionPortal(nn.Module, IODescriptive):
         desc: str = (f"{prefix}{self.__class__.__name__}\n"
                      f"{prefix}  I: \n"
                      f"{prefix}    stage_feat: {tuple(self.stage_feat.size())}\n"
-                     f"{prefix}    shortcut_feat: {tuple(self.shortcut_feat.size())}\n"
+                     f"{prefix}    bridge_feat: {tuple(self.bridge_feat.size())}\n"
                      f"{prefix}  O: \n"
                      f"{prefix}    output_feat: {tuple(self.output_feat.size())}\n")
         return desc
@@ -3396,12 +3396,12 @@ if __name__ == "__main__":
     bottleneck_depth: int = 2
     decoder_advanced_in_channels: Sequence[int] = (512, 256)
     decoder_advanced_upsample_channels: Sequence[int] = (256, 128)
-    decoder_advanced_shortcut_channels: Sequence[int] = (256, 128)
+    decoder_advanced_bridge_channels: Sequence[int] = (256, 128)
     decoder_advanced_out_channels: Sequence[int] = (256, 128)
     decoder_advanced_depth: Union[int, Sequence[int]] = 2
     decoder_primary_in_channels: Sequence[int] = (128, 64)
     decoder_primary_upsample_channels: Sequence[int] = (64, 32)
-    decoder_primary_shortcut_channels: Sequence[int] = (64, 32)
+    decoder_primary_bridge_channels: Sequence[int] = (64, 32)
     decoder_primary_out_channels: Sequence[int] = (64, 32)
     decoder_primary_depth: Union[int, Sequence[int]] = 2
     auxiliary_classifier_in_channels: Sequence[int] = (256, 128, 64, 32)
@@ -3419,8 +3419,8 @@ if __name__ == "__main__":
     encoder_in_channels: List[int] = list(encoder_primary_in_channels) + list(encoder_advanced_in_channels)
     encoder_out_channels: List[int] = list(encoder_primary_out_channels) + list(encoder_advanced_out_channels)
     decoder_in_channels: List[int] = list(decoder_advanced_in_channels) + list(decoder_primary_in_channels)
-    decoder_shortcut_channels: List[int] = list(decoder_advanced_shortcut_channels) + \
-                                           list(decoder_primary_shortcut_channels)
+    decoder_bridge_channels: List[int] = list(decoder_advanced_bridge_channels) + \
+                                           list(decoder_primary_bridge_channels)
     decoder_out_channels: List[int] = list(decoder_advanced_out_channels) + list(decoder_primary_out_channels)
 
     # Record whether tests passed
@@ -3441,12 +3441,12 @@ if __name__ == "__main__":
         bottleneck_depth=bottleneck_depth,
         decoder_advanced_in_channels=decoder_advanced_in_channels,
         decoder_advanced_upsample_channels=decoder_advanced_upsample_channels,
-        decoder_advanced_shortcut_channels=decoder_advanced_shortcut_channels,
+        decoder_advanced_bridge_channels=decoder_advanced_bridge_channels,
         decoder_advanced_out_channels=decoder_advanced_out_channels,
         decoder_advanced_depth=decoder_advanced_depth,
         decoder_primary_in_channels=decoder_primary_in_channels,
         decoder_primary_upsample_channels=decoder_primary_upsample_channels,
-        decoder_primary_shortcut_channels=decoder_primary_shortcut_channels,
+        decoder_primary_bridge_channels=decoder_primary_bridge_channels,
         decoder_primary_out_channels=decoder_primary_out_channels,
         decoder_primary_depth=decoder_primary_depth,
         auxiliary_classifier_in_channels=auxiliary_classifier_in_channels,
@@ -3648,7 +3648,7 @@ if __name__ == "__main__":
             [tuple([B, bottleneck_in_channels, X // (2 ** stages), Y // (2 ** stages), Z // (2 ** stages)])]
         # Output
         output_feats: List[torch.Tensor] = module(input_feats)
-        # output_feats[0] from bottleneck, output_feats[1:] are shortcut features
+        # output_feats[0] from bottleneck, output_feats[1:] are bridge features
         sz_output_feats = [tuple(ft.size()) for ft in output_feats]
         sz_output_feats_expected: List[Tuple[int, ...]] = \
             [tuple([B, bottleneck_out_channels,
@@ -3709,7 +3709,7 @@ if __name__ == "__main__":
             seq: int,
             module: UNetDecoder,
             input_feat: torch.Tensor,
-            shortcut_feats: Sequence[torch.Tensor]
+            bridge_feats: Sequence[torch.Tensor]
     ) -> List[torch.Tensor]:
         print(f"[{seq}] Test 00-05 {module.__class__.__name__} IO")
         print("-" * 100)
@@ -3719,14 +3719,14 @@ if __name__ == "__main__":
                                                          X // (2 ** stages),
                                                          Y // (2 ** stages),
                                                          Z // (2 ** stages)])
-        sz_shortcut_feats: List[Tuple[int, ...]] = [tuple(ft.size()) for ft in shortcut_feats]
-        sz_shortcut_feats_expected: List[Tuple[int, ...]] = [
-            tuple([B, decoder_shortcut_channels[s],
+        sz_bridge_feats: List[Tuple[int, ...]] = [tuple(ft.size()) for ft in bridge_feats]
+        sz_bridge_feats_expected: List[Tuple[int, ...]] = [
+            tuple([B, decoder_bridge_channels[s],
                    X // (2 ** (stages - s - 1)),
                    Y // (2 ** (stages - s - 1)),
                    Z // (2 ** (stages - s - 1))]) for s in range(stages)]
         # Output
-        output_feats: List[torch.Tensor] = module(input_feat, shortcut_feats)
+        output_feats: List[torch.Tensor] = module(input_feat, bridge_feats)
         sz_output_feats = [tuple(ft.size()) for ft in output_feats]
         sz_output_feats_expected: List[Tuple[int, ...]] = [
             tuple([B, decoder_out_channels[s],
@@ -3737,18 +3737,18 @@ if __name__ == "__main__":
         print(f"    Input for UNetDecoder:\n"
               f"      input_feat: {sz_input_feat}"
               f" {'=' if sz_input_feat == sz_input_feat_expected else '≠'} {sz_input_feat_expected} (expected)")
-        print(f"      shortcut_feats:")
-        for idx in range(max(len(sz_shortcut_feats), len(sz_shortcut_feats_expected))):
-            if idx < len(sz_shortcut_feats_expected):
-                sz_expected = sz_shortcut_feats_expected[idx]
-                if idx < len(sz_shortcut_feats):
-                    sz_out = sz_shortcut_feats[idx]
+        print(f"      bridge_feats:")
+        for idx in range(max(len(sz_bridge_feats), len(sz_bridge_feats_expected))):
+            if idx < len(sz_bridge_feats_expected):
+                sz_expected = sz_bridge_feats_expected[idx]
+                if idx < len(sz_bridge_feats):
+                    sz_out = sz_bridge_feats[idx]
                     print(f"        [{idx}] {sz_out}"
                           f" {'=' if sz_out == sz_expected else '≠'} {sz_expected} (expected)")
                 else:
                     print(f"        [{idx}] None ≠ {sz_expected} (expected)")
             else:
-                sz_out = sz_shortcut_feats[idx]
+                sz_out = sz_bridge_feats[idx]
                 print(f"        [{idx}] {sz_out} ≠ None (expected)")
         print(f"    Output for UNetDecoder:")
         print(f"      output_feats:")
@@ -3767,12 +3767,12 @@ if __name__ == "__main__":
 
         passed: bool = True
         passed = passed and (sz_input_feat == sz_input_feat_expected)
-        if len(sz_shortcut_feats) != len(sz_shortcut_feats_expected):
+        if len(sz_bridge_feats) != len(sz_bridge_feats_expected):
             passed = False
         else:
-            for idx in range(max(len(sz_shortcut_feats), len(sz_shortcut_feats_expected))):
-                feat: Tuple[int, ...] = sz_shortcut_feats[idx]
-                expected: Tuple[int, ...] = sz_shortcut_feats_expected[idx]
+            for idx in range(max(len(sz_bridge_feats), len(sz_bridge_feats_expected))):
+                feat: Tuple[int, ...] = sz_bridge_feats[idx]
+                expected: Tuple[int, ...] = sz_bridge_feats_expected[idx]
                 passed = passed and (feat == expected)
         if len(sz_output_feats) != len(sz_output_feats_expected):
             passed = False
@@ -3938,9 +3938,9 @@ if __name__ == "__main__":
     test_seq_idx += 1
 
     decoder_input_feats: torch.Tensor = repeater_output_feats[0]
-    decoder_shortcut_feats: List[torch.Tensor] = repeater_output_feats[1:]
+    decoder_bridge_feats: List[torch.Tensor] = repeater_output_feats[1:]
     decoder_output_feats: List[torch.Tensor] = test_unet_decoder_io(
-        test_seq_idx, unet.decoder, decoder_input_feats, decoder_shortcut_feats)
+        test_seq_idx, unet.decoder, decoder_input_feats, decoder_bridge_feats)
     test_seq_idx += 1
 
     auxiliary_classifier_logits: List[torch.Tensor] = test_unet_auxiliary_classifier_io(

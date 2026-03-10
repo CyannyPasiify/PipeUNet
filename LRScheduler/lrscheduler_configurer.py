@@ -34,11 +34,11 @@ Usage Examples:
     )
     
     # Command-line testing
-    # python schedule_configurer.py --scheduler LinearLR --step 100 --lr 0.1
-    # python schedule_configurer.py --scheduler CosineAnnealingLR --step 100 --lr 0.1
-    # python schedule_configurer.py --scheduler CosineAnnealingWarmRestarts --step 100 --lr 0.1
-    # python schedule_configurer.py --scheduler OneCycleLR --step 100 --lr 0.1
-    # python schedule_configurer.py --scheduler ReduceLROnPlateau --step 100 --lr 0.1
+    # python lrscheduler_configurer.py --scheduler LinearLR --step 100 --lr 0.1
+    # python lrscheduler_configurer.py --scheduler CosineAnnealingLR --step 100 --lr 0.1
+    # python lrscheduler_configurer.py --scheduler CosineAnnealingWarmRestarts --step 100 --lr 0.1
+    # python lrscheduler_configurer.py --scheduler OneCycleLR --step 100 --lr 0.1
+    # python lrscheduler_configurer.py --scheduler ReduceLROnPlateau --step 100 --lr 0.1
 """
 
 import torch
@@ -220,7 +220,7 @@ if __name__ == "__main__":
         Plots learning rate curve
 
         Args:
-            scheduler_type: Scheduler type
+            scheduler_type: LRScheduler type
             total_steps: Total number of iterations
             initial_lr: Initial learning rate
         """
@@ -321,7 +321,7 @@ if __name__ == "__main__":
         parser.add_argument('--scheduler', type=str, required=True,
                             choices=['LinearLR', 'CosineAnnealingLR', 'CosineAnnealingWarmRestarts', 'OneCycleLR',
                                      'ReduceLROnPlateau'],
-                            help='Scheduler type')
+                            help='LRScheduler type')
         parser.add_argument('--step', type=int, required=True, help='Number of iterations')
         parser.add_argument('--lr', type=float, required=True, help='Initial learning rate')
 
