@@ -32,7 +32,9 @@ from Metric.metric_configurer import (
     # Multilabel metrics
     MultilabelAccuracy, MultilabelAUROC, MultilabelAveragePrecision, MultilabelConfusionMatrix,
     MultilabelF1Score, MultilabelPrecision, MultilabelPrecisionRecallCurve, MultilabelRecall,
-    MultilabelSpecificity, MultilabelROC
+    MultilabelSpecificity, MultilabelROC,
+    # Assert functions
+    assert_input_torchmetrics
 )
 
 
@@ -306,6 +308,14 @@ def compute_binary_metrics(y_true: torch.Tensor, y_pred_probs: torch.Tensor) -> 
     y_true = y_true.to(device)
     y_pred_probs = y_pred_probs.to(device)
 
+    # Validate input data using assert_input_torchmetrics
+    assert_input_torchmetrics(
+        task_type="binary",
+        y_pred=y_pred_probs,
+        y_gt=y_true,
+        multidim_average="global"
+    )
+
     # Get predicted classes
     y_pred: torch.Tensor = (y_pred_probs >= 0.5).long()
 
@@ -381,6 +391,15 @@ def compute_multiclass_metrics(y_true: torch.Tensor, y_pred_probs: torch.Tensor,
     device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     y_true = y_true.to(device)
     y_pred_probs = y_pred_probs.to(device)
+
+    # Validate input data using assert_input_torchmetrics
+    assert_input_torchmetrics(
+        task_type="multiclass",
+        y_pred=y_pred_probs,
+        y_gt=y_true,
+        multidim_average="global",
+        num_classes=num_classes
+    )
 
     # Get predicted classes
     y_pred: torch.Tensor = y_pred_probs.argmax(dim=1)
@@ -487,6 +506,14 @@ def compute_multilabel_metrics(y_true: torch.Tensor, y_pred_probs: torch.Tensor,
     device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     y_true = y_true.to(device)
     y_pred_probs = y_pred_probs.to(device)
+
+    # Validate input data using assert_input_torchmetrics
+    assert_input_torchmetrics(
+        task_type="multilabel",
+        y_pred=y_pred_probs,
+        y_gt=y_true,
+        multidim_average="global"
+    )
 
     # Get predicted classes
     y_pred: torch.Tensor = (y_pred_probs >= 0.5).float()

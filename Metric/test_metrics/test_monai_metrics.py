@@ -9,10 +9,11 @@ It prints the output shape in tuple format for each metric and reduction mode.
 """
 
 import torch
-from typing import List, Tuple, Dict, Any, Callable, Union, Optional
+from typing import List, Tuple, Dict, Any, Callable, Union, Optional, Literal
 
-# Import the metrics
-from Metric.metric_configurer import Dice, GDice, IoU, HD, SD, NSD, MSE, MAE, RMSE, PSNR, SSIM, MSSSIM
+# Import the metrics and assert function
+from Metric.metric_configurer import Dice, GDice, IoU, HD, SD, NSD, MSE, MAE, RMSE, PSNR, SSIM, MSSSIM, \
+    assert_input_monaimetrics
 
 # Define reduction modes to test
 REDUCTION_MODES: List[str] = [
@@ -70,6 +71,17 @@ def test_metric_shape(
         **metric_kwargs: Additional keyword arguments for the metric
     """
     y_pred, y_gt = data_generator()
+
+    # Determine task type based on data generator
+    task_type: Literal["segmentation", "img2img"] = \
+        "segmentation" if data_generator == generate_segmentation_data else "img2img"
+
+    # Validate input data using assert_input_monaimetrics
+    assert_input_monaimetrics(
+        task_type=task_type,
+        y_pred=y_pred,
+        y_gt=y_gt
+    )
 
     print(f"{metric_name}:")
     for reduction in REDUCTION_MODES:

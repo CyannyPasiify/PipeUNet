@@ -167,47 +167,71 @@ def assert_input_torchmetrics(
         task_type: Literal["binary", "multiclass", "multilabel"],
         y_pred: Tensor,
         y_gt: Tensor,
+        multidim_average: Optional[Literal["global", "samplewise"]] = None,
         num_classes: Optional[int] = None
 ):
+    def is_integer(dtype: torch.dtype) -> bool:
+        try:
+            torch.iinfo(dtype)  # success when dtype is integer
+            return True
+        except TypeError:
+            return False
+
     assert task_type in ['binary', 'multiclass', 'multilabel'], f'task_type={task_type} is not supported'
     # type = Tensor
     assert isinstance(y_pred, Tensor), f'y_pred [type={type(y_pred)}] is not a Tensor'
     assert isinstance(y_gt, Tensor), f'y_pred [type={type(y_gt)}] is not a Tensor'
-    # dtype = int
-    assert y_pred.dtype == torch.int, f'y_pred [dtype={y_pred.dtype}] shall be {torch.int}'
-    assert y_gt.dtype == torch.int, f'y_gt [dtype={y_gt.dtype}] shall be {torch.int}'
+    # gt.dtype = int
+    assert is_integer(y_gt.dtype), f'y_gt [dtype={y_gt.dtype}] shall be integer type'
     # size dim match
-    assert y_pred.ndim == y_gt.ndim, f'y_pred [ndim={y_pred.ndim}] and y_gt [ndim={y_gt.ndim}] shall have the same ndim'
-    # enough size dim
+    if task_type in ['binary', 'multilabel']:
+        assert y_pred.ndim == y_gt.ndim, f'y_pred [ndim={y_pred.ndim}] and y_gt [ndim={y_gt.ndim}] shall have the same ndim'
+    else:  # multiclass
+        assert y_pred.ndim == y_gt.ndim or y_pred.ndim == y_gt.ndim + 1, f'y_pred [ndim={y_pred.ndim}] and y_gt [ndim={y_gt.ndim}] shall have the same ndim or y_pred could have only one extra channel dim'
+    # enough size dim and compatible pred.dtype
+    extra_spatial_dim: int = 1 if multidim_average == 'samplewise' else 0
     if task_type in ['binary', 'multiclass']:
-        assert y_pred.ndim > 0, f'y_pred [ndim={y_pred.ndim}] shall be at least 1 (N, ...)]'
-        assert y_gt.ndim > 0, f'y_gt [ndim={y_gt.ndim}] shall be at least 1 (N, ...)]'
+        assert y_gt.ndim > extra_spatial_dim, f'y_gt [ndim={y_gt.ndim}] shall be at least {extra_spatial_dim + 1} (N, {"+spatial" if extra_spatial_dim > 0 else "*spatial"})]'
+        if task_type == 'multiclass' and y_pred.ndim == y_gt.ndim + 1:  # pred shall be logits (N,C,...)
+            assert y_pred.ndim > extra_spatial_dim + 1, f'y_pred [ndim={y_pred.ndim}] shall be at least {extra_spatial_dim + 2} (N, C, {"+spatial" if extra_spatial_dim > 0 else "*spatial"})]'
+            assert torch.is_floating_point(
+                y_pred), f'y_pred [dtype={y_pred.dtype}] shall floating point type in {task_type} task while representing as logits (N, C, {"+spatial" if extra_spatial_dim > 0 else "*spatial"})'
+        else:  # pred shall be label (N,...)
+            assert y_pred.ndim > extra_spatial_dim, f'y_pred [ndim={y_pred.ndim}] shall be at least {extra_spatial_dim + 1} (N, {"+spatial" if extra_spatial_dim > 0 else "*spatial"})]'
     else:  # multilabel
-        assert y_pred.ndim > 1, f'y_pred [ndim={y_pred.ndim}] shall be at least 2 (N, C, ...)]'
-        assert y_gt.ndim > 1, f'y_gt [ndim={y_gt.ndim}] shall be at least 2 (N, C, ...)]'
+        assert y_pred.ndim > extra_spatial_dim, f'y_pred [ndim={y_pred.ndim}] shall be at least {extra_spatial_dim + 2} (N, C, {"+spatial" if extra_spatial_dim > 0 else "*spatial"})]'
+        assert y_gt.ndim > extra_spatial_dim, f'y_gt [ndim={y_gt.ndim}] shall be at least {extra_spatial_dim + 2} (N, {"+spatial" if extra_spatial_dim > 0 else "*spatial"})]'
 
-    sz_pred: Tuple[int, ...] = tuple(y_pred.size())
-    sz_gt: Tuple[int, ...] = tuple(y_gt.size())
-    # size match
-    assert sz_pred == sz_gt, f'y_pred [size={sz_pred}] and y_gt [size={sz_gt}] shall have the same size'
+    sz_pred: List[int] = list(y_pred.size())
+    sz_gt: List[int] = list(y_gt.size())
     # size non-zero
     assert 0 not in sz_pred, f'y_pred [size={sz_pred}] shall have non-zero size in all dimensions'
     assert 0 not in sz_gt, f'y_pred [size={sz_gt}] shall have non-zero size in all dimensions'
+    # size match
+    assert sz_pred[0] == sz_gt[0], f'y_pred [N={sz_pred[0]}] and y_gt [N={sz_gt[0]}] shall have the same size'
+    if task_type in ['binary', 'multilabel'] or y_pred.ndim == y_gt.ndim:
+        assert sz_pred == sz_gt, f'y_pred [size={sz_pred}] and y_gt [size={sz_gt}] shall have the same size'
+    else:  # multiclass
+        assert len(sz_pred) < 3 or sz_pred[2:] == sz_gt[1:], \
+            f'y_pred [spatial_size={sz_pred[2:]}] and y_gt [spatial_size={sz_gt[1:]}] shall have the same size'
+
     # value range
     if task_type in ['binary', 'multilabel']:
-        allowed_labels: Tensor = torch.tensor([0, 1], dtype=torch.int)
-        assert torch.all(torch.isin(y_pred, allowed_labels)), \
-            f'y_pred [unique={list(y_pred.unique())}] shall only contain [0, 1]'
+        allowed_labels: Tensor = torch.tensor([0, 1], dtype=y_gt.dtype)
         assert torch.all(torch.isin(y_gt, allowed_labels)), \
             f'y_gt [unique={list(y_gt.unique())}] shall only contain [0, 1]'
+        if is_integer(y_pred.dtype):
+            assert torch.all(torch.isin(y_pred, allowed_labels)), \
+                f'y_pred [unique={list(y_pred.unique())}] shall only contain [0, 1]'
     elif task_type == "multiclass":
         assert num_classes is not None, 'you shall specify num_classes for multiclass assertion'
         label_list: List[int] = list(range(num_classes))
         allowed_labels: Tensor = torch.tensor(label_list, dtype=torch.int)
-        assert torch.all(torch.isin(y_pred, allowed_labels)), \
-            f'y_pred [unique={list(y_pred.unique())}] shall only contain {label_list}'
         assert torch.all(torch.isin(y_gt, allowed_labels)), \
             f'y_gt [unique={list(y_gt.unique())}] shall only contain {label_list}'
+        if is_integer(y_pred.dtype):
+            assert torch.all(torch.isin(y_pred, allowed_labels)), \
+                f'y_pred [unique={list(y_pred.unique())}] shall only contain {label_list}'
 
 
 class BinaryStatScores(torchmetrics.classification.BinaryStatScores):
@@ -2250,14 +2274,24 @@ def assert_input_monaimetrics(
         y_pred: Tensor,
         y_gt: Tensor
 ):
+    def is_integer(dtype: torch.dtype) -> bool:
+        try:
+            torch.iinfo(dtype)  # success when dtype is integer
+            return True
+        except TypeError:
+            return False
+
     assert task_type in ['segmentation', 'img2img'], f'task_type={task_type} is not supported'
     # type = Tensor
     assert isinstance(y_pred, Tensor), f'y_pred [type={type(y_pred)}] is not a Tensor'
     assert isinstance(y_gt, Tensor), f'y_pred [type={type(y_gt)}] is not a Tensor'
     # dtype = int (segmentation) |  float (img2img)
-    valid_dtype: torch._C.dtype = torch.int if task_type == "segmentation" else torch.float
-    assert y_pred.dtype == valid_dtype, f'y_pred [dtype={y_pred.dtype}] shall be {valid_dtype}'
-    assert y_gt.dtype == valid_dtype, f'y_gt [dtype={y_gt.dtype}] shall be {valid_dtype}'
+    if task_type == "segmentation":
+        assert is_integer(y_pred.dtype), f'y_pred [dtype={y_pred.dtype}] shall be integer type'
+        assert is_integer(y_gt.dtype), f'y_gt [dtype={y_gt.dtype}] shall be integer type'
+    else: # task_type == "img2img":
+        assert torch.is_floating_point(y_pred), f'y_pred [dtype={y_pred.dtype}] shall be floating point type'
+        assert torch.is_floating_point(y_gt), f'y_gt [dtype={y_gt.dtype}] shall be floating point type'
     # size dim match
     assert y_pred.ndim == y_gt.ndim, f'y_pred [ndim={y_pred.ndim}] and y_gt [ndim={y_gt.ndim}] shall have the same ndim'
     # enough size dim
