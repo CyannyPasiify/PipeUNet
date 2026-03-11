@@ -4,24 +4,11 @@ Metrics Configurers
 
 This module provides wrapper classes for various metrics from the TorchMetrics and MONAI libraries,
 enhancing the plot method to provide additional control functionality (for TorchMetrics).
-
-TorchMetrics IO Requirements
-
-Elements shall all be int type
-Binary: pred=(N,...) gt(binary map)=(N,...) dtype=torch.int [0,1]
-Multiclass: pred=(N,...) gt(label map)=(N,...) dtype=torch.int [0,num_classes-1]
-Multilabel: pred=(N,C,...) gt(C-binary maps)=(N,C,...) dtype=torch.int [0,1]
-
-MONAI metrics IO Requirements
-
-To avoid unnecessary trouble, we require
-all inputs shall be pred=(B,C,*Sp,...) gt=(B,C,*Sp,...)
-Segmentation: dtype=torch.int [0,1]
-Image-To-Image: dtype=torch.float
 """
 
 import numpy as np
 import torch
+from torch import Tensor
 import torchmetrics
 import torchmetrics.classification
 from typing import Optional, Dict, Any, Union, List, Tuple, Literal, Sequence, Type, cast
@@ -35,24 +22,157 @@ from monai.utils import MetricReduction, Weight
 """
 TorchMetrics IO Requirements
 
-Elements shall all be int type
-Binary: pred=(N,...) gt(binary map)=(N,...) dtype=torch.int [0,1]
-Multiclass: pred=(N,...) gt(label map)=(N,...) dtype=torch.int [0,num_classes-1]
-Multilabel: pred=(N,C,...) gt(C-binary maps)=(N,C,...) dtype=torch.int [0,1]
+Inputs:
+    [General]
+    | ------------- | [Pred,GT] Shape when 'multidim_average'=            | -------------------------------------------------------------------------------------------------- |
+    | Metric Type ↓ | 'global'                 | 'samplewise'             | [Pred,GT] dtype                                                                                    |
+    | Binary        | [(N,*),         (N,*)  ] | [(N,+),         (N,+)  ] | [int(01-label)|float(logits, may apply sigmoid if out [0,1] range, shall apply thresholding), int] |
+    | Multiclass    | [(N,*)|(N,C,*), (N,*)  ] | [(N,+)|(N,C,+), (N,+)  ] | [int(multi-label)|float(logits, shall apply argmax/softmax),                                  int] |
+    | Multilabel    | [(N,C,*),       (N,C,*)] | [(N,C,+),       (N,C,+)] | [int(01-label)|float(logits, may apply sigmoid if out [0,1] range, shall apply thresholding), int] |
+    * means zero or more spatial dims, + means one or more spatial dims
+    
+Outputs: 
+    [General]
+    dtype=torch.float
+    | ------------------- | 'average'=                                                    |
+    | 'multidim_average'↓ | None/'none'                  | 'micro' | 'macro' | 'weighted' |
+    | 'global'            | ()  for Binary, others (C)   | ()      | ()      | ()         |
+    | 'samplewise'        | (N) for Binary, others (N,C) | (N)     | (N)     | (N)        |
+    
+    [Special: StatScores]
+    dtype=torch.int
+    | --------------------- | 'average'=                                                        |
+    | 'multidim_average'↓   | None/'none'                      | 'micro' | 'macro' | 'weighted' |
+    | 'global'              | (5)   for Binary, others (C,5)   | (5)     | (5)     | (5)        |
+    | 'samplewise'          | (N,5) for Binary, others (N,C,5) | (N,5)   | (N,5)   | (N,5)      |
+    The 5 in shape (*,5) stands for [tp, fp, tn, fn, sup], sup=tp+fn 
+    
+    [Special: ConfusionMatrix]
+    dtype=torch.int if not using normalization, otherwise torch.float
+    | Metric Type                | Shape   |
+    | Binary                     | (2,2)   |
+    | Multiclass                 | (C,C)   |
+    | Multilabel                 | (C,2,2) |
+    Structure for Confusion Matrix(ces)
+    Binary: (2,2)
+    [[ TN FP ]
+     [ FN TP ]]
+    Multiclass: (C,C)
+    [[ 0→0     0→1      ⋯    0→(C-1)     ]
+     [ 1→0     1→1      ⋯    1→(C-1)     ]
+     [ ⋮       ⋮        ⋱    ⋮           ]
+     [ (C-1)→0 (C-1)→1  ⋯    (C-1)→(C-1) ]]
+    Multilabel: (C,2,2)
+    ┌                                               ┐
+    │ ┌           ┐ ┌           ┐     ┌           ┐ │
+    │ │ Label 0   │ │ Label 1   │     │ Label C-1 │ │
+    │ │ [ TN FP ] │ │ [ TN FP ] │     │ [ TN FP ] │ │
+    │ │ [ FN TP ] │ │ [ FN TP ] │ ... │ [ FN TP ] │ │
+    │ └           ┘ └           ┘     └           ┘ │
+    └                                               ┘
+    
+    [Special: PrecisionRecallCurve]
+    The example usage and doc description for PRCurve returned (precision, recall, thresholds) metrics are 
+    consistent, indicating that (n_thresholds+1) for precision and recall while (n_thresholds) for thresholds!
+    For convenience, we slightly modifies the implementation of compute():
+    · Pad an extra 1.0 threshold for the end point (precision=1.0, recall=0.0), making all list length as TH=n_thresholds+1.
+    · Reverse point sequence by flipping precision, recall, thresholds each.
+    Statements after modification are as follows:
+    dtype=torch.float
+    | Metric Type | fpr (Inc↑)    | tpr (Inc↑)    | thresholds (Dec↓) |
+    | Binary      | (TH)          | (TH)          | (TH)              |
+    | Multiclass  | C*(TH)|(C,TH) | C*(TH)|(C,TH) | C*(TH)|(TH)       |
+    | Multilabel  | C*(TH)|(C,TH) | C*(TH)|(C,TH) | C*(TH)|(TH)       |
+    Binary
+        (precision, recall, thresholds)
+        precision: Tensor(TH) with precision values
+        recall: Tensor(TH) with recall values
+        thresholds: Tensor(TH) with decreasing threshold values
+        Note: The implementation both supports calculating the metric in a non-binned but accurate version and a binned 
+        version that is less accurate but more memory efficient. Setting the thresholds argument to None will activate 
+        the non-binned version that uses memory of size O(n_samples) whereas setting the thresholds argument to either an
+        integer, list or a 1d tensor will use a binned version that uses memory of size O(n_thresholds) (constant memory).
+    Multiclass
+        (precision, recall, thresholds)
+        precision:
+            thresholds=None: List[C]→Tensor(TH) with precision values (length may differ between classes).
+            thresholds={specified}: Tensor(C,TH) with precision values.
+        recall:
+            thresholds=None: List[C]→Tensor(TH) with recall values (length may differ between classes).
+            thresholds={specified}: Tensor(C,TH) with recall values.
+        thresholds:
+            thresholds=None: List[C]→Tensor(TH) with decreasing threshold values (length may differ between classes).
+            thresholds={specified}: Tensor(TH) with shared threshold values for all classes.
+    Multilabel
+        (precision, recall, thresholds)
+        precision:
+            thresholds=None: List[C]→Tensor(TH) with precision values (length may differ between labels).
+            thresholds={specified}: Tensor(C,TH) with precision values.
+        recall:
+            thresholds=None: List[C]→Tensor(TH) with recall values (length may differ between labels)
+            thresholds={specified}: Tensor(C,TH) with recall values.
+        thresholds:
+            thresholds=None: List[C]→Tensor(TH) with decreasing threshold values (length may differ between labels).
+            thresholds={specified}: Tensor(TH) with shared threshold values for all labels.
+             
+    [Special: ROC]
+    The example usage and doc description for returned (fpr, tpr, thresholds) metrics are inconsistent.
+    This is probably a BUG!
+    We assume the example usage is correct, and Tensor dim for fpr, tpr and thresholds 
+    share the same length (denoted as TH), not (n_thresholds+1) for fpr and tpr while (n_thresholds) for thresholds!
+    You may assume TH=n_thresholds+1.
+    dtype=torch.float
+    | Metric Type | fpr (Inc↑)    | tpr (Inc↑)    | thresholds (Dec↓) |
+    | Binary      | (TH)          | (TH)          | (TH)              |
+    | Multiclass  | C*(TH)|(C,TH) | C*(TH)|(C,TH) | C*(TH)|(TH)       |
+    | Multilabel  | C*(TH)|(C,TH) | C*(TH)|(C,TH) | C*(TH)|(TH)       |
+    Binary
+        (fpr, tpr, thresholds)
+        fpr: Tensor(TH) with false positive rate values
+        fpr: Tensor(TH) with true positive rate values
+        thresholds: Tensor(TH) with decreasing threshold values
+        Note: The implementation both supports calculating the metric in a non-binned but accurate version and a binned 
+        version that is less accurate but more memory efficient. Setting the thresholds argument to None will activate 
+        the non-binned version that uses memory of size O(n_samples) whereas setting the thresholds argument to either an 
+        integer, list or a 1d tensor will use a binned version that uses memory of size O(n_thresholds) (constant memory).
+        The outputted thresholds will be in reversed order to ensure that they correspond to both fpr and tpr which are 
+        sorted in reversed order during their calculation, such that they are monotome increasing.
+    Multiclass
+        (fpr, tpr, thresholds)
+        fpr:
+            thresholds=None: List[C]→Tensor(TH) with false positive rate values (length may differ between classes).
+            thresholds={specified}: Tensor(C,TH) with false positive rate values.
+        tpr:
+            thresholds=None: List[C]→Tensor(TH) with true positive rate values (length may differ between classes).
+            thresholds={specified}: Tensor(C,TH) with true positive rate values.
+        thresholds:
+            thresholds=None: List[C]→Tensor(TH) with decreasing threshold values (length may differ between classes).
+            thresholds={specified}: Tensor(TH) with shared threshold values for all classes.
+    Multilabel
+        (fpr, tpr, thresholds)
+        fpr:
+            thresholds=None: List[C]→Tensor(TH) with false positive rate values (length may differ between labels).
+            thresholds={specified}: Tensor(C,TH) with false positive rate values.
+        tpr:
+            thresholds=None: List[C]→Tensor(TH) with true positive rate values (length may differ between labels)
+            thresholds={specified}: Tensor(C,TH) with true positive rate values.
+        thresholds:
+            thresholds=None: List[C]→Tensor(TH) with decreasing threshold values (length may differ between labels).
+            thresholds={specified}: Tensor(TH) with shared threshold values for all labels.
 """
 
 
 # region Torchmetrics
 def assert_input_torchmetrics(
         task_type: Literal["binary", "multiclass", "multilabel"],
-        y_pred: torch.Tensor,
-        y_gt: torch.Tensor,
+        y_pred: Tensor,
+        y_gt: Tensor,
         num_classes: Optional[int] = None
 ):
     assert task_type in ['binary', 'multiclass', 'multilabel'], f'task_type={task_type} is not supported'
     # type = Tensor
-    assert isinstance(y_pred, torch.Tensor), f'y_pred [type={type(y_pred)}] is not a torch.Tensor'
-    assert isinstance(y_gt, torch.Tensor), f'y_pred [type={type(y_gt)}] is not a torch.Tensor'
+    assert isinstance(y_pred, Tensor), f'y_pred [type={type(y_pred)}] is not a Tensor'
+    assert isinstance(y_gt, Tensor), f'y_pred [type={type(y_gt)}] is not a Tensor'
     # dtype = int
     assert y_pred.dtype == torch.int, f'y_pred [dtype={y_pred.dtype}] shall be {torch.int}'
     assert y_gt.dtype == torch.int, f'y_gt [dtype={y_gt.dtype}] shall be {torch.int}'
@@ -75,7 +195,7 @@ def assert_input_torchmetrics(
     assert 0 not in sz_gt, f'y_pred [size={sz_gt}] shall have non-zero size in all dimensions'
     # value range
     if task_type in ['binary', 'multilabel']:
-        allowed_labels: torch.Tensor = torch.tensor([0, 1], dtype=torch.int)
+        allowed_labels: Tensor = torch.tensor([0, 1], dtype=torch.int)
         assert torch.all(torch.isin(y_pred, allowed_labels)), \
             f'y_pred [unique={list(y_pred.unique())}] shall only contain [0, 1]'
         assert torch.all(torch.isin(y_gt, allowed_labels)), \
@@ -83,7 +203,7 @@ def assert_input_torchmetrics(
     elif task_type == "multiclass":
         assert num_classes is not None, 'you shall specify num_classes for multiclass assertion'
         label_list: List[int] = list(range(num_classes))
-        allowed_labels: torch.Tensor = torch.tensor(label_list, dtype=torch.int)
+        allowed_labels: Tensor = torch.tensor(label_list, dtype=torch.int)
         assert torch.all(torch.isin(y_pred, allowed_labels)), \
             f'y_pred [unique={list(y_pred.unique())}] shall only contain {label_list}'
         assert torch.all(torch.isin(y_gt, allowed_labels)), \
@@ -702,6 +822,9 @@ class MultilabelAveragePrecision(torchmetrics.classification.MultilabelAveragePr
 class BinaryConfusionMatrix(torchmetrics.classification.BinaryConfusionMatrix):
     """
     Wrapper class for ConfusionMatrix metric, enhanced with additional plot control functionality.
+    Confusion Matrix
+    [[ TN FP ]
+     [ FN TP ]]
     """
 
     # type: ignore[override]
@@ -743,6 +866,11 @@ class BinaryConfusionMatrix(torchmetrics.classification.BinaryConfusionMatrix):
 class MulticlassConfusionMatrix(torchmetrics.classification.MulticlassConfusionMatrix):
     """
     Wrapper class for ConfusionMatrix metric, enhanced with additional plot control functionality.
+    Confusion Matrix
+    [[ 0→0     0→1      ⋯    0→(C-1)     ]
+     [ 1→0     1→1      ⋯    1→(C-1)     ]
+     [ ⋮       ⋮        ⋱    ⋮           ]
+     [ (C-1)→0 (C-1)→1  ⋯    (C-1)→(C-1) ]]
     """
 
     def plot(
@@ -783,6 +911,14 @@ class MulticlassConfusionMatrix(torchmetrics.classification.MulticlassConfusionM
 class MultilabelConfusionMatrix(torchmetrics.classification.MultilabelConfusionMatrix):
     """
     Wrapper class for ConfusionMatrix metric, enhanced with additional plot control functionality.
+    num_labels=C Separated Confusion Matrices
+    ┌                                               ┐
+    │ ┌           ┐ ┌           ┐     ┌           ┐ │
+    │ │ Label 0   │ │ Label 1   │     │ Label C-1 │ │
+    │ │ [ TN FP ] │ │ [ TN FP ] │     │ [ TN FP ] │ │
+    │ │ [ FN TP ] │ │ [ FN TP ] │ ... │ [ FN TP ] │ │
+    │ └           ┘ └           ┘     └           ┘ │
+    └                                               ┘
     """
 
     def plot(
@@ -1203,6 +1339,24 @@ class BinaryPrecisionRecallCurve(torchmetrics.classification.BinaryPrecisionReca
     Wrapper class for binary classification PrecisionRecallCurve metric, enhanced with additional plot control functionality.
     """
 
+    def compute(self) -> tuple[Tensor, Tensor, Tensor]:
+        """Compute metric.
+        This wrapped implementation could align thresholds size with precision and recall,
+        ensuring they all have the same size (n_thresholds+1) and thresholds in decreasing order
+        to meet PRCurve left-to-right (x=recall) nature.
+        """
+        precision, recall, thresholds = super().compute()
+        # precision ↑ recall ↓ thresholds ↑
+        if thresholds.size(0) != precision.size(0) and thresholds.size(0) + 1 != precision.size(0):
+            raise ValueError('Can not manage size for thresholds')
+        # Cat redundant ones to align size [*thresh, 1.0]
+        thresholds = torch.cat([thresholds, torch.ones(1, dtype=thresholds.dtype, device=thresholds.device)])
+        # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+        precision = precision.flip(0)
+        recall = recall.flip(0)
+        thresholds = thresholds.flip(0)
+        return precision, recall, thresholds
+
     def plot(
             self,
             ax: Optional[Axes] = None,
@@ -1262,6 +1416,43 @@ class MulticlassPrecisionRecallCurve(torchmetrics.classification.MulticlassPreci
     """
     Wrapper class for PrecisionRecallCurve metric, enhanced with additional plot control functionality.
     """
+
+    def compute(self) -> Union[tuple[Tensor, Tensor, Tensor], tuple[List[Tensor], List[Tensor], List[Tensor]]]:
+        """Compute metric.
+        This wrapped implementation could align thresholds size with precision and recall,
+        ensuring they all have the same size (n_thresholds+1) and thresholds in decreasing order
+        to meet PRCurve left-to-right (x=recall) nature.
+        """
+        # precision ↑ recall ↓ thresholds ↑
+        precision: Union[Tensor, List[Tensor]]
+        recall: Union[Tensor, List[Tensor]]
+        thresholds: Union[Tensor, List[Tensor]]
+        precision, recall, thresholds = super().compute()
+        if isinstance(precision, torch.Tensor):  # assume they are all Tensor(C,n_thresholds)
+            if thresholds.size(0) != precision.size(0) and thresholds.size(0) + 1 != recall.size(0):
+                raise ValueError('Can not manage size for thresholds')
+            # Cat redundant ones to align size [*thresh, 1.0]
+            thresholds: Tensor = torch.cat(
+                [thresholds, torch.ones(1, dtype=thresholds.dtype, device=thresholds.device)])
+            # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+            precision: Tensor = precision.flip(0)
+            recall: Tensor = recall.flip(0)
+            thresholds: Tensor = thresholds.flip(0)
+        else:  # assume they are all [C]*Tensor(n_thresholds[+1])
+            for idx in range(len(thresholds)):
+                prec: Tensor
+                rec: Tensor
+                thresh: Tensor
+                prec, rec, thresh = precision[idx], recall[idx], thresholds[idx]
+                if thresh.size(0) != prec.size(0) and thresh.size(0) + 1 != prec.size(0):
+                    raise ValueError('Can not manage size for thresholds')
+                # Cat redundant ones to align size [*thresh, 1.0]
+                thresh = torch.cat([thresh, torch.ones(1, dtype=thresh.dtype, device=thresh.device)])
+                # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+                precision[idx] = prec.flip(0)
+                recall[idx] = rec.flip(0)
+                thresholds[idx] = thresh.flip(0)
+        return precision, recall, thresholds
 
     def plot(
             self,
@@ -1328,6 +1519,43 @@ class MultilabelPrecisionRecallCurve(torchmetrics.classification.MultilabelPreci
     """
     Wrapper class for PrecisionRecallCurve metric, enhanced with additional plot control functionality.
     """
+
+    def compute(self) -> Union[tuple[Tensor, Tensor, Tensor], tuple[List[Tensor], List[Tensor], List[Tensor]]]:
+        """Compute metric.
+        This wrapped implementation could align thresholds size with precision and recall,
+        ensuring they all have the same size (n_thresholds+1) and thresholds in decreasing order
+        to meet PRCurve left-to-right (x=recall) nature.
+        """
+        # precision ↑ recall ↓ thresholds ↑
+        precision: Union[Tensor, List[Tensor]]
+        recall: Union[Tensor, List[Tensor]]
+        thresholds: Union[Tensor, List[Tensor]]
+        precision, recall, thresholds = super().compute()
+        if isinstance(precision, torch.Tensor):  # assume they are all Tensor(C,n_thresholds)
+            if thresholds.size(0) != precision.size(0) and thresholds.size(0) + 1 != recall.size(0):
+                raise ValueError('Can not manage size for thresholds')
+            # Cat redundant ones to align size [*thresh, 1.0]
+            thresholds: Tensor = torch.cat(
+                [thresholds, torch.ones(1, dtype=thresholds.dtype, device=thresholds.device)])
+            # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+            precision: Tensor = precision.flip(0)
+            recall: Tensor = recall.flip(0)
+            thresholds: Tensor = thresholds.flip(0)
+        else:  # assume they are all [C]*Tensor(n_thresholds[+1])
+            for idx in range(len(thresholds)):
+                prec: Tensor
+                rec: Tensor
+                thresh: Tensor
+                prec, rec, thresh = precision[idx], recall[idx], thresholds[idx]
+                if thresh.size(0) != prec.size(0) and thresh.size(0) + 1 != prec.size(0):
+                    raise ValueError('Can not manage size for thresholds')
+                # Cat redundant ones to align size [*thresh, 1.0]
+                thresh = torch.cat([thresh, torch.ones(1, dtype=thresh.dtype, device=thresh.device)])
+                # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+                precision[idx] = prec.flip(0)
+                recall[idx] = rec.flip(0)
+                thresholds[idx] = thresh.flip(0)
+        return precision, recall, thresholds
 
     def plot(
             self,
@@ -2000,23 +2228,32 @@ MLROC = MultilabelROC
 """
 MONAI metrics IO Requirements
 
-To avoid unnecessary trouble, we require
-all inputs shall be pred=(B,C,*Sp,...) gt=(B,C,*Sp,...) 
-Segmentation: dtype=torch.int [0,1]
-Image-To-Image: dtype=torch.float
+To avoid unnecessary trouble, we require all inputs shall be multi-channels
+
+Inputs:
+    pred=(B,C,*Spatial) gt=(B,C,*Spatial) 
+    Segmentation: dtype=torch.int [0,1]
+    Image-To-Image: dtype=torch.float
+    
+Outputs: 
+    dtype=torch.float
+    | Metric Type    | Reduction                                                                   |
+    | ↓              | none  | mean  | sum   | mean_batch | sum_batch | mean_channel | sum_channel |
+    | Segmentation   | (B,C) | ()    | ()    | (C)        | (C)       | (B)          | (B)         |
+    | Image-To-Image | (B)   | ()    | ()    | ()         | ()        | (B)          | (B)         |
 """
 
 
 # region MONAI
 def assert_input_monaimetrics(
         task_type: Literal["segmentation", "img2img"],
-        y_pred: torch.Tensor,
-        y_gt: torch.Tensor
+        y_pred: Tensor,
+        y_gt: Tensor
 ):
     assert task_type in ['segmentation', 'img2img'], f'task_type={task_type} is not supported'
     # type = Tensor
-    assert isinstance(y_pred, torch.Tensor), f'y_pred [type={type(y_pred)}] is not a torch.Tensor'
-    assert isinstance(y_gt, torch.Tensor), f'y_pred [type={type(y_gt)}] is not a torch.Tensor'
+    assert isinstance(y_pred, Tensor), f'y_pred [type={type(y_pred)}] is not a Tensor'
+    assert isinstance(y_gt, Tensor), f'y_pred [type={type(y_gt)}] is not a Tensor'
     # dtype = int (segmentation) |  float (img2img)
     valid_dtype: torch._C.dtype = torch.int if task_type == "segmentation" else torch.float
     assert y_pred.dtype == valid_dtype, f'y_pred [dtype={y_pred.dtype}] shall be {valid_dtype}'
@@ -2036,7 +2273,7 @@ def assert_input_monaimetrics(
     assert 0 not in sz_gt, f'y_pred [size={sz_gt}] shall have non-zero size in all dimensions'
     # value range
     if task_type in ['segmentation']:
-        allowed_labels: torch.Tensor = torch.tensor([0, 1], dtype=torch.int)
+        allowed_labels: Tensor = torch.tensor([0, 1], dtype=torch.int)
         assert torch.all(torch.isin(y_pred, allowed_labels)), \
             f'y_pred [unique={list(y_pred.unique())}] shall only contain [0, 1]'
         assert torch.all(torch.isin(y_gt, allowed_labels)), \
@@ -2115,7 +2352,7 @@ class DiceScore(mm.DiceMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2168,7 +2405,7 @@ class GeneralizedDiceScore(mm.GeneralizedDiceScore):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> torch.Tensor:
+    ) -> Tensor:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2225,7 +2462,7 @@ class MeanIoU(mm.MeanIoU):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2288,7 +2525,7 @@ class HausdorffDistance(mm.HausdorffDistanceMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2344,7 +2581,7 @@ class SurfaceDistance(mm.SurfaceDistanceMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2379,7 +2616,7 @@ class NormalizedSurfaceDiceScore(mm.SurfaceDiceMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2426,7 +2663,7 @@ class MeanSquaredError(mm.MSEMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2471,7 +2708,7 @@ class MeanAbsoluteError(mm.MAEMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2517,7 +2754,7 @@ class RootMeanSquaredError(mm.RMSEMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2570,7 +2807,7 @@ class PeakSignalToNoiseRatio(mm.PSNRMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2638,7 +2875,7 @@ class StructuralSimilarityIndexMeasure(mm.SSIMMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret
@@ -2703,7 +2940,7 @@ class MultiScaleStructuralSimilarityIndexMeasure(mm.MultiScaleSSIMMetric):
             y_pred: TensorOrList,
             y: Optional[TensorOrList] = None,
             **kwargs: Any
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Union[Tensor, tuple[Tensor, Tensor]]:
         ret = super().__call__(y_pred=y_pred, y=y, **kwargs)
         ret = super().aggregate().squeeze()
         return ret

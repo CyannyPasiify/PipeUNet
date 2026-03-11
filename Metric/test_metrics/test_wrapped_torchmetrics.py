@@ -850,7 +850,7 @@ def compare_binary_metrics(wrapped_metrics: Dict[str, Any], original_metrics: Di
     else:
         print("\n[FAIL] Found inconsistent binary classification metrics!")
 
-    print("=====================================\n")
+    print("=" * 60 + "\n")
     return all_consistent
 
 
@@ -915,7 +915,7 @@ def compare_multiclass_metrics(wrapped_metrics: Dict[str, Any], original_metrics
     else:
         print("\n[FAIL] Found inconsistent metrics!")
 
-    print("=================================\n")
+    print("=" * 60 + "\n")
     return all_consistent
 
 
@@ -980,7 +980,7 @@ def compare_multilabel_metrics(wrapped_metrics: Dict[str, Any], original_metrics
     else:
         print("\n[FAIL] Found inconsistent multilabel metrics!")
 
-    print("=================================\n")
+    print("=" * 60 + "\n")
     return all_consistent
 
 
