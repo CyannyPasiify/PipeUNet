@@ -42,7 +42,7 @@ def CSVLogger(
     Initializes CSVLogger wrapper
     
     Args:
-        save_dir: Save directory
+        save_dir: Save directory, logs will be saved in save_dir/name/version
         name: Experiment name
         version: Version number
         prefix: Log prefix

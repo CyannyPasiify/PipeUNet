@@ -16,7 +16,7 @@ import numpy as np
 from typing import Dict, List, Tuple
 import lightning as L
 
-from Trainer.trainer_resnet import create_esophagus_trainer
+from Trainer.trainer_default_seg import create_esophagus_trainer
 from Module.module_resnet import create_resnet_module
 from DataModule.dm_pipe import EsophagusDataModule
 
