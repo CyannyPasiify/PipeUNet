@@ -62,11 +62,14 @@ class TrainerInitArgs:
         fast_dev_run: If True, runs a quick test with only a few batches to verify the training loop works.
         overfit_batches: Percentage or number of batches to overfit on for debugging. 0.0 means disabled.
     """
-    # Routine control
+    # Platform control
     accelerator: Literal["cpu", "gpu"]
     devices: Union[int, List[int], str]
-    precision: SupportedPrecision
-    max_epochs: int
+    precision: SupportedPrecision = 32
+    enable_distributed_data_parallel: bool = False
+    
+    # Routine control
+    max_epochs: int = 100
     check_val_every_n_epoch: int = 1
 
     # Gradient control
@@ -83,9 +86,6 @@ class TrainerInitArgs:
 
     # Reproducibility control
     deterministic: Optional[Union[bool, Literal["warn"]]] = None
-
-
-    enable_distributed_data_parallel: bool = False
 
     # Debugging
     detect_anomaly: bool = True
@@ -202,7 +202,7 @@ class TrainerSegmentationDefault:
                 # if 'gpu', specify a CUDA device list, such as [0], [0,1,2,3]
                 devices=1,
                 precision=32,
-                max_epochs=200,
+                max_epochs=100,
             ),
             callback_init_args: CallbackInitArgs = CallbackInitArgs(),
             logger_init_args: LoggerInitArgs = LoggerInitArgs(),
@@ -548,10 +548,11 @@ class TrainerSegmentationDefault:
 if __name__ == "__main__":
     from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTheme
 
+    # Test Trainer init on CPU
     trainer_init_args: TrainerInitArgs = TrainerInitArgs(
         # Platform control
-        accelerator='gpu',
-        devices=[0],
+        accelerator='cpu',
+        devices=8,
         precision=32,
         enable_distributed_data_parallel=False,
         # Routine control
@@ -711,6 +712,45 @@ if __name__ == "__main__":
         callback_init_args=callback_init_args,
         logger_init_args=logger_init_args
     )
+
+    if torch.cuda.is_available():
+        # Test Trainer init on GPU
+        trainer_init_args: TrainerInitArgs = TrainerInitArgs(
+            # Platform control
+            accelerator='gpu',
+            devices=[0],
+            precision=32,
+            enable_distributed_data_parallel=False,
+            # Routine control
+            max_epochs=100,
+            check_val_every_n_epoch=1,
+            # Gradient control
+            accumulate_grad_batches=1,
+            gradient_clip_val=None,
+            gradient_clip_algorithm=GradClipAlgorithmType.NORM,
+            # Logging control
+            log_every_n_steps=10,
+            enable_progress_bar=True,
+            enable_model_summary=True,
+            enable_checkpointing=True,
+            # Reproducibility control
+            deterministic='warn',
+            # Debugging
+            detect_anomaly=True,
+            num_sanity_val_steps=2,
+            fast_dev_run=False,
+            overfit_batches=0.0
+        )
+
+        trainer: TrainerSegmentationDefault = TrainerSegmentationDefault(
+            experiment_root_dir='./Samples/trainer_test',
+            experiment_name='pipeunet-trainer-test',
+            experiment_version='000-gpu',
+            trainer_init_args=trainer_init_args,
+            callback_init_args=callback_init_args,
+            logger_init_args=logger_init_args
+        )
+
 
     # Use trainer for specified purposes
     # trainer.fit(...)
