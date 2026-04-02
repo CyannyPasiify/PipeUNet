@@ -771,6 +771,7 @@ class DiceFocalLoss(mL.DiceFocalLoss):
                 don't need to specify activation function for `FocalLoss`.
             softmax: if True, apply a softmax function to the prediction, only used by the `DiceLoss`,
                 don't need to specify activation function for `FocalLoss`.
+            jaccard: compute Jaccard Index (soft IoU) instead of dice or not.
             reduction: {``"none"``, ``"mean"``, ``"sum"``}
                 Specifies the reduction to apply to the output. Defaults to ``"mean"``.
 
@@ -851,6 +852,7 @@ class DeepSupervisionDiceFocalLoss(nn.Module):
                 don't need to specify activation function for `FocalLoss`.
             softmax: if True, apply a softmax function to the prediction, only used by the `DiceLoss`,
                 don't need to specify activation function for `FocalLoss`.
+            jaccard: compute Jaccard Index (soft IoU) instead of dice or not.
             reduction: {``"none"``, ``"mean"``, ``"sum"``}
                 Specifies the reduction to apply to the output. Defaults to ``"mean"``.
 

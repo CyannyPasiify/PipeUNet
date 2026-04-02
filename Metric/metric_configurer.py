@@ -5,7 +5,6 @@ Metrics Configurers
 This module provides wrapper classes for various metrics from the TorchMetrics and MONAI libraries,
 enhancing the plot method to provide additional control functionality (for TorchMetrics).
 """
-
 import numpy as np
 import torch
 from torch import Tensor
@@ -202,8 +201,8 @@ def assert_input_torchmetrics(
         assert y_pred.ndim > extra_spatial_dim, f'y_pred [ndim={y_pred.ndim}] shall be at least {extra_spatial_dim + 2} (N, C, {"+spatial" if extra_spatial_dim > 0 else "*spatial"})]'
         assert y_gt.ndim > extra_spatial_dim, f'y_gt [ndim={y_gt.ndim}] shall be at least {extra_spatial_dim + 2} (N, {"+spatial" if extra_spatial_dim > 0 else "*spatial"})]'
 
-    sz_pred: List[int] = list(y_pred.size())
-    sz_gt: List[int] = list(y_gt.size())
+    sz_pred: Tuple[int, ...] = tuple(y_pred.size())
+    sz_gt: Tuple[int, ...] = tuple(y_gt.size())
     # size non-zero
     assert 0 not in sz_pred, f'y_pred [size={sz_pred}] shall have non-zero size in all dimensions'
     assert 0 not in sz_gt, f'y_pred [size={sz_gt}] shall have non-zero size in all dimensions'
@@ -219,19 +218,19 @@ def assert_input_torchmetrics(
     if task_type in ['binary', 'multilabel']:
         allowed_labels: Tensor = torch.tensor([0, 1], dtype=y_gt.dtype)
         assert torch.all(torch.isin(y_gt, allowed_labels)), \
-            f'y_gt [unique={list(y_gt.unique())}] shall only contain [0, 1]'
+            f'y_gt [unique={tuple(y_gt.unique())}] shall only contain [0, 1]'
         if is_integer(y_pred.dtype):
             assert torch.all(torch.isin(y_pred, allowed_labels)), \
-                f'y_pred [unique={list(y_pred.unique())}] shall only contain [0, 1]'
+                f'y_pred [unique={tuple(y_pred.unique())}] shall only contain [0, 1]'
     elif task_type == "multiclass":
         assert num_classes is not None, 'you shall specify num_classes for multiclass assertion'
         label_list: List[int] = list(range(num_classes))
         allowed_labels: Tensor = torch.tensor(label_list, dtype=torch.int)
         assert torch.all(torch.isin(y_gt, allowed_labels)), \
-            f'y_gt [unique={list(y_gt.unique())}] shall only contain {label_list}'
+            f'y_gt [unique={tuple(y_gt.unique())}] shall only contain {label_list}'
         if is_integer(y_pred.dtype):
             assert torch.all(torch.isin(y_pred, allowed_labels)), \
-                f'y_pred [unique={list(y_pred.unique())}] shall only contain {label_list}'
+                f'y_pred [unique={tuple(y_pred.unique())}] shall only contain {label_list}'
 
 
 class BinaryStatScores(torchmetrics.classification.BinaryStatScores):
@@ -327,7 +326,7 @@ class MulticlassAccuracy(torchmetrics.classification.MulticlassAccuracy):
             self,
             num_classes: Optional[int] = None,
             top_k: int = 1,
-            average: Optional[Union[Literal["micro"]]] = "micro",
+            average: Literal["micro"] = "micro",  # Always micro
             multidim_average: Literal["global", "samplewise"] = "global",
             ignore_index: Optional[int] = None,
             validate_args: bool = True,
@@ -888,13 +887,75 @@ class BinaryConfusionMatrix(torchmetrics.classification.BinaryConfusionMatrix):
 
 
 class MulticlassConfusionMatrix(torchmetrics.classification.MulticlassConfusionMatrix):
-    """
+    r"""
     Wrapper class for ConfusionMatrix metric, enhanced with additional plot control functionality.
     Confusion Matrix
     [[ 0→0     0→1      ⋯    0→(C-1)     ]
      [ 1→0     1→1      ⋯    1→(C-1)     ]
      [ ⋮       ⋮        ⋱    ⋮           ]
      [ (C-1)→0 (C-1)→1  ⋯    (C-1)→(C-1) ]]
+
+    Compute the `confusion matrix`_ for multiclass tasks.
+
+    The confusion matrix :math:`C` is constructed such that :math:`C_{i, j}` is equal to the number of observations
+    known to be in class :math:`i` but predicted to be in class :math:`j`. Thus row indices of the confusion matrix
+    correspond to the true class labels and column indices correspond to the predicted class labels.
+
+    For multiclass tasks, the confusion matrix is a NxN matrix, where:
+
+    - :math:`C_{i, i}` represents the number of true positives for class :math:`i`
+    - :math:`\sum_{j=1, j\neq i}^N C_{i, j}` represents the number of false negatives for class :math:`i`
+    - :math:`\sum_{j=1, j\neq i}^N C_{j, i}` represents the number of false positives for class :math:`i`
+    - the sum of the remaining cells in the matrix represents the number of true negatives for class :math:`i`
+
+    As input to ``forward`` and ``update`` the metric accepts the following input:
+
+    - ``preds``: ``(N, ...)`` (int tensor) or ``(N, C, ..)`` (float tensor). If preds is a floating point
+      we apply ``torch.argmax`` along the ``C`` dimension to automatically convert probabilities/logits into
+      an int tensor.
+    - ``target`` (:class:`~torch.Tensor`): An int tensor of shape ``(N, ...)``.
+
+    As output to ``forward`` and ``compute`` the metric returns the following output:
+
+    - ``confusion_matrix``: [num_classes, num_classes] matrix
+
+    Args:
+        num_classes: Integer specifying the number of classes
+        ignore_index:
+            Specifies a target value that is ignored and does not contribute to the metric calculation
+        normalize: Normalization mode for confusion matrix. Choose from:
+
+            - ``None`` or ``'none'``: no normalization (default)
+            - ``'true'``: normalization over the targets (most commonly used)
+            - ``'pred'``: normalization over the predictions
+            - ``'all'``: normalization over the whole matrix
+        validate_args: bool indicating if input arguments and tensors should be validated for correctness.
+            Set to ``False`` for faster computations.
+        kwargs: Additional keyword arguments, see :ref:`Metric kwargs` for more info.
+
+    Example (pred is integer tensor):
+        >>> from torch import tensor
+        >>> from torchmetrics.classification import MulticlassConfusionMatrix
+        >>> target = tensor([2, 1, 0, 0])
+        >>> preds = tensor([2, 1, 0, 1])
+        >>> metric = MulticlassConfusionMatrix(num_classes=3)
+        >>> metric(preds, target)
+        tensor([[1, 1, 0],
+                [0, 1, 0],
+                [0, 0, 1]])
+
+    Example (pred is float tensor):
+        >>> from torchmetrics.classification import MulticlassConfusionMatrix
+        >>> target = tensor([2, 1, 0, 0])
+        >>> preds = tensor([[0.16, 0.26, 0.58],
+        ...                 [0.22, 0.61, 0.17],
+        ...                 [0.71, 0.09, 0.20],
+        ...                 [0.05, 0.82, 0.13]])
+        >>> metric = MulticlassConfusionMatrix(num_classes=3)
+        >>> metric(preds, target)
+        tensor([[1, 1, 0],
+                [0, 1, 0],
+                [0, 0, 1]])
     """
 
     def plot(
@@ -2220,8 +2281,8 @@ BACC = BinaryAccuracy
 MCACC = MulticlassAccuracy
 MLACC = MultilabelAccuracy
 BAUROC = BinaryAUROC
-MCAUC = MulticlassAUROC
-MLAUC = MultilabelAUROC
+MCAUROC = MulticlassAUROC
+MLAUROC = MultilabelAUROC
 BAP = BinaryAveragePrecision
 MCAP = MulticlassAveragePrecision
 MLAP = MultilabelAveragePrecision
@@ -2238,10 +2299,10 @@ BPRC = BinaryPrecisionRecallCurve
 MCPRC = MulticlassPrecisionRecallCurve
 MLPRC = MultilabelPrecisionRecallCurve
 BREC = BinaryRecall
-MCREC = MulticlassRecall
+MCRECALL = MulticlassRecall
 MLREC = MultilabelRecall
 BSPE = BinarySpecificity
-MCSPE = MulticlassSpecificity
+MCSPEC = MulticlassSpecificity
 MLSPE = MultilabelSpecificity
 BROC = BinaryROC
 MCROC = MulticlassROC
@@ -2289,7 +2350,7 @@ def assert_input_monaimetrics(
     if task_type == "segmentation":
         assert is_integer(y_pred.dtype), f'y_pred [dtype={y_pred.dtype}] shall be integer type'
         assert is_integer(y_gt.dtype), f'y_gt [dtype={y_gt.dtype}] shall be integer type'
-    else: # task_type == "img2img":
+    else:  # task_type == "img2img":
         assert torch.is_floating_point(y_pred), f'y_pred [dtype={y_pred.dtype}] shall be floating point type'
         assert torch.is_floating_point(y_gt), f'y_gt [dtype={y_gt.dtype}] shall be floating point type'
     # size dim match
@@ -2621,7 +2682,6 @@ class SurfaceDistance(mm.SurfaceDistanceMetric):
         return ret
 
 
-# SurfaceDiceMetric
 class NormalizedSurfaceDiceScore(mm.SurfaceDiceMetric):
     """
     Wrapper class for Normalized Surface Dice (NSD) Score metric.
@@ -2631,11 +2691,45 @@ class NormalizedSurfaceDiceScore(mm.SurfaceDiceMetric):
             self,
             class_thresholds: List[float],
             include_background: bool = False,
-            distance_metric: Literal["chessboard", "chessboard", "taxicab"] = "euclidean",
+            distance_metric: Literal["euclidean", "chessboard", "taxicab"] = "euclidean",
             reduction: Union[MetricReduction, str] = MetricReduction.MEAN,
             get_not_nans: bool = False,
             use_subvoxels: bool = False
     ) -> None:
+        """
+        Computes the Normalized Surface Dice (NSD) for each batch sample and class of
+        predicted segmentations `y_pred` and corresponding reference segmentations `y` according to equation :eq:`nsd`.
+        This implementation is based on https://arxiv.org/abs/2111.05408 and supports 2D and 3D images.
+        Be aware that by default (`use_subvoxels=False`), the computation of boundaries is different from DeepMind's
+        implementation https://github.com/deepmind/surface-distance.
+        In this implementation, the length/area of a segmentation boundary is
+        interpreted as the number of its edge pixels. In DeepMind's implementation, the length of a segmentation boundary
+        depends on the local neighborhood (cf. https://arxiv.org/abs/1809.04430).
+        This issue is discussed here: https://github.com/Project-MONAI/MONAI/issues/4103.
+
+        The class- and batch sample-wise NSD values can be aggregated with the function `aggregate`.
+
+        Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
+
+        Args:
+            class_thresholds: List of class-specific thresholds.
+                The thresholds relate to the acceptable amount of deviation in the segmentation boundary in pixels.
+                Each threshold needs to be a finite, non-negative number.
+            include_background: Whether to include NSD computation on the first channel of the predicted output.
+                Defaults to ``False``.
+            distance_metric: The metric used to compute surface distances.
+                One of [``"euclidean"``, ``"chessboard"``, ``"taxicab"``].
+                Defaults to ``"euclidean"``.
+            reduction: define mode of reduction to the metrics, will only apply reduction on `not-nan` values,
+                available reduction modes: {``"none"``, ``"mean"``, ``"sum"``, ``"mean_batch"``, ``"sum_batch"``,
+                ``"mean_channel"``, ``"sum_channel"``}, default to ``"mean"``. if "none", will not do reduction.
+            get_not_nans: whether to return the `not_nans` count.
+                Defaults to ``False``.
+                `not_nans` is the number of batch samples for which not all class-specific NSD values were nan values.
+                If set to ``True``, the function `aggregate` will return both the aggregated NSD and the `not_nans` count.
+                If set to ``False``, `aggregate` will only return the aggregated NSD.
+            use_subvoxels: Whether to use subvoxel distances. Defaults to ``False``.
+            """
         super().__init__(
             class_thresholds=class_thresholds,
             include_background=include_background,
@@ -2794,7 +2888,6 @@ class RootMeanSquaredError(mm.RMSEMetric):
         return ret
 
 
-# PSNRMetric
 class PeakSignalToNoiseRatio(mm.PSNRMetric):
     """
     Wrapper class for Peak Signal To Noise Ratio (PSNR) metric.
@@ -2847,7 +2940,6 @@ class PeakSignalToNoiseRatio(mm.PSNRMetric):
         return ret
 
 
-# SSIMMetric
 class StructuralSimilarityIndexMeasure(mm.SSIMMetric):
     """
     Wrapper class for Structural Similarity Index Measure (SSIM) metric.
@@ -2915,7 +3007,6 @@ class StructuralSimilarityIndexMeasure(mm.SSIMMetric):
         return ret
 
 
-# MultiScaleSSIMMetric
 class MultiScaleStructuralSimilarityIndexMeasure(mm.MultiScaleSSIMMetric):
     """
     Wrapper class for Multi-Scale Structural Similarity Index Measure (MS-SSIM) metric.
@@ -2997,4 +3088,42 @@ RMSE = RootMeanSquaredError
 PSNR = PeakSignalToNoiseRatio
 SSIM = StructuralSimilarityIndexMeasure
 MSSSIM = MultiScaleStructuralSimilarityIndexMeasure
+
+# endregion
+
+# region Efficiency metrics
+import abc
+from datetime import datetime, timedelta
+
+
+class BaseEfficiencyMetric(abc.ABC):
+    @abc.abstractmethod
+    def __call__(self) -> Any:
+        pass
+
+
+class VoxelProcessingPerSecond(BaseEfficiencyMetric):
+    def __init__(self, init_datetime: Optional[datetime] = None) -> None:
+        self.time_checkpoint: Optional[datetime] = init_datetime
+
+    def __call__(
+            self,
+            volume: Optional[Tensor] = None,
+            time_point: Optional[datetime] = None  # If not specified, record now time
+    ) -> Tensor:
+        vps: float = 0.
+        now_datetime = datetime.now() if time_point is None else time_point
+        if volume is not None and self.time_checkpoint is not None:
+            time_delta: timedelta = now_datetime - self.time_checkpoint
+            # Calculation
+            seconds: float = time_delta.total_seconds()
+            vps: float = seconds / float(np.prod(volume.size()))
+        self.time_checkpoint = now_datetime  # Record time point, maybe another start later
+        return torch.tensor(vps, dtype=torch.float, device=volume.device if volume is not None else torch.device('cpu'))
+
+
+# endregion
+
+# region Efficiency Alias
+VPS = VoxelProcessingPerSecond
 # endregion

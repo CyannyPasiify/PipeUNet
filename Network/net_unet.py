@@ -36,6 +36,7 @@ Classes:
 """
 import torch
 import torch.nn as nn
+from torch import Tensor
 from typing import Optional, Tuple, List, Collection, Sequence, Union, Dict, Any, Type, Iterable, cast
 from Network.net_block import IODescriptive, ConvNormAct, ConvBNReLU, Concat
 
@@ -300,7 +301,7 @@ class UNet(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_source: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    def forward(self, input_source: Tensor) -> Tuple[Tensor, List[Tensor]]:
         """
         Forward pass through UNet
         
@@ -321,17 +322,17 @@ class UNet(nn.Module, IODescriptive):
             f"Spatial dimension must be divisible by {2 ** (self.stages - 1)}"
         
         # Forward pass through network components
-        f_feat: torch.Tensor = self.focuser(input_source)
-        enc_feats: List[torch.Tensor]
-        dn_feats: List[torch.Tensor]
+        f_feat: Tensor = self.focuser(input_source)
+        enc_feats: List[Tensor]
+        dn_feats: List[Tensor]
         enc_feats, dn_feats = self.encoder(f_feat)
         # enc_feats to skip, dn_feats[-1] to bottleneck
-        rep_feats: List[torch.Tensor] = self.repeater(enc_feats + [dn_feats[-1]])
+        rep_feats: List[Tensor] = self.repeater(enc_feats + [dn_feats[-1]])
         # rep_feats[0] from bottleneck, rep_feats[1:] are bridge features
-        dec_feats: List[torch.Tensor] = self.decoder(rep_feats[0], rep_feats[1:])
-        d_feat: torch.Tensor = self.distributor(dec_feats[-1])
-        aux_cls_logits: List[torch.Tensor] = self.auxiliary_classifier(dec_feats)
-        cls_logits: torch.Tensor = self.classifier(d_feat)
+        dec_feats: List[Tensor] = self.decoder(rep_feats[0], rep_feats[1:])
+        d_feat: Tensor = self.distributor(dec_feats[-1])
+        aux_cls_logits: List[Tensor] = self.auxiliary_classifier(dec_feats)  # Map from small to large
+        cls_logits: Tensor = self.classifier(d_feat)
 
         # Store I/O tensors for debugging if enabled
         if self.reserve_io:
@@ -430,7 +431,7 @@ class UNetFocuser(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_source: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_source: Tensor) -> Tensor:
         """
         Forward pass through focuser
         
@@ -440,7 +441,7 @@ class UNetFocuser(nn.Module, IODescriptive):
         Returns:
             Output tensor of shape (B, Cout, X, Y, Z)
         """
-        output_feat: torch.Tensor = self.pipe(input_source)
+        output_feat: Tensor = self.pipe(input_source)
 
         if self.reserve_io:
             setattr(self, 'input_source', input_source.cpu())
@@ -511,7 +512,7 @@ class UNetEncoderPriorBank(nn.Module, IODescriptive):
         super(UNetEncoderPriorBank, self).__init__()
         self.reserve_io: bool = reserve_io
 
-    def forward(self, prior_source: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+    def forward(self, prior_source: Sequence[Tensor]) -> List[Tensor]:
         """
         Forward pass through prior bank
         
@@ -568,7 +569,7 @@ class UNetEncoderPriorBankInjector(nn.Module, IODescriptive):
         super(UNetEncoderPriorBankInjector, self).__init__()
         self.reserve_io: bool = reserve_io
 
-    def forward(self, inject_source: torch.Tensor) -> torch.Tensor:
+    def forward(self, inject_source: Tensor) -> Tensor:
         """
         Forward pass through injector
         
@@ -722,9 +723,9 @@ class UNetEncoder(nn.Module, IODescriptive):
 
     def forward(
             self,
-            input_feat: torch.Tensor,
-            inject_feats: Optional[Sequence[torch.Tensor]] = None
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+            input_feat: Tensor,
+            inject_feats: Optional[Sequence[Tensor]] = None
+    ) -> Tuple[List[Tensor], List[Tensor]]:
         """
         Forward pass through encoder
         
@@ -743,10 +744,10 @@ class UNetEncoder(nn.Module, IODescriptive):
         assert (inject_feats is None or
                 len(inject_feats) == self.primary_extractor.stages + self.advanced_extractor.stages)
 
-        primary_feats: List[torch.Tensor]
-        primary_dn_feats: List[torch.Tensor]
-        advanced_feats: List[torch.Tensor]
-        advanced_dn_feats: List[torch.Tensor]
+        primary_feats: List[Tensor]
+        primary_dn_feats: List[Tensor]
+        advanced_feats: List[Tensor]
+        advanced_dn_feats: List[Tensor]
         if inject_feats is None:
             primary_feats, primary_dn_feats = self.primary_extractor(
                 input_feat)  # (S1)*(B,PCout[s1],*),
@@ -762,8 +763,8 @@ class UNetEncoder(nn.Module, IODescriptive):
                 inject_feats[self.primary_extractor.stages:]
             )  # (S2)*(B,ACout[s2],*)
 
-        output_feats: List[torch.Tensor] = primary_feats + advanced_feats
-        dn_feats: List[torch.Tensor] = primary_dn_feats + advanced_dn_feats
+        output_feats: List[Tensor] = primary_feats + advanced_feats
+        dn_feats: List[Tensor] = primary_dn_feats + advanced_dn_feats
         # (S1+S2)*(B,P/ACout[s],*)
 
         if self.reserve_io:
@@ -897,9 +898,9 @@ class UNetEncoderPrimaryExtractor(nn.Module, IODescriptive):
 
     def forward(
             self,
-            input_feat: torch.Tensor,
-            inject_feats: Optional[Sequence[torch.Tensor]] = None
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+            input_feat: Tensor,
+            inject_feats: Optional[Sequence[Tensor]] = None
+    ) -> Tuple[List[Tensor], List[Tensor]]:
         """
         Forward pass through primary extractor
         
@@ -915,10 +916,10 @@ class UNetEncoderPrimaryExtractor(nn.Module, IODescriptive):
         Raises:
             AssertionError: If inject_feats length doesn't match stages
         """
-        output_feats: List[torch.Tensor] = []
-        dn_feats: List[torch.Tensor] = []
+        output_feats: List[Tensor] = []
+        dn_feats: List[Tensor] = []
         if inject_feats is None:
-            stage_feat: torch.Tensor = input_feat
+            stage_feat: Tensor = input_feat
             for module in self.pipe:
                 stage_feat = module[0](stage_feat)  # Stage
                 output_feats.append(stage_feat)  # Record features for all stages
@@ -926,7 +927,7 @@ class UNetEncoderPrimaryExtractor(nn.Module, IODescriptive):
                 dn_feats.append(stage_feat)  # Record features after downsample
         else:
             assert len(inject_feats) == self.stages
-            stage_feat: torch.Tensor = input_feat
+            stage_feat: Tensor = input_feat
             for module, inject_feat in zip(self.pipe, inject_feats):
                 stage_feat = module[0](stage_feat, inject_feat)  # Stage
                 output_feats.append(stage_feat)  # Record features for all stages
@@ -1030,7 +1031,7 @@ class UNetEncoderPrimaryExtractorStage(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, input_feat: Tensor, inject_feat: Optional[Tensor] = None) -> Tensor:
         """
         Forward pass through encoder stage
         
@@ -1042,7 +1043,7 @@ class UNetEncoderPrimaryExtractorStage(nn.Module, IODescriptive):
             Output tensor of shape (B, Cout, X, Y, Z)
         """
         # inject_feat is always ignored now
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -1120,7 +1121,7 @@ class UNetEncoderPrimaryExtractorDownsample(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_feat: Tensor) -> Tensor:
         """
         Forward pass through downsampling layer
         
@@ -1130,7 +1131,7 @@ class UNetEncoderPrimaryExtractorDownsample(nn.Module, IODescriptive):
         Returns:
             Output tensor of shape (B, C, X/2, Y/2, Z/2)
         """
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -1254,9 +1255,9 @@ class UNetEncoderAdvancedExtractor(nn.Module, IODescriptive):
 
     def forward(
             self,
-            input_feat: torch.Tensor,
-            inject_feats: Optional[Sequence[torch.Tensor]] = None
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+            input_feat: Tensor,
+            inject_feats: Optional[Sequence[Tensor]] = None
+    ) -> Tuple[List[Tensor], List[Tensor]]:
         """
         Forward pass through advanced extractor
         
@@ -1272,10 +1273,10 @@ class UNetEncoderAdvancedExtractor(nn.Module, IODescriptive):
         Raises:
             AssertionError: If inject_feats length doesn't match stages
         """
-        output_feats: List[torch.Tensor] = []
-        dn_feats: List[torch.Tensor] = []
+        output_feats: List[Tensor] = []
+        dn_feats: List[Tensor] = []
         if inject_feats is None:
-            stage_feat: torch.Tensor = input_feat
+            stage_feat: Tensor = input_feat
             for module in self.pipe:
                 stage_feat = module[0](stage_feat)  # Stage
                 output_feats.append(stage_feat)  # Record features for all stages
@@ -1283,7 +1284,7 @@ class UNetEncoderAdvancedExtractor(nn.Module, IODescriptive):
                 dn_feats.append(stage_feat)  # Record features after downsample
         else:
             assert len(inject_feats) == self.stages
-            stage_feat: torch.Tensor = input_feat
+            stage_feat: Tensor = input_feat
             for module, inject_feat in zip(self.pipe, inject_feats):
                 stage_feat = module[0](stage_feat, inject_feat)  # Stage
                 output_feats.append(stage_feat)  # Record features for all stages
@@ -1387,7 +1388,7 @@ class UNetEncoderAdvancedExtractorStage(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, input_feat: Tensor, inject_feat: Optional[Tensor] = None) -> Tensor:
         """
         Forward pass through encoder stage
         
@@ -1399,7 +1400,7 @@ class UNetEncoderAdvancedExtractorStage(nn.Module, IODescriptive):
             Output tensor of shape (B, Cout, X, Y, Z)
         """
         # inject_feat is always ignored now
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -1477,7 +1478,7 @@ class UNetEncoderAdvancedExtractorDownsample(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_feat: Tensor) -> Tensor:
         """
         Forward pass through downsampling layer
         
@@ -1487,7 +1488,7 @@ class UNetEncoderAdvancedExtractorDownsample(nn.Module, IODescriptive):
         Returns:
             Output tensor of shape (B, C, X/2, Y/2, Z/2)
         """
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -1603,7 +1604,7 @@ class UNetRepeater(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feats: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+    def forward(self, input_feats: Sequence[Tensor]) -> List[Tensor]:
         """
         Forward pass through repeater
         
@@ -1613,9 +1614,9 @@ class UNetRepeater(nn.Module, IODescriptive):
         Returns:
             List of processed features (reversed order from input)
         """
-        output_feats: List[torch.Tensor] = []
+        output_feats: List[Tensor] = []
         module: nn.Module
-        feat: torch.Tensor
+        feat: Tensor
         # Process features in reverse order (deepest first)
         for module, feat in zip(reversed(self.pipe), reversed(input_feats)):
             output_feats.append(module(feat))
@@ -1692,7 +1693,7 @@ class UNetRepeaterBridge(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_feat: Tensor) -> Tensor:
         """
         Forward pass through bridge (identity)
         
@@ -1702,7 +1703,7 @@ class UNetRepeaterBridge(nn.Module, IODescriptive):
         Returns:
             Output tensor identical to input (B, C, X, Y, Z)
         """
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -1790,7 +1791,7 @@ class UNetRepeaterBottleneck(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, input_feat: Tensor, inject_feat: Optional[Tensor] = None) -> Tensor:
         """
         Forward pass through bottleneck
         
@@ -1802,7 +1803,7 @@ class UNetRepeaterBottleneck(nn.Module, IODescriptive):
             Output tensor of shape (B, Cout, X, Y, Z)
         """
         # inject_feat is always ignored now
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -1880,7 +1881,7 @@ class UNetDecoderPriorBank(nn.Module, IODescriptive):
         super(UNetDecoderPriorBank, self).__init__()
         self.reserve_io: bool = reserve_io
 
-    def forward(self, prior_source: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+    def forward(self, prior_source: Sequence[Tensor]) -> List[Tensor]:
         """
         Forward pass through prior bank
         
@@ -1942,7 +1943,7 @@ class UNetDecoderPriorBankInjector(nn.Module, IODescriptive):
         super(UNetDecoderPriorBankInjector, self).__init__()
         self.reserve_io: bool = reserve_io
 
-    def forward(self, inject_source: torch.Tensor) -> torch.Tensor:
+    def forward(self, inject_source: Tensor) -> Tensor:
         """
         Forward pass through injector
         
@@ -2105,10 +2106,10 @@ class UNetDecoder(nn.Module, IODescriptive):
 
     def forward(
             self,
-            input_feat: torch.Tensor,
-            bridge_feats: Sequence[torch.Tensor],
-            inject_feats: Optional[Sequence[torch.Tensor]] = None
-    ) -> List[torch.Tensor]:
+            input_feat: Tensor,
+            bridge_feats: Sequence[Tensor],
+            inject_feats: Optional[Sequence[Tensor]] = None
+    ) -> List[Tensor]:
         """
         Forward pass through decoder
 
@@ -2127,27 +2128,27 @@ class UNetDecoder(nn.Module, IODescriptive):
         assert (inject_feats is None or
                 len(inject_feats) == self.advanced_aggregator.stages + self.primary_aggregator.stages)
         if inject_feats is None:
-            advanced_feats: List[torch.Tensor] = self.advanced_aggregator(
+            advanced_feats: List[Tensor] = self.advanced_aggregator(
                 input_feat,
                 bridge_feats[:self.primary_aggregator.stages]
             )
-            primary_feats: List[torch.Tensor] = self.primary_aggregator(
+            primary_feats: List[Tensor] = self.primary_aggregator(
                 advanced_feats[self.advanced_aggregator.stages - 1],
                 bridge_feats[self.primary_aggregator.stages:]
             )
         else:
-            advanced_feats: List[torch.Tensor] = self.advanced_aggregator(
+            advanced_feats: List[Tensor] = self.advanced_aggregator(
                 input_feat,
                 bridge_feats[:self.primary_aggregator.stages],
                 inject_feats[:self.primary_aggregator.stages]
             )
-            primary_feats: List[torch.Tensor] = self.primary_aggregator(
+            primary_feats: List[Tensor] = self.primary_aggregator(
                 advanced_feats[self.advanced_aggregator.stages - 1],
                 bridge_feats[self.primary_aggregator.stages:],
                 inject_feats[self.primary_aggregator.stages:]
             )
 
-        output_feats: List[torch.Tensor] = advanced_feats + primary_feats
+        output_feats: List[Tensor] = advanced_feats + primary_feats
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -2291,10 +2292,10 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
 
     def forward(
             self,
-            input_feat: torch.Tensor,
-            bridge_feats: Sequence[torch.Tensor],
-            inject_feats: Optional[Sequence[torch.Tensor]] = None
-    ) -> List[torch.Tensor]:
+            input_feat: Tensor,
+            bridge_feats: Sequence[Tensor],
+            inject_feats: Optional[Sequence[Tensor]] = None
+    ) -> List[Tensor]:
         """
         Forward pass through advanced aggregator
         
@@ -2310,8 +2311,8 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
             AssertionError: If bridge_feats or inject_feats length doesn't match stages
         """
         assert len(bridge_feats) == self.stages
-        output_feats: List[torch.Tensor] = []
-        stage_feat: torch.Tensor = input_feat
+        output_feats: List[Tensor] = []
+        stage_feat: Tensor = input_feat
         if inject_feats is None:
             for module, bridge_feat in zip(self.pipe, bridge_feats):
                 stage_feat = module[0](stage_feat)  # Upsample
@@ -2410,7 +2411,7 @@ class UNetDecoderAdvancedAggregatorUpsample(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_feat: Tensor) -> Tensor:
         """
         Forward pass through upsampling layer
         
@@ -2420,7 +2421,7 @@ class UNetDecoderAdvancedAggregatorUpsample(nn.Module, IODescriptive):
         Returns:
             Output tensor of shape (B, Cout, X*2, Y*2, Z*2)
         """
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -2488,7 +2489,7 @@ class UNetDecoderAdvancedAggregatorFusionPortal(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, stage_feat: torch.Tensor, bridge_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, stage_feat: Tensor, bridge_feat: Tensor) -> Tensor:
         """
         Forward pass through fusion portal
         
@@ -2499,7 +2500,7 @@ class UNetDecoderAdvancedAggregatorFusionPortal(nn.Module, IODescriptive):
         Returns:
             Concatenated features of shape (B, C1+C2, X, Y, Z)
         """
-        output_feat: torch.Tensor = self.concat(stage_feat, bridge_feat)
+        output_feat: Tensor = self.concat(stage_feat, bridge_feat)
 
         if self.reserve_io:
             setattr(self, 'stage_feat', stage_feat.cpu())
@@ -2590,7 +2591,7 @@ class UNetDecoderAdvancedAggregatorStage(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, input_feat: Tensor, inject_feat: Optional[Tensor] = None) -> Tensor:
         """
         Forward pass through aggregator stage
         
@@ -2602,7 +2603,7 @@ class UNetDecoderAdvancedAggregatorStage(nn.Module, IODescriptive):
             Output tensor of shape (B, Cout, X, Y, Z)
         """
         # inject_feat is always ignored now
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -2743,10 +2744,10 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
 
     def forward(
             self,
-            input_feat: torch.Tensor,  # (B,Cin[0],X,Y,Z)
-            bridge_feats: Sequence[torch.Tensor],  # [s]:(B,SC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
-            inject_feats: Optional[Sequence[torch.Tensor]] = None  # [s]:(B,*,X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
-    ) -> List[torch.Tensor]:
+            input_feat: Tensor,  # (B,Cin[0],X,Y,Z)
+            bridge_feats: Sequence[Tensor],  # [s]:(B,SC[s],X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
+            inject_feats: Optional[Sequence[Tensor]] = None  # [s]:(B,*,X*(2^(s+1)),Y*(2^(s+1)),Z*(2^(s+1)))
+    ) -> List[Tensor]:
         """
         Forward pass through primary aggregator
         
@@ -2762,8 +2763,8 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
             AssertionError: If bridge_feats or inject_feats length doesn't match stages
         """
         assert len(bridge_feats) == self.stages
-        output_feats: List[torch.Tensor] = []
-        stage_feat: torch.Tensor = input_feat
+        output_feats: List[Tensor] = []
+        stage_feat: Tensor = input_feat
         if inject_feats is None:
             for module, bridge_feat in zip(self.pipe, bridge_feats):
                 stage_feat = module[0](stage_feat)  # Upsample
@@ -2862,7 +2863,7 @@ class UNetDecoderPrimaryAggregatorUpsample(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_feat: Tensor) -> Tensor:
         """
         Forward pass through upsampling layer
         
@@ -2872,7 +2873,7 @@ class UNetDecoderPrimaryAggregatorUpsample(nn.Module, IODescriptive):
         Returns:
             Output tensor of shape (B, Cout, 2X, 2Y, 2Z)
         """
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -2940,7 +2941,7 @@ class UNetDecoderPrimaryAggregatorFusionPortal(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, stage_feat: torch.Tensor, bridge_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, stage_feat: Tensor, bridge_feat: Tensor) -> Tensor:
         """
         Forward pass through fusion portal
         
@@ -2951,7 +2952,7 @@ class UNetDecoderPrimaryAggregatorFusionPortal(nn.Module, IODescriptive):
         Returns:
             Concatenated feature tensor (B, C1+C2, X, Y, Z)
         """
-        output_feat: torch.Tensor = self.concat(stage_feat, bridge_feat)
+        output_feat: Tensor = self.concat(stage_feat, bridge_feat)
 
         if self.reserve_io:
             setattr(self, 'stage_feat', stage_feat.cpu())
@@ -3040,7 +3041,7 @@ class UNetDecoderPrimaryAggregatorStage(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor, inject_feat: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, input_feat: Tensor, inject_feat: Optional[Tensor] = None) -> Tensor:
         """
         Forward pass through decoder stage
         
@@ -3052,7 +3053,7 @@ class UNetDecoderPrimaryAggregatorStage(nn.Module, IODescriptive):
             Output tensor of shape (B, Cout, X, Y, Z)
         """
         # inject_feat is always ignored now
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -3156,7 +3157,7 @@ class UNetAuxiliaryClassifier(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feats: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+    def forward(self, input_feats: Sequence[Tensor]) -> List[Tensor]:
         """
         Forward pass through auxiliary classifiers
         
@@ -3170,7 +3171,7 @@ class UNetAuxiliaryClassifier(nn.Module, IODescriptive):
             AssertionError: If input_feats length doesn't match number of classifiers
         """
         assert len(input_feats) == len(self.pipe)
-        aux_logits: List[torch.Tensor] = []
+        aux_logits: List[Tensor] = []
         for module, feat in zip(self.pipe, input_feats):
             aux_logits.append(module(feat))
 
@@ -3249,7 +3250,7 @@ class UNetDistributor(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_feat: Tensor) -> Tensor:
         """
         Forward pass through distributor
         
@@ -3259,7 +3260,7 @@ class UNetDistributor(nn.Module, IODescriptive):
         Returns:
             Output tensor of shape (B, Cout, X, Y, Z)
         """
-        output_feat: torch.Tensor = self.pipe(input_feat)
+        output_feat: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -3336,7 +3337,7 @@ class UNetClassifier(nn.Module, IODescriptive):
 
         self.reserve_io: bool = reserve_io
 
-    def forward(self, input_feat: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_feat: Tensor) -> Tensor:
         """
         Forward pass through classifier
         
@@ -3346,7 +3347,7 @@ class UNetClassifier(nn.Module, IODescriptive):
         Returns:
             Logits tensor of shape (B, Cout, X, Y, Z)
         """
-        logits: torch.Tensor = self.pipe(input_feat)
+        logits: Tensor = self.pipe(input_feat)
 
         if self.reserve_io:
             setattr(self, 'input_feat', input_feat.cpu())
@@ -3379,7 +3380,7 @@ class UNetClassifier(nn.Module, IODescriptive):
 if __name__ == "__main__":
     # Sample input
     torch.manual_seed(0)
-    input_source: torch.Tensor = torch.randn(3, 1, 64, 128, 256)
+    input_source: Tensor = torch.randn(3, 1, 64, 128, 256)
     B, C, X, Y, Z = input_source.size()
 
     # Params
@@ -3461,15 +3462,15 @@ if __name__ == "__main__":
 
     # region Unit Test
     # 00 UNet
-    def test_unet_io(seq: int, module: UNet, input_source: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    def test_unet_io(seq: int, module: UNet, input_source: Tensor) -> Tuple[Tensor, List[Tensor]]:
         print(f"[{seq}] Test 00 {module.__class__.__name__} IO")
         print("-" * 100)
         # Input
         sz_input_source: Tuple[int, ...] = tuple(input_source.size())
         sz_input_source_expected: Tuple[int, ...] = tuple([B, C, X, Y, Z])
         # Output
-        cls_logits: torch.Tensor
-        aux_cls_logits: List[torch.Tensor]
+        cls_logits: Tensor
+        aux_cls_logits: List[Tensor]
         cls_logits, aux_cls_logits = module(input_source)
         sz_cls_logits: Tuple[int, ...] = tuple(cls_logits.size())
         sz_cls_logits_expected: Tuple[int, ...] = tuple([
@@ -3525,14 +3526,14 @@ if __name__ == "__main__":
 
 
     # 00-00 UNet-Focuser
-    def test_unet_focuser_io(seq: int, module: UNetFocuser, input_source: torch.Tensor) -> torch.Tensor:
+    def test_unet_focuser_io(seq: int, module: UNetFocuser, input_source: Tensor) -> Tensor:
         print(f"[{seq}] Test 00-00 {module.__class__.__name__} IO")
         print("-" * 100)
         # Input
         sz_input_source: Tuple[int, ...] = tuple(input_source.size())
         sz_input_source_expected: Tuple[int, ...] = tuple(tuple([B, C, X, Y, Z]))
         # Output
-        output_feat: torch.Tensor = module(input_source)
+        output_feat: Tensor = module(input_source)
         sz_output_feat: Tuple[int, ...] = tuple(output_feat.size())
         sz_output_feat_expected: Tuple[int, ...] = tuple([B, focuser_out_channels, X, Y, Z])
 
@@ -3556,16 +3557,16 @@ if __name__ == "__main__":
     def test_unet_encoder_io(
             seq: int,
             module: UNetEncoder,
-            input_feat: torch.Tensor
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+            input_feat: Tensor
+    ) -> Tuple[List[Tensor], List[Tensor]]:
         print(f"[{seq}] Test 00-02 {module.__class__.__name__} IO")
         print("-" * 100)
         # Input
         sz_input_feat: Tuple[int, ...] = tuple(input_feat.size())
         sz_input_feat_expected: Tuple[int, ...] = tuple([B, encoder_in_channels[0], X, Y, Z])
         # Output
-        output_feats: List[torch.Tensor]
-        dn_feats: List[torch.Tensor]
+        output_feats: List[Tensor]
+        dn_feats: List[Tensor]
         output_feats, dn_feats = module(input_feat)
         sz_output_feats: List[Tuple[int, ...]] = [tuple(ft.size()) for ft in output_feats]
         sz_output_feats_expected: List[Tuple[int, ...]] = [tuple([B, encoder_out_channels[s],
@@ -3637,8 +3638,8 @@ if __name__ == "__main__":
     def test_unet_repeater_io(
             seq: int,
             module: UNetRepeater,
-            input_feats: Sequence[torch.Tensor]
-    ) -> List[torch.Tensor]:
+            input_feats: Sequence[Tensor]
+    ) -> List[Tensor]:
         print(f"[{seq}] Test 00-03 {module.__class__.__name__} IO")
         print("-" * 100)
         # Input
@@ -3647,7 +3648,7 @@ if __name__ == "__main__":
             [tuple([B, encoder_out_channels[s], X // (2 ** s), Y // (2 ** s), Z // (2 ** s)]) for s in range(stages)] + \
             [tuple([B, bottleneck_in_channels, X // (2 ** stages), Y // (2 ** stages), Z // (2 ** stages)])]
         # Output
-        output_feats: List[torch.Tensor] = module(input_feats)
+        output_feats: List[Tensor] = module(input_feats)
         # output_feats[0] from bottleneck, output_feats[1:] are bridge features
         sz_output_feats = [tuple(ft.size()) for ft in output_feats]
         sz_output_feats_expected: List[Tuple[int, ...]] = \
@@ -3708,9 +3709,9 @@ if __name__ == "__main__":
     def test_unet_decoder_io(
             seq: int,
             module: UNetDecoder,
-            input_feat: torch.Tensor,
-            bridge_feats: Sequence[torch.Tensor]
-    ) -> List[torch.Tensor]:
+            input_feat: Tensor,
+            bridge_feats: Sequence[Tensor]
+    ) -> List[Tensor]:
         print(f"[{seq}] Test 00-05 {module.__class__.__name__} IO")
         print("-" * 100)
         # Input
@@ -3726,7 +3727,7 @@ if __name__ == "__main__":
                    Y // (2 ** (stages - s - 1)),
                    Z // (2 ** (stages - s - 1))]) for s in range(stages)]
         # Output
-        output_feats: List[torch.Tensor] = module(input_feat, bridge_feats)
+        output_feats: List[Tensor] = module(input_feat, bridge_feats)
         sz_output_feats = [tuple(ft.size()) for ft in output_feats]
         sz_output_feats_expected: List[Tuple[int, ...]] = [
             tuple([B, decoder_out_channels[s],
@@ -3791,8 +3792,8 @@ if __name__ == "__main__":
     def test_unet_auxiliary_classifier_io(
             seq: int,
             module: UNetAuxiliaryClassifier,
-            input_feats: Sequence[torch.Tensor]
-    ) -> List[torch.Tensor]:
+            input_feats: Sequence[Tensor]
+    ) -> List[Tensor]:
         print(f"[{seq}] Test 00-06 {module.__class__.__name__} IO")
         print("-" * 100)
         # Input
@@ -3803,7 +3804,7 @@ if __name__ == "__main__":
                     Y // (2 ** (stages - s - 1)),
                     Z // (2 ** (stages - s - 1))]) for s in range(stages)]
         # Output
-        aux_logits: List[torch.Tensor] = module(input_feats)
+        aux_logits: List[Tensor] = module(input_feats)
         sz_aux_logits = [tuple(ft.size()) for ft in aux_logits]
         sz_aux_logits_expected: List[Tuple[int, ...]] = \
             [tuple([B, auxiliary_classifier_out_channels[s],
@@ -3862,14 +3863,14 @@ if __name__ == "__main__":
 
 
     # 00-07 UNet-Distributor
-    def test_unet_distributor_io(seq: int, module: UNetDistributor, input_feat: torch.Tensor) -> torch.Tensor:
+    def test_unet_distributor_io(seq: int, module: UNetDistributor, input_feat: Tensor) -> Tensor:
         print(f"[{seq}] Test 00-07 {module.__class__.__name__} IO")
         print("-" * 100)
         # Input
         sz_input_feat: Tuple[int, ...] = tuple(input_feat.size())
         sz_input_feat_expected: Tuple[int, ...] = tuple(tuple([B, distributor_in_channels, X, Y, Z]))
         # Output
-        output_feat: torch.Tensor = module(input_feat)
+        output_feat: Tensor = module(input_feat)
         sz_output_feat: Tuple[int, ...] = tuple(output_feat.size())
         sz_output_feat_expected: Tuple[int, ...] = tuple([B, distributor_out_channels, X, Y, Z])
 
@@ -3890,14 +3891,14 @@ if __name__ == "__main__":
 
 
     # 00-08 UNet-Classifier
-    def test_unet_classifier_io(seq: int, module: UNetClassifier, input_feat: torch.Tensor) -> torch.Tensor:
+    def test_unet_classifier_io(seq: int, module: UNetClassifier, input_feat: Tensor) -> Tensor:
         print(f"[{seq}] Test 00-08 {module.__class__.__name__} IO")
         print("-" * 100)
         # Input
         sz_input_feat: Tuple[int, ...] = tuple(input_feat.size())
         sz_input_feat_expected: Tuple[int, ...] = tuple(tuple([B, classifier_in_channels, X, Y, Z]))
         # Output
-        logits: torch.Tensor = module(input_feat)
+        logits: Tensor = module(input_feat)
         sz_logits: Tuple[int, ...] = tuple(logits.size())
         sz_logits_expected: Tuple[int, ...] = tuple([B, classifier_out_channels, X, Y, Z])
 
@@ -3919,39 +3920,39 @@ if __name__ == "__main__":
 
     # Launch test
     test_seq_idx: int = 1
-    unet_cls_logits: torch.Tensor
-    unet_aux_cls_logits: List[torch.Tensor]
+    unet_cls_logits: Tensor
+    unet_aux_cls_logits: List[Tensor]
     unet_cls_logits, unet_aux_cls_logits = test_unet_io(test_seq_idx, unet, input_source)
     test_seq_idx += 1
 
-    focus_output_feat: torch.Tensor = test_unet_focuser_io(test_seq_idx, unet.focuser, input_source)
+    focus_output_feat: Tensor = test_unet_focuser_io(test_seq_idx, unet.focuser, input_source)
     test_seq_idx += 1
 
-    encoder_output_feats: List[torch.Tensor]
-    encoder_dn_feats: List[torch.Tensor]
+    encoder_output_feats: List[Tensor]
+    encoder_dn_feats: List[Tensor]
     encoder_output_feats, encoder_dn_feats = test_unet_encoder_io(test_seq_idx, unet.encoder, focus_output_feat)
     test_seq_idx += 1
 
-    repeater_input_feats: List[torch.Tensor] = encoder_output_feats + [encoder_dn_feats[-1]]
-    repeater_output_feats: List[torch.Tensor]
-    repeater_output_feats: List[torch.Tensor] = test_unet_repeater_io(test_seq_idx, unet.repeater, repeater_input_feats)
+    repeater_input_feats: List[Tensor] = encoder_output_feats + [encoder_dn_feats[-1]]
+    repeater_output_feats: List[Tensor]
+    repeater_output_feats: List[Tensor] = test_unet_repeater_io(test_seq_idx, unet.repeater, repeater_input_feats)
     test_seq_idx += 1
 
-    decoder_input_feats: torch.Tensor = repeater_output_feats[0]
-    decoder_bridge_feats: List[torch.Tensor] = repeater_output_feats[1:]
-    decoder_output_feats: List[torch.Tensor] = test_unet_decoder_io(
+    decoder_input_feats: Tensor = repeater_output_feats[0]
+    decoder_bridge_feats: List[Tensor] = repeater_output_feats[1:]
+    decoder_output_feats: List[Tensor] = test_unet_decoder_io(
         test_seq_idx, unet.decoder, decoder_input_feats, decoder_bridge_feats)
     test_seq_idx += 1
 
-    auxiliary_classifier_logits: List[torch.Tensor] = test_unet_auxiliary_classifier_io(
+    auxiliary_classifier_logits: List[Tensor] = test_unet_auxiliary_classifier_io(
         test_seq_idx, unet.auxiliary_classifier, decoder_output_feats)
     test_seq_idx += 1
 
-    distributor_output_feats: torch.Tensor = test_unet_distributor_io(
+    distributor_output_feats: Tensor = test_unet_distributor_io(
         test_seq_idx, unet.distributor, decoder_output_feats[-1])
     test_seq_idx += 1
 
-    classifier_logits: torch.Tensor = test_unet_classifier_io(test_seq_idx, unet.classifier, distributor_output_feats)
+    classifier_logits: Tensor = test_unet_classifier_io(test_seq_idx, unet.classifier, distributor_output_feats)
     test_seq_idx += 1
 
     print(f"[Summary]"

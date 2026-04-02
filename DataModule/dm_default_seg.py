@@ -38,7 +38,7 @@ PhaseLike = Literal['train', 'val', 'test', 'predict']
 PipeStage = Literal['fit', 'val', 'test', 'predict']
 
 
-@dataclass(frozen=True)
+@dataclass
 class DataModuleSegmentationDefaultInitArgs:
     """
     Dataclass for DataModule initialization arguments
@@ -551,10 +551,16 @@ if __name__ == "__main__":
             'random_seed': 0,
         },
         batch_size=3,
-        shuffle=False,
+        shuffle=True,
         num_workers=4,
         pin_memory=True,
         drop_last=False,
+        # Set persistent_workers=false to enable resumable reproducibility.
+        # When false, Dataloader will use the specified RNG to init each worker every epoch,
+        # so by recording the RNG state, worker states are recorded properly.
+        # But if persistent_workers=true, workers will be initialized only one time at the beginning, after which
+        # their states can not be reached anymore, so can not be identified by recording the RNG state.
+        # After resuming, workers will be reinitialized by the recoded RNG, which differs from the former state.
         persistent_workers=False,
         generator_random_seed=0
     )

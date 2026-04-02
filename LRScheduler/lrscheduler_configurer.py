@@ -44,7 +44,7 @@ Usage Examples:
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
 from typing import Optional, Union, List, Tuple, Literal
-
+torch.mean
 
 def LinearLR(
         optimizer: torch.optim.Optimizer,

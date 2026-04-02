@@ -32,7 +32,7 @@ SupportedPrecision = Optional[Union[Literal[64, 32, 16,
 "32-true", "64-true", "64", "32", "16", "bf16"]]]
 
 
-@dataclass(frozen=True)
+@dataclass
 class TrainerInitArgs:
     """
     Initialization arguments for Trainer.
@@ -94,7 +94,7 @@ class TrainerInitArgs:
     overfit_batches: Union[int, float] = 0.0
 
 
-@dataclass(frozen=True)
+@dataclass
 class CallbackInitArgs:
     """
     Initialization arguments for Callback bundle.
@@ -154,7 +154,7 @@ class CallbackInitArgs:
             'Can not enable multiple progressbars at the same time'
 
 
-@dataclass(frozen=True)
+@dataclass
 class LoggerInitArgs:
     """
     Initialization arguments for Logger.
@@ -389,7 +389,7 @@ class TrainerSegmentationDefault:
             self,
             model: L.LightningModule,
             datamodule: L.LightningDataModule,
-            ckpt_path: Optional[Union[str, Path]] = None,  # shall always be a file path, not
+            ckpt_path: Optional[Union[str, Path]] = None,
             finetune: bool = False,
             finetune_map_location: _MAP_LOCATION_TYPE = None,
             finetune_hparams_file: Optional[Union[str, Path]] = None,
