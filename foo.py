@@ -1,94 +1,129 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Remove {pid}.nii.gz files from sample directories under grouped subdirectories.
-
-This script recursively traverses the grouped directory structure and removes
-{pid}.nii.gz files from sample directories (Breast_MRI_*).
-
-Usage:
-    python foo.py
-"""
-
 import os
+
+import torch
+import yaml
+from yaml import Dumper, Loader
 from pathlib import Path
-from tqdm import tqdm
+from dataclasses import dataclass, fields, field
+from typing import cast, Optional, Any, Dict, Union, List, Mapping, Tuple, get_origin, get_args, Type, Callable, \
+    get_type_hints, Iterable
+from Launcher.Parser.parser_ABC import ParserABC
 
 
-def find_sample_dirs(root_dir: Path) -> list:
-    """
-    Recursively find all sample directories under root_dir.
-    
-    Args:
-        root_dir: Root directory to start searching from
-        
-    Returns:
-        List of Path objects pointing to sample directories
-    """
-    sample_dirs = []
-    
-    for root, dirs, files in os.walk(root_dir):
-        for dir_name in dirs:
-            if dir_name.startswith('Breast_MRI_'):
-                sample_dirs.append(Path(root) / dir_name)
-    
-    return sample_dirs
+@dataclass
+class ParserRealBeings(ParserABC):
+    @staticmethod
+    def default_list_int():
+        return [0, 1, 2]
+
+    # @staticmethod
+    # def default_list_any():
+    #     return ['Hammer', 80, 0.0]
+    #
+    # @staticmethod
+    # def default_list_nospec():
+    #     return ['golden', 100, False, 3.14]
+
+    # torch_d: torch.dtype = torch.int
+    # na_1: None = None
+    # bool_1: bool = True
+    # bool_2: bool = 1
+    # int_1: int = 1
+    # int_2: int = 1.0
+    # float_1: float = 1.0
+    # float_2: float = "1.0"
+    # str_1: str = 'Hello'
+    # str_2: str = 1
+    # tp_1: Type = type
+    # tp_2: Type[None] = type(None)
+    # tp_3: Type[int] = float
+    # tp_4: Type[Type[int]] = type
+    # tp_5: Type[Union[int, Type[int], Type[float], ParserABC]] = type
+    # tp_6: Type[Optional[int]] = int
+    # tp_7: Type[Optional[Type[int]]] = int
+    # opt_1: Optional[int] = 1
+    # opt_2: Optional[float] = 2.0
+    # opt_3: Optional[Union[int, float]] = 2.0
+    # opt_4: Optional[None] = 9
+    # opt_5: Optional[Type] = int
+    # opt_6: Optional[str] = 'int'
+    # un_1: Union[None, int] = None
+    un_2: Union[float, int, Type] = 1
+    # un_3: Union[str, int, float] = "1.0"
+    # un_4: Union[int, int, int] = 1.0
+    # un_5: Union[int, Union[float, str]] = None
+    any_1: Any = 1
+    # empty_tuple: Tuple[()] = ()
+    # int_1_tuple: Tuple[int] = (1,)
+    # int_2_tuple: Tuple[int, float, str] = (1, 2.0, '3s')
+    # int_many_tuple: Tuple[int, ...] = (1, 2, 3, 4, 5, 6)
+    # any_many_tuple: Tuple = (1, '2', 3.0)
+    # int_list: List[int] = field(default_factory=list)
+    # any_list: List[Any] = field(default_factory=list)
+    # nospec_list: List[List[int]] = field(default_factory=list)
 
 
-def remove_pid_nii_gz(sample_dir: Path) -> bool:
-    """
-    Remove {pid}.nii.gz file from sample directory.
-    
-    Args:
-        sample_dir: Path to sample directory
-        
-    Returns:
-        True if file was removed, False otherwise
-    """
-    pid = sample_dir.name
-    target_file = sample_dir / f"{pid}_mask_mass_re.nii.gz"
-    
-    if target_file.exists():
-        try:
-            target_file.unlink()
-            return True
-        except Exception as e:
-            print(f"Error removing {target_file}: {e}")
-            return False
-    
-    return False
+@dataclass
+class ParserBeings(ParserABC):
+    age: Optional[int] = None
+    grows: Optional[float] = None
+    greeting: Optional[str] = None
+
+    # def __post_init__(self):
+    #     fields_info = fields(self)
+    #     for field in fields_info:
+    #         print(field.type)
 
 
-def main() -> None:
-    """
-    Main function to orchestrate the file removal process.
-    """
-    root_dir = Path("G:\Datasets\Duke-Breast-FGT-Segmentation-2025.4.10\grouped")
-    
-    if not root_dir.exists():
-        print(f"Error: Root directory does not exist: {root_dir}")
-        return
-    
-    print(f"Searching for sample directories under: {root_dir}")
-    sample_dirs = find_sample_dirs(root_dir)
-    
-    print(f"Found {len(sample_dirs)} sample directories")
-    
-    removed_count = 0
-    
-    with tqdm(total=len(sample_dirs), desc="Processing sample directories") as pbar:
-        for sample_dir in sample_dirs:
-            pbar.set_description(f"Processing {sample_dir.name}")
-            
-            if remove_pid_nii_gz(sample_dir):
-                removed_count += 1
-            
-            pbar.update(1)
-    
-    print(f"\nProcessing completed!")
-    print(f"Total sample directories processed: {len(sample_dirs)}")
-    print(f"Total {removed_count} files removed: {removed_count}")
+@dataclass
+class ParserHuman(ParserBeings):
+    sex: Optional[Optional[bool]] = None
+    ability: Optional[str] = None
+
+
+@dataclass
+class ParserPerson(ParserHuman):
+    name: Optional[str] = None
+    family: Optional[list[str]] = None
+    talent: Optional[dict[str, int]] = None
+    climax: Optional[dict[str, list[int]]] = None
+
+
+def tup_test(value: tuple, on_change: Callable):
+    def change():
+        print(value)
+        ls = list(value)
+        ls.pop(0)
+        ls_tup = tuple(ls)
+        on_change(ls_tup)
+
+    return change
+
+
+class footup:
+    def __init__(self):
+        self.tup = (1, 2, 3, 4)
+
+        def on_change(new_val: tuple):
+            self.tup = new_val
+
+        self.change = tup_test(self.tup, on_change)
+
+    def run(self):
+        self.change()
+        self.change()
+        self.change()
 
 
 if __name__ == '__main__':
-    main()
+    t_list: List[Any] = [
+        Type,
+        Type[None],
+        Type[int],
+        Type[Type[int]],
+        Type[Union[int, Type[int]]],
+        Type[Union[Type[int], Type[float]]],
+    ]
+    for t in t_list:
+        print(f"Before: {t}\n"
+              f"After: {simplify_type(t)}")
