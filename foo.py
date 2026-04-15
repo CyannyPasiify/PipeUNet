@@ -1,66 +1,60 @@
-import os
-
 import torch
-import yaml
-from yaml import Dumper, Loader
-from pathlib import Path
-from dataclasses import dataclass, fields, field
-from typing import cast, Optional, Any, Dict, Union, List, Mapping, Tuple, get_origin, get_args, Type, Callable, \
-    get_type_hints, Iterable
+from dataclasses import dataclass, field
+from typing import Optional, Any, Dict, Union, List, Tuple, get_origin, get_args, Type, Callable
 from Launcher.Parser.parser_ABC import ParserABC
+
+
+def default_list_int():
+    return [0, 1, 2]
+
+
+def default_list_any():
+    return ['Hammer', 80, 0.0]
+
+
+def default_list_nested():
+    return [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 
 
 @dataclass
 class ParserRealBeings(ParserABC):
-    @staticmethod
-    def default_list_int():
-        return [0, 1, 2]
-
-    # @staticmethod
-    # def default_list_any():
-    #     return ['Hammer', 80, 0.0]
-    #
-    # @staticmethod
-    # def default_list_nospec():
-    #     return ['golden', 100, False, 3.14]
-
-    # torch_d: torch.dtype = torch.int
-    # na_1: None = None
-    # bool_1: bool = True
-    # bool_2: bool = 1
-    # int_1: int = 1
-    # int_2: int = 1.0
-    # float_1: float = 1.0
-    # float_2: float = "1.0"
-    # str_1: str = 'Hello'
-    # str_2: str = 1
-    # tp_1: Type = type
-    # tp_2: Type[None] = type(None)
-    # tp_3: Type[int] = float
-    # tp_4: Type[Type[int]] = type
-    # tp_5: Type[Union[int, Type[int], Type[float], ParserABC]] = type
-    # tp_6: Type[Optional[int]] = int
-    # tp_7: Type[Optional[Type[int]]] = int
-    # opt_1: Optional[int] = 1
-    # opt_2: Optional[float] = 2.0
-    # opt_3: Optional[Union[int, float]] = 2.0
-    # opt_4: Optional[None] = 9
-    # opt_5: Optional[Type] = int
-    # opt_6: Optional[str] = 'int'
-    # un_1: Union[None, int] = None
+    torch_d: torch.dtype = torch.int
+    na_1: None = None
+    bool_1: bool = True
+    bool_2: bool = 1
+    int_1: int = 1
+    int_2: int = 1.0
+    float_1: float = 1.0
+    float_2: float = "1.0"
+    str_1: str = 'Hello'
+    str_2: str = 1
+    tp_1: Type = type
+    tp_2: Type[None] = type(None)
+    tp_3: Type[int] = float
+    tp_4: Type[Type[int]] = type
+    tp_5: Type[Union[int, Type[int], Type[float], ParserABC]] = type
+    tp_6: Type[Optional[int]] = int
+    tp_7: Type[Optional[Type[int]]] = int
+    opt_1: Optional[int] = 1
+    opt_2: Optional[float] = 2.0
+    opt_3: Optional[Union[int, float]] = 2.0
+    opt_4: Optional[None] = 9
+    opt_5: Optional[Type] = int
+    opt_6: Optional[str] = 'int'
+    un_1: Union[None, int] = None
     un_2: Union[float, int, Type] = 1
-    # un_3: Union[str, int, float] = "1.0"
-    # un_4: Union[int, int, int] = 1.0
-    # un_5: Union[int, Union[float, str]] = None
+    un_3: Union[str, int, float] = "1.0"
+    un_4: Union[int, int, int] = 1.0
+    un_5: Union[int, Union[float, str]] = None
     any_1: Any = 1
-    # empty_tuple: Tuple[()] = ()
-    # int_1_tuple: Tuple[int] = (1,)
-    # int_2_tuple: Tuple[int, float, str] = (1, 2.0, '3s')
-    # int_many_tuple: Tuple[int, ...] = (1, 2, 3, 4, 5, 6)
-    # any_many_tuple: Tuple = (1, '2', 3.0)
-    # int_list: List[int] = field(default_factory=list)
-    # any_list: List[Any] = field(default_factory=list)
-    # nospec_list: List[List[int]] = field(default_factory=list)
+    empty_tuple: Tuple[()] = ()
+    int_1_tuple: Tuple[int] = (1,)
+    int_2_tuple: Tuple[int, float, str] = (1, 2.0, '3s')
+    int_many_tuple: Tuple[int, ...] = (1, 2, 3, 4, 5, 6)
+    any_many_tuple: Tuple = (1, '2', 3.0)
+    int_list: List[int] = field(default_factory=default_list_int)
+    any_list: List[Any] = field(default_factory=default_list_any)
+    nested_list: List[List[int]] = field(default_factory=default_list_nested)
 
 
 @dataclass
@@ -116,14 +110,14 @@ class footup:
 
 
 if __name__ == '__main__':
-    t_list: List[Any] = [
-        Type,
-        Type[None],
-        Type[int],
-        Type[Type[int]],
-        Type[Union[int, Type[int]]],
-        Type[Union[Type[int], Type[float]]],
-    ]
-    for t in t_list:
-        print(f"Before: {t}\n"
-              f"After: {simplify_type(t)}")
+    from Transform.tf_custom import DuplicateItemsd
+    import yaml
+    from yaml import Dumper, Loader
+
+    dup_t = DuplicateItemsd(('a', 'b', 'c'), ('d', 'e', 'f'))
+    with open('foo.yaml', 'w', encoding='utf-8') as file:
+        yaml.dump(dup_t, file, Dumper)
+
+    with open('foo.yaml', 'r', encoding='utf-8') as file:
+        import_dict: Dict[str, Any] = yaml.load(file, Loader)
+    print(import_dict)

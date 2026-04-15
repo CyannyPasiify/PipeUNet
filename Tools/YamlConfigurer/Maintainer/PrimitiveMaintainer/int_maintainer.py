@@ -4,7 +4,6 @@ import tkinter as tk
 from tkinter import ttk
 import re
 from Tools.YamlConfigurer.Maintainer.primitive_maintainer import PrimitiveMaintainer
-
 from Tools.YamlConfigurer.auxiliary_functions import simplify_type
 
 
@@ -26,6 +25,8 @@ class IntMaintainer(PrimitiveMaintainer):
             attribute_value: Initial value
             logger: Logger instance for logging
         """
+        # Simplify first !!
+        attribute_type: Type = simplify_type(attribute_type)
         super().__init__(attribute_name, attribute_type, attribute_value, logger)
         # Widgets
         self.value_label: Optional[ttk.Label] = None
@@ -90,14 +91,6 @@ class IntMaintainer(PrimitiveMaintainer):
             valid_value = self.get_default_value()
         self.value_string_var = tk.StringVar(value=str(valid_value))
 
-        def on_value_change(event: Optional[tk.Event] = None):
-            """Handle value change"""
-            input_value: str = self.value_string_var.get()
-            is_valid, validated_value = self.editor_validate(input_value)
-            if is_valid:
-                self.editor_value = validated_value
-                self.on_value_change(validated_value)
-
         self.entry = ttk.Entry(
             self.editor,
             textvariable=self.value_string_var,
@@ -105,25 +98,39 @@ class IntMaintainer(PrimitiveMaintainer):
             validatecommand=(validate_cmd, '%P')
         )
         self.entry.pack(anchor=tk.W, padx=10, pady=5)
-        self.entry.bind("<Return>", on_value_change)  # Return to confirm
-        self.entry.bind("<Escape>", on_value_change)  # ESC to confirm
-        self.entry.bind("<FocusOut>", on_value_change)  # Lose focus to confirm
+        self.entry.bind("<Return>", self._on_content_change)  # Return to confirm
+        self.entry.bind("<Escape>", self._on_content_change)  # ESC to confirm
+        self.entry.bind("<FocusOut>", self._on_content_change)  # Lose focus to confirm
 
         self.entry.focus_set()
         self.entry.selection_range(0, tk.END)
         self.entry.icursor(tk.END)
         return self.editor
 
+    def _on_content_change(self, event: Optional[tk.Event] = None):
+        """Handle value change"""
+        input_value: str = self.value_string_var.get()
+        is_valid, validated_value = self.editor_validate(input_value)
+        if is_valid:
+            self.editor_value = validated_value
+            self.on_value_change(validated_value)
+
     @override
     def editor_enable(self):
         if self.editor is not None:
             self.entry.config(state='normal')
+            self.entry.bind("<Return>", self._on_content_change)  # Return to confirm
+            self.entry.bind("<Escape>", self._on_content_change)  # ESC to confirm
+            self.entry.bind("<FocusOut>", self._on_content_change)  # Lose focus to confirm
         super().editor_enable()
 
     @override
     def editor_disable(self):
         if self.editor is not None:
             self.entry.config(state='disabled')
+            self.entry.unbind("<Return>")  # Return to confirm
+            self.entry.unbind("<Escape>")  # ESC to confirm
+            self.entry.unbind("<FocusOut>")  # Lose focus to confirm
         super().editor_disable()
 
     @override

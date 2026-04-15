@@ -218,7 +218,7 @@ class AnyMaintainer(WrapperMaintainer):
                 # Transferring a copy of editor_value, always assuming editor_value as immutable
                 self.on_value_change(copy.deepcopy(self.editor_value))
 
-        self.current_maintainer.config_view(self.view_mode)
+        self.current_maintainer.config_view("Packed")
         self.current_editor = self.current_maintainer.create_editor(self.selected_type_editor_frame, on_value_change)
         self.current_editor.pack(anchor=tk.N, fill=tk.BOTH, expand=True)
 

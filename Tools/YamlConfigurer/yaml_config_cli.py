@@ -70,6 +70,18 @@ class YAMLConfigCLI:
 
         # 顶部内容区域 - 左右分栏，使用PanedWindow实现可拖动调整
         self.top_frame: ttk.PanedWindow = ttk.PanedWindow(self.main_paned, orient=tk.HORIZONTAL)
+        self.top_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 初始化分割位置50%
+        def on_pane_map(event: Optional[tk.Event] = None):
+            # 控件真正渲染完成了 → 此时宽度 100% 准确
+            w = self.top_frame.winfo_width()
+            self.top_frame.sashpos(0, w // 2)
+
+            # 只执行一次，执行完解绑，避免多次触发
+            self.top_frame.unbind("<Map>")
+
+        self.top_frame.bind("<Map>", on_pane_map)
 
         # 左侧区域
         self.left_frame: ttk.Frame = ttk.Frame(self.top_frame)
@@ -209,7 +221,7 @@ class YAMLConfigCLI:
         self.tree.configure(xscrollcommand=hsb.set)
 
         # 绑定鼠标滚轮事件，增加水平滚动条的灵敏度
-        def on_mouse_wheel(event: tk.Event) -> None:
+        def on_mouse_wheel(event: Optional[tk.Event] = None) -> None:
             # 检测Shift键是否被按下（使用更可靠的方式）
             shift_pressed = event.state & 0x0001 != 0
 
@@ -239,17 +251,25 @@ class YAMLConfigCLI:
         self.inspector_frame.grid_columnconfigure(1, weight=0)  # 纵向滚动条固定宽度
 
         # 创建带滚动条的容器
-        self.inspector_canvas: tk.Canvas = tk.Canvas(self.inspector_frame)
-        self.inspector_scrollbar: ttk.Scrollbar = ttk.Scrollbar(self.inspector_frame, orient="vertical",
-                                                                command=self.inspector_canvas.yview)
-        self.inspector_hscrollbar: ttk.Scrollbar = ttk.Scrollbar(self.inspector_frame, orient="horizontal",
-                                                                 command=self.inspector_canvas.xview)
-        self.inspector_canvas.configure(yscrollcommand=self.inspector_scrollbar.set,
-                                        xscrollcommand=self.inspector_hscrollbar.set)
+        self.inspector_canvas: tk.Canvas = tk.Canvas(self.inspector_frame, highlightthickness=0)
+        self.inspector_vscrollbar: ttk.Scrollbar = ttk.Scrollbar(
+            self.inspector_frame,
+            orient="vertical",
+            command=self.inspector_canvas.yview
+        )
+        self.inspector_hscrollbar: ttk.Scrollbar = ttk.Scrollbar(
+            self.inspector_frame,
+            orient="horizontal",
+            command=self.inspector_canvas.xview
+        )
+        self.inspector_canvas.configure(
+            yscrollcommand=self.inspector_vscrollbar.set,
+            xscrollcommand=self.inspector_hscrollbar.set
+        )
 
         # 布局 - 使用grid布局
         self.inspector_canvas.grid(row=0, column=0, sticky=tk.NSEW)
-        self.inspector_scrollbar.grid(row=0, column=1, sticky=tk.NS)
+        self.inspector_vscrollbar.grid(row=0, column=1, sticky=tk.NS)
         self.inspector_hscrollbar.grid(row=1, column=0, sticky=tk.EW)
 
         # 创建内部框架，用于容纳所有Inspector内容
@@ -298,11 +318,6 @@ class YAMLConfigCLI:
 
         # 绑定TreeView选择事件
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
-
-        # 初始化分割位置50%
-        self.top_frame.update_idletasks()
-        self.top_frame.update()  # 确保窗口已更新
-        self.top_frame.sashpos(0, self.top_frame.winfo_width() // 2)
 
         # 初始化Parser选项
         self.init_parser_options()
@@ -447,7 +462,7 @@ class YAMLConfigCLI:
 
             self.log_message(error_msg, level="error")
 
-    def on_tree_select(self, event: tk.Event) -> None:
+    def on_tree_select(self, event: Optional[tk.Event] = None) -> None:
         """当TreeView选择发生变化时"""
         selected_items = self.tree.selection()
         if not selected_items:
@@ -726,12 +741,12 @@ class YAMLConfigCLI:
             widget.destroy()
         self.current_attribute = None
 
-    def _on_inspector_inner_configure(self, event: tk.Event) -> None:
+    def _on_inspector_inner_configure(self, event: Optional[tk.Event] = None) -> None:
         """当内部框架大小改变时更新canvas的滚动区域"""
         # 更新canvas的滚动区域
         self.inspector_canvas.configure(scrollregion=self.inspector_canvas.bbox("all"))
 
-    def _on_inspector_canvas_configure(self, event: tk.Event) -> None:
+    def _on_inspector_canvas_configure(self, event: Optional[tk.Event] = None) -> None:
         """当canvas大小改变时调整内部框架的宽度和高度"""
         # 获取canvas的宽度和高度，留出滚动条的空间
         canvas_width: int = event.width - 5  # 留出滚动条的宽度空间
@@ -789,6 +804,7 @@ class YAMLConfigCLI:
                     )
 
                 # 渲染整个Inspector面板内容
+                self.current_maintainer.config_view(view_mode="Packed")
                 attribute_inspector: ttk.Widget = self.current_maintainer.create_inspector(
                     self.inspector_inner_frame, self._on_attribute_change
                 )
@@ -819,6 +835,30 @@ class YAMLConfigCLI:
                     error_msg += f"Current attribute: {self.current_attribute}\n"
 
             self.log_message(error_msg, level="error")
+
+        # 更新内部框架的宽高规格
+        # 获取canvas的宽度和高度，留出滚动条的空间
+        canvas_width: int = self.inspector_canvas.winfo_width() - 5  # 留出滚动条的宽度空间
+        canvas_height: int = self.inspector_canvas.winfo_height() - 5  # 留出滚动条的高度空间
+
+        # 强制更新布局，确保获取准确的所需规格
+        self.inspector_inner_frame.update_idletasks()
+        
+        # 获取内部框架的最小宽度和高度
+        min_width: int = self.inspector_inner_frame.winfo_reqwidth()
+        min_height: int = self.inspector_inner_frame.winfo_reqheight()
+
+        # 计算内部框架的实际宽度和高度
+        # 如果canvas窗口更大，则伸长到占满canvas窗口的大小
+        # 否则使用内部控件的最小宽度和高度
+        actual_width: int = max(canvas_width, min_width)
+        actual_height: int = max(canvas_height, min_height)
+
+        # 设置内部框架的宽度和高度
+        self.inspector_canvas.itemconfig(self.inspector_inner_frame_id, width=actual_width, height=actual_height)
+
+        # 更新canvas的滚动区域
+        self.inspector_canvas.configure(scrollregion=self.inspector_canvas.bbox("all"))
 
     def _on_attribute_change(self, new_value: Any) -> None:
         """处理属性值变化"""

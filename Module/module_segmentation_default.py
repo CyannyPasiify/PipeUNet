@@ -785,7 +785,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
                 postprocess_metric_func=OperatorDisplayConfMat(
                     'train',
                     'ConfMat',
-                    [(0, 'gt'), (1, 'pred')]
+                    ((0, 'gt'), (1, 'pred'))
                 ),
                 on_step=True,
                 on_epoch=True,
@@ -963,7 +963,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
         ),
         volume_key='volume',
         mask_key='mask',
-        hook_functions=[OperatorDisplayDictKeys]
+        hook_functions=[OperatorDisplayDictKeys(('Train', 'Step returns'))]
     )
     module_validation_step_addition_args = ModuleValidationStepAdditionArgs(
         inferer=MainWithAuxSlidingWindowInferer,
@@ -1058,7 +1058,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
                 postprocess_metric_func=OperatorDisplayConfMat(
                     'val',
                     'ConfMat',
-                    [(0, 'gt'), (1, 'pred')]
+                    ((0, 'gt'), (1, 'pred'))
                 ),
                 on_step=True,
                 on_epoch=True,
@@ -1211,7 +1211,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
         ),
         volume_key='volume',
         mask_key='mask',
-        hook_functions=[OperatorDisplayDictKeys]
+        hook_functions=[OperatorDisplayDictKeys(('Val', 'Step returns'))]
     )
     module_test_step_addition_args = ModuleTestStepAdditionArgs(
         inferer=MainWithAuxSlidingWindowInferer,
@@ -1306,7 +1306,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
                 postprocess_metric_func=OperatorDisplayConfMat(
                     'test',
                     'ConfMat',
-                    [(0, 'gt'), (1, 'pred')]
+                    ((0, 'gt'), (1, 'pred'))
                 ),
                 on_step=True,
                 on_epoch=True,
@@ -1459,7 +1459,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
         ),
         volume_key='volume',
         mask_key='mask',
-        hook_functions=[OperatorDisplayDictKeys]
+        hook_functions=[OperatorDisplayDictKeys(('Test', 'Step returns'))]
     )
     module_predict_step_addition_args = ModulePredictStepAdditionArgs(
         inferer=MainWithAuxSlidingWindowInferer,
@@ -1485,7 +1485,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             )
         ],
         volume_key='volume',
-        hook_functions=[OperatorDisplayDictKeys]
+        hook_functions=[OperatorDisplayDictKeys(('Predict', 'Step returns'))]
     )
 
     config: Dict[str, Any] = {

@@ -20,12 +20,11 @@ import os
 import torch
 import numpy as np
 import monai.transforms as mT
-
 from monai.data import MetaTensor
-from typing import Dict, Any, Optional, Union, List, Sequence
 from monai.utils import GridSampleMode, GridSamplePadMode, PytorchPadMode, NumpyPadMode
-
+from typing import Dict, Any, Optional, Union, List, Sequence
 from Transform.tf_custom import DuplicateItemsd, RandCropByLabelClassesd
+from dataclasses import dataclass
 
 PathLike = Union[str, os.PathLike]
 DtypeLike = Union[np.dtype, type, str, None]
@@ -37,6 +36,7 @@ class TransformSegmentationDefaultBase(mT.Transform):
     
     Provides common functionality for all segmentation transform pipelines
     """
+
     def __init__(
             self,
             volume_key: Optional[str],
@@ -113,6 +113,7 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
     Includes a sequence of transforms for data loading, preprocessing, augmentation,
     and preparation for model training
     """
+
     def __init__(
             self,
             volume_key: str = 'volume',
@@ -214,7 +215,7 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
             dtype=torch.float,
             allow_missing_keys=param_tf_allow_missing_keys
         )
-        
+
         # Build transform dictionary
         self.transform_dict: Dict[str, mT.Transform] = {
             'LoadImaged': self._tf_load_image,
@@ -225,10 +226,10 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
             'RandCropByLabelClassesd': self._tf_rand_crop_by_label_classes,
             'CastToTyped': self._tf_cast_to_type
         }
-        
+
         # Initialize transforms with random seed
         self._initialize_transforms()
-        
+
         # Compose transforms into a pipeline
         self._comp_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
 
@@ -289,6 +290,7 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
     Includes a sequence of transforms for data loading, preprocessing,
     and preparation for model inference
     """
+
     def __init__(
             self,
             volume_key: str = 'volume',
@@ -326,7 +328,7 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
             param_tf_scale_intensity_range_clip: Whether to clip intensity values
         """
         super().__init__(volume_key, mask_key)
-        
+
         # Initialize individual transforms
         self._tf_load_image: mT.LoadImaged = mT.LoadImaged(
             keys=[volume_key, mask_key],
@@ -358,7 +360,7 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
             dtype=torch.float,
             allow_missing_keys=True
         )
-        
+
         # Build transform dictionary
         self.transform_dict: Dict[str, mT.Transform] = {
             'LoadImaged': self._tf_load_image,
@@ -367,7 +369,7 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
             'ScaleIntensityRanged': self._tf_scale_intensity_range,
             'CastToTyped': self._tf_cast_to_type
         }
-        
+
         # Compose transforms into a pipeline
         self._comp_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
 
@@ -379,6 +381,7 @@ class TransformSegmentationDefaultInferencePost(TransformSegmentationDefaultBase
     Includes a sequence of transforms for post-processing model outputs,
     such as resampling to match original dimensions and intensity scaling
     """
+
     def __init__(
             self,
             volume_key: Optional[str] = None,
@@ -449,7 +452,7 @@ class TransformSegmentationDefaultInferencePost(TransformSegmentationDefaultBase
             'ScaleIntensityRanged': self._tf_scale_intensity_range,
             'CastToTyped': self._tf_cast_to_type
         }
-        
+
         # Compose transforms into a pipeline
         self._comp_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
 

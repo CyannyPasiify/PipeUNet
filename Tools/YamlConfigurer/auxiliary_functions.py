@@ -87,6 +87,15 @@ def simplify_type(target_type: Type) -> Any:
     if target_type == type:
         return type
 
+    map_to_typing: Dict[Type, Type[Union[List, Tuple, Set, Dict]]] = {
+        list: List,
+        tuple: Tuple,
+        set: Set,
+        dict: Dict
+    }
+    if target_type in map_to_typing:
+        return map_to_typing[target_type][Any]
+
     # Optional will be Union, no bother processing Optional
     origin: Type = get_origin(target_type)
     type_args: Tuple[Any, ...] = get_args(target_type)
@@ -183,12 +192,6 @@ def simplify_type(target_type: Type) -> Any:
         return Type[only_arg]
 
     elif origin in [list, tuple, set, dict]:  # May be python Container types, such as list[int]
-        map_to_typing: Dict[Type, Type[Union[List, Tuple, Set, Dict]]] = {
-            list: List,
-            tuple: Tuple,
-            set: Set,
-            dict: Dict
-        }
         origin_type: Type[Union[List, Tuple, Set, Dict]] = map_to_typing[origin] if origin in map_to_typing else origin
 
         if len(type_args) == 1 and type_args[0] == ():

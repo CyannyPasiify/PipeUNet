@@ -17,6 +17,19 @@ from tkinter import ttk
 class BaseMaintainer(ABC):
     """Base class for type maintainers"""
 
+    @classmethod
+    def default_standalone_window_size(cls: Type) -> Tuple[int, int]:
+        # W, H
+        return 500, 500
+
+    @classmethod
+    def shall_hotkey_confirm_cancel(cls: Type) -> Tuple[bool, bool]:
+        # If in Standalone window, shall this type of maintainer react to
+        # - Enter/Return as Confirm
+        # - Esc as Cancel
+        # Hotkey enabled for (Confirm, Cancel)
+        return True, True
+
     def __init__(
             self,
             attribute_name: str = "",
@@ -159,3 +172,8 @@ class BaseMaintainer(ABC):
     @abstractmethod
     def get_simplest_type_name_static(*args, **kwargs) -> str:
         pass
+
+    def log_message(self, message: str, level: str = "info") -> None:
+        if self.logger:
+            assert hasattr(self.logger, "log_message"), f"Logger must implement 'log_message(message, level)' function"
+            self.logger.log_message(message, level)

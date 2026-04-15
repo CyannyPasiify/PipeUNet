@@ -1,4 +1,5 @@
 import copy
+from abc import ABCMeta
 from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
 from typing import Any, Callable, Optional, Type
 from typing_extensions import override
@@ -17,7 +18,7 @@ from tkinter import ttk, font
 """
 
 
-class PrimitiveMaintainer(BaseMaintainer):
+class PrimitiveMaintainer(BaseMaintainer, metaclass=ABCMeta):
     """Base class for primitive type maintainers
     
     Primitive type maintainers handle specific value types like None, int, bool, etc.
@@ -96,7 +97,7 @@ class PrimitiveMaintainer(BaseMaintainer):
         if not self.can_edit():
             return self.inspector
 
-        # Value editor in Edit panel - None type with read-only checkbox
+        # Editor label frame and editor instance
         self.editor_label_frame = ttk.LabelFrame(self.inspector, text="Editor")
         self.editor_label_frame.pack(
             anchor=tk.N, padx=10, pady=5,

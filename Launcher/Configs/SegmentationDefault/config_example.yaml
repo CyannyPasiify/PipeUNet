@@ -440,26 +440,30 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
     name: train/DSC
     description_info: Dice similarity coefficient (also known as DSC) metric (ignoring
       background) for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -482,26 +486,30 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
     name: train/NSD
     description_info: Normalized surface Dice metric (ignoring background) for multi-class
       (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -522,26 +530,30 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
     name: train/HD95
     description_info: 95% percentile Hausdorff distance metric (ignoring background)
       for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -556,32 +568,35 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
       normalize: none
     name: train/ConfMat
     description_info: Confusion Matrix for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    postprocess_metric_func: !!python/object/apply:Operator.operator_misc.OperatorDisplayConfMat
-    - train
-    - ConfMat
-    - - !!python/tuple
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorDisplayConfMat
+      phase: train
+      conf_mat_desc: ConfMat
+      dim_desc: !!python/tuple
+      - !!python/tuple
         - 0
         - gt
       - !!python/tuple
@@ -601,28 +616,30 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
       multidim_average: global
     name: train/Acc
     description_info: Accuracy metric for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -640,28 +657,30 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
     name: train/Prec
     description_info: Precision metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -679,28 +698,30 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
     name: train/Recall
     description_info: Recall metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -718,28 +739,30 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
     name: train/Spec
     description_info: Specificity metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -757,28 +780,30 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
     name: train/F1
     description_info: F1-Score metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -795,19 +820,48 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
     name: train/AUROC
     description_info: AUROC metric (ignoring background) for multi-class (organs not
       overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorTorchSoftmax
-    - 1
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorTorchSoftmax
+      dim: 1
+      training: true
+      _parameters: {}
+      _buffers: {}
+      _non_persistent_buffers_set: !!set {}
+      _backward_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _backward_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _is_full_backward_hook: null
+      _forward_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_hooks_with_kwargs: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_hooks_always_called: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_pre_hooks_with_kwargs: !!python/object/apply:collections.OrderedDict
+      - []
+      _state_dict_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _state_dict_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _load_state_dict_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _load_state_dict_post_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _modules: {}
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -830,10 +884,10 @@ module_training_step_addition_args: !!python/object:Module.module_segmentation_d
     reduce_fx: mean
     kwargs: null
   hook_functions:
-  - !!python/object/apply:Operator.operator_misc.OperatorDisplayDictKeys
-    - !!python/tuple
-      - Train
-      - Step returns
+  - !!python/object:Operator.operator_misc.OperatorDisplayDictKeys
+    tags: !!python/tuple
+    - Train
+    - Step returns
   loss_init_args: !!python/object:Module.module_segmentation_default.NamedLossInitArgs
     class_type: !!python/name:Loss.loss_configurer.DeepSupervisionDiceCELoss ''
     init_args:
@@ -915,26 +969,30 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
     name: val/DSC
     description_info: Dice similarity coefficient (also known as DSC) metric (ignoring
       background) for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -957,26 +1015,30 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
     name: val/NSD
     description_info: Normalized surface dice metric (ignoring background) for multi-class
       (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -997,26 +1059,30 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
     name: val/HD95
     description_info: 95% percentile Hausdorff distance metric (ignoring background)
       for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1031,32 +1097,35 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
       normalize: none
     name: val/ConfMat
     description_info: Confusion Matrix for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    postprocess_metric_func: !!python/object/apply:Operator.operator_misc.OperatorDisplayConfMat
-    - val
-    - ConfMat
-    - - !!python/tuple
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorDisplayConfMat
+      phase: val
+      conf_mat_desc: ConfMat
+      dim_desc: !!python/tuple
+      - !!python/tuple
         - 0
         - gt
       - !!python/tuple
@@ -1076,28 +1145,30 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
       multidim_average: global
     name: val/Acc
     description_info: Accuracy metric for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1115,28 +1186,30 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
     name: val/Prec
     description_info: Precision metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1154,28 +1227,30 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
     name: val/Recall
     description_info: Recall metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1193,28 +1268,30 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
     name: val/Spec
     description_info: Specificity metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1232,28 +1309,30 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
     name: val/F1
     description_info: F1-Score metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1270,19 +1349,48 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
     name: val/AUROC
     description_info: AUROC metric (ignoring background) for multi-class (organs not
       overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorTorchSoftmax
-    - 1
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorTorchSoftmax
+      dim: 1
+      training: true
+      _parameters: {}
+      _buffers: {}
+      _non_persistent_buffers_set: !!set {}
+      _backward_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _backward_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _is_full_backward_hook: null
+      _forward_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_hooks_with_kwargs: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_hooks_always_called: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_pre_hooks_with_kwargs: !!python/object/apply:collections.OrderedDict
+      - []
+      _state_dict_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _state_dict_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _load_state_dict_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _load_state_dict_post_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _modules: {}
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1305,10 +1413,10 @@ module_validation_step_addition_args: !!python/object:Module.module_segmentation
     reduce_fx: mean
     kwargs: null
   hook_functions:
-  - !!python/object/apply:Operator.operator_misc.OperatorDisplayDictKeys
-    - !!python/tuple
-      - Val
-      - Step returns
+  - !!python/object:Operator.operator_misc.OperatorDisplayDictKeys
+    tags: !!python/tuple
+    - Val
+    - Step returns
   loss_init_args: !!python/object:Module.module_segmentation_default.NamedLossInitArgs
     class_type: !!python/name:Loss.loss_configurer.DeepSupervisionDiceCELoss ''
     init_args:
@@ -1365,26 +1473,30 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
     name: test/DSC
     description_info: Dice similarity coefficient (also known as DSC) metric (ignoring
       background) for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1407,26 +1519,30 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
     name: test/NSD
     description_info: Normalized surface dice metric (ignoring background) for multi-class
       (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1447,26 +1563,30 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
     name: test/HD95
     description_info: 95% percentile Hausdorff distance metric (ignoring background)
       for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - 2
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: 2
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: true
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: true
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1481,32 +1601,35 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
       normalize: none
     name: test/ConfMat
     description_info: Confusion Matrix for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    postprocess_metric_func: !!python/object/apply:Operator.operator_misc.OperatorDisplayConfMat
-    - test
-    - ConfMat
-    - - !!python/tuple
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorDisplayConfMat
+      phase: test
+      conf_mat_desc: ConfMat
+      dim_desc: !!python/tuple
+      - !!python/tuple
         - 0
         - gt
       - !!python/tuple
@@ -1526,28 +1649,30 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
       multidim_average: global
     name: test/Acc
     description_info: Accuracy metric for multi-class (organs not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1565,28 +1690,30 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
     name: test/Prec
     description_info: Precision metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1604,28 +1731,30 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
     name: test/Recall
     description_info: Recall metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1643,28 +1772,30 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
     name: test/Spec
     description_info: Specificity metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1682,28 +1813,30 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
     name: test/F1
     description_info: F1-Score metric (ignoring background) for multi-class (organs
       not overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1720,19 +1853,48 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
     name: test/AUROC
     description_info: AUROC metric (ignoring background) for multi-class (organs not
       overlapped) segmentation
-    preprocess_pred_func: !!python/object/apply:Operator.operator_misc.OperatorTorchSoftmax
-    - 1
-    preprocess_gt_func: !!python/object/apply:Operator.operator_misc.OperatorMonaiAsDiscrete
-      args:
-      - true
-      - null
-      - null
-      - null
-      state:
-        kwargs:
-          dim: 1
-          dtype: !!torch/dtype:int32 ''
-          keepdim: false
+    preprocess_pred_func: !!python/object:Operator.operator_misc.OperatorTorchSoftmax
+      dim: 1
+      training: true
+      _parameters: {}
+      _buffers: {}
+      _non_persistent_buffers_set: !!set {}
+      _backward_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _backward_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _is_full_backward_hook: null
+      _forward_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_hooks_with_kwargs: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_hooks_always_called: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _forward_pre_hooks_with_kwargs: !!python/object/apply:collections.OrderedDict
+      - []
+      _state_dict_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _state_dict_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _load_state_dict_pre_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _load_state_dict_post_hooks: !!python/object/apply:collections.OrderedDict
+      - []
+      _modules: {}
+    preprocess_gt_func: !!python/object:Operator.operator_misc.OperatorMonaiAsDiscrete
+      argmax: true
+      to_onehot: null
+      threshold: null
+      rounding: null
+      dim: 1
+      keepdim: false
+      dtype: !!torch/dtype:int32 ''
+      kwargs:
+        dim: 1
+        keepdim: false
+        dtype: !!torch/dtype:int32 ''
     postprocess_metric_func: !!python/object:Operator.operator_misc.OperatorIdentity {}
     logger: true
     on_step: true
@@ -1755,10 +1917,10 @@ module_test_step_addition_args: !!python/object:Module.module_segmentation_defau
     reduce_fx: mean
     kwargs: null
   hook_functions:
-  - !!python/object/apply:Operator.operator_misc.OperatorDisplayDictKeys
-    - !!python/tuple
-      - Test
-      - Step returns
+  - !!python/object:Operator.operator_misc.OperatorDisplayDictKeys
+    tags: !!python/tuple
+    - Test
+    - Step returns
   loss_init_args: !!python/object:Module.module_segmentation_default.NamedLossInitArgs
     class_type: !!python/name:Loss.loss_configurer.DeepSupervisionDiceCELoss ''
     init_args:
@@ -1817,8 +1979,8 @@ module_predict_step_addition_args: !!python/object:Module.module_segmentation_de
     reduce_fx: mean
     kwargs: null
   hook_functions:
-  - !!python/object/apply:Operator.operator_misc.OperatorDisplayDictKeys
-    - !!python/tuple
-      - Predict
-      - Step returns
+  - !!python/object:Operator.operator_misc.OperatorDisplayDictKeys
+    tags: !!python/tuple
+    - Predict
+    - Step returns
   volume_key: volume

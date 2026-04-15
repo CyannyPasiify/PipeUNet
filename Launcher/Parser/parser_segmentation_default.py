@@ -665,7 +665,7 @@ class ParserSegmentationDefault(ParserABC):
                     postprocess_metric_func=OperatorDisplayConfMat(
                         'train',
                         'ConfMat',
-                        [(0, 'gt'), (1, 'pred')]
+                        ((0, 'gt'), (1, 'pred'))
                     ),
                     on_step=True,
                     on_epoch=True,
@@ -849,7 +849,7 @@ class ParserSegmentationDefault(ParserABC):
             ),
             volume_key='volume',
             mask_key='mask',
-            hook_functions=[OperatorDisplayDictKeys('Train', 'Step returns')]
+            hook_functions=[OperatorDisplayDictKeys(('Train', 'Step returns'))]
         )
 
     @staticmethod
@@ -977,7 +977,7 @@ class ParserSegmentationDefault(ParserABC):
                     postprocess_metric_func=OperatorDisplayConfMat(
                         'val',
                         'ConfMat',
-                        [(0, 'gt'), (1, 'pred')]
+                        ((0, 'gt'), (1, 'pred'))
                     ),
                     on_step=True,
                     on_epoch=True,
@@ -1130,7 +1130,7 @@ class ParserSegmentationDefault(ParserABC):
             ),
             volume_key='volume',
             mask_key='mask',
-            hook_functions=[OperatorDisplayDictKeys('Val', 'Step returns')]
+            hook_functions=[OperatorDisplayDictKeys(('Val', 'Step returns'))]
         )
 
     @staticmethod
@@ -1258,7 +1258,7 @@ class ParserSegmentationDefault(ParserABC):
                     postprocess_metric_func=OperatorDisplayConfMat(
                         'test',
                         'ConfMat',
-                        [(0, 'gt'), (1, 'pred')]
+                        ((0, 'gt'), (1, 'pred'))
                     ),
                     on_step=True,
                     on_epoch=True,
@@ -1411,7 +1411,7 @@ class ParserSegmentationDefault(ParserABC):
             ),
             volume_key='volume',
             mask_key='mask',
-            hook_functions=[OperatorDisplayDictKeys('Test', 'Step returns')]
+            hook_functions=[OperatorDisplayDictKeys(('Test', 'Step returns'))]
         )
 
     @staticmethod
@@ -1440,7 +1440,7 @@ class ParserSegmentationDefault(ParserABC):
                 )
             ],
             volume_key='volume',
-            hook_functions=[OperatorDisplayDictKeys('Predict', 'Step returns')]
+            hook_functions=[OperatorDisplayDictKeys(('Predict', 'Step returns'))]
         )
 
     @staticmethod

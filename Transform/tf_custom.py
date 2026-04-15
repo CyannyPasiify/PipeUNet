@@ -9,7 +9,6 @@ Classes:
     DuplicateItemsd: Creates copies of specified keys in the data dictionary
     RandCropByLabelClassesd: Extends MONAI's RandCropByLabelClassesd to support random state retrieval
 """
-from torch.utils.data import Dataset
 import monai.transforms as mT
 from typing import Collection, Union, Hashable, Dict, Any
 from monai.utils import TransformBackends
@@ -100,6 +99,7 @@ class DuplicateItemsd(mT.MapTransform):
                 d[dk] = d[k]
         return d
 
+
 class RandCropByLabelClassesd(mT.RandCropByLabelClassesd):
     """
     Extended version of MONAI's RandCropByLabelClassesd that supports random state retrieval
@@ -107,6 +107,7 @@ class RandCropByLabelClassesd(mT.RandCropByLabelClassesd):
     This transform randomly crops the input based on label classes distribution
     and adds the ability to get the random state for reproducibility
     """
+
     def get_random_state(self) -> Dict[str, Dict[str, Any]]:
         """
         Get the current random state of the cropper

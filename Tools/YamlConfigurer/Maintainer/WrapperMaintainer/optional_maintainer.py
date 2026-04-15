@@ -31,7 +31,7 @@ class OptionalMaintainer(WrapperMaintainer):
         attribute_type: Type = simplify_type(attribute_type)
         super().__init__(attribute_name, attribute_type, attribute_value, logger)
         self.current_maintainer_cls: Optional[Type[BaseMaintainer]] = None
-        # Always add None Maintainer
+        # Detect Maintainer for the arg type
         if self.is_type_compatible():
             from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
             type_args: Tuple[Any, ...] = get_args(self.attribute_type)
@@ -62,10 +62,12 @@ class OptionalMaintainer(WrapperMaintainer):
 
     @override
     def is_value_compatible(self) -> bool:
-        return self.is_type_compatible() and (
-                self.attribute_value is None or
-                self.current_maintainer_cls.is_value_compatible_static(self.attribute_value, self.attribute_type)
-        )
+        if self.attribute_value is None:
+            return True
+        if not self.is_type_compatible():
+            return False
+        return not issubclass(self.current_maintainer_cls, UnsupportedMaintainer) \
+            and self.current_maintainer_cls.is_value_compatible_static(self.attribute_value, self.attribute_type)
 
     @override
     def get_default_value(self, *args, **kwargs) -> Any:
@@ -155,7 +157,7 @@ class OptionalMaintainer(WrapperMaintainer):
                 # Transferring a copy of editor_value, always assuming editor_value as immutable
                 self.on_value_change(copy.deepcopy(self.editor_value))
 
-        self.current_maintainer.config_view(self.view_mode)
+        self.current_maintainer.config_view("Packed")
         self.current_editor = self.current_maintainer.create_editor(self.editor, on_value_change)
         self.current_editor.pack(anchor=tk.N, fill=tk.BOTH, expand=True)
 
@@ -164,7 +166,6 @@ class OptionalMaintainer(WrapperMaintainer):
             if self.is_null_boolean_var.get():
                 # Disable value Maintainer's edit control
                 self.current_maintainer.editor_disable()
-                self.current_maintainer.editor_set_value(self.current_maintainer.get_default_value())
                 self.editor_value = None
                 self.on_value_change(None)
             else:
@@ -239,6 +240,8 @@ class OptionalMaintainer(WrapperMaintainer):
     @staticmethod
     @override
     def is_value_compatible_static(value: Any, target_type: Type = Optional[Any]) -> bool:
+        if value is None:
+            return True
         sim_type: Type = simplify_type(target_type)
         if not OptionalMaintainer.is_type_compatible_static(sim_type):
             return False

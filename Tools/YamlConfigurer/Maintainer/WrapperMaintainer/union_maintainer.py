@@ -65,7 +65,11 @@ class UnionMaintainer(WrapperMaintainer):
     @override
     def is_value_compatible(self) -> bool:
         return self.is_type_compatible() and \
-            any([m.is_value_compatible_static(self.attribute_value, self.attribute_type) for m in self.maintainer_cls])
+            any([
+                not issubclass(m, UnsupportedMaintainer) and
+                m.is_value_compatible_static(self.attribute_value, self.attribute_type)
+                for m in self.maintainer_cls
+            ])
 
     @override
     def get_default_value(self, *args, **kwargs) -> Any:
@@ -115,7 +119,7 @@ class UnionMaintainer(WrapperMaintainer):
         # Type selection dropdown
         self.type_string_var = tk.StringVar(value="")
         type_names: List[str] = list(self.map_maintainer_cls.keys())
-        
+
         # Calculate max width based on longest type name
         max_length = max(len(name) for name in type_names) if type_names else 8
         buffer = 2  # Add buffer to avoid truncation
@@ -218,7 +222,7 @@ class UnionMaintainer(WrapperMaintainer):
                 # Transferring a copy of editor_value, always assuming editor_value as immutable
                 self.on_value_change(copy.deepcopy(self.editor_value))
 
-        self.current_maintainer.config_view(self.view_mode)
+        self.current_maintainer.config_view("Packed")
         self.current_editor = self.current_maintainer.create_editor(self.selected_type_editor_frame, on_value_change)
         self.current_editor.pack(anchor=tk.N, fill=tk.BOTH, expand=True)
 

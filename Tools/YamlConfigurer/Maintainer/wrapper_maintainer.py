@@ -1,9 +1,10 @@
 import copy
-from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
+from abc import ABCMeta
 from typing import Any, Callable, Optional, Type, Literal
 from typing_extensions import override
 import tkinter as tk
 from tkinter import ttk
+from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
 
 """
     Maintainer必须具备以下功能：
@@ -17,7 +18,7 @@ from tkinter import ttk
 """
 
 
-class WrapperMaintainer(BaseMaintainer):
+class WrapperMaintainer(BaseMaintainer, metaclass=ABCMeta):
     """Base class for wrapper type maintainers
     
     Wrapper type maintainers handle types that wrap multiple optional types like Union, Optional, Any.
@@ -93,7 +94,7 @@ class WrapperMaintainer(BaseMaintainer):
         if not self.can_edit():
             return self.inspector
 
-        # Value editor in Edit panel - None type with read-only checkbox
+        # Editor label frame and editor instance
         self.editor_label_frame = ttk.LabelFrame(self.inspector, text="Editor")
         self.editor_label_frame.pack(
             anchor=tk.N, padx=10, pady=5,

@@ -24,6 +24,8 @@ class BoolMaintainer(PrimitiveMaintainer):
             attribute_value: Initial value
             logger: Logger instance for logging
         """
+        # Simplify first !!
+        attribute_type: Type = simplify_type(attribute_type)
         super().__init__(attribute_name, attribute_type, attribute_value, logger)
         # Widgets
         self.value_label = None

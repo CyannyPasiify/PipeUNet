@@ -16,6 +16,16 @@ class StrMaintainer(PrimitiveMaintainer):
     def shall_expand_editor(cls: Type) -> bool:
         return True
 
+    @classmethod
+    def shall_hotkey_confirm_cancel(cls: Type) -> Tuple[bool, bool]:
+        # If in Standalone window, shall this type of maintainer react to
+        # - Enter as Confirm
+        # - Esc as Cancel
+        # Hotkey enabled for (Confirm, Cancel)
+
+        # Enter will input \n, shall not Confirm instantly
+        return False, True
+
     def __init__(
             self,
             attribute_name: str = "",
@@ -31,6 +41,8 @@ class StrMaintainer(PrimitiveMaintainer):
             attribute_value: Initial value
             logger: Logger instance for logging
         """
+        # Simplify first !!
+        attribute_type: Type = simplify_type(attribute_type)
         super().__init__(attribute_name, attribute_type, attribute_value, logger)
         # Vars
         self.view_mode: Literal["Standalone", "Packed"] = "Standalone"
@@ -72,17 +84,6 @@ class StrMaintainer(PrimitiveMaintainer):
         return super().create_inspector(parent, on_value_change)
 
     @override
-    def create_inspector(
-            self,
-            parent: ttk.Widget,
-            on_value_change: Optional[Callable[[Any], None]] = None,
-    ) -> ttk.Widget:
-        """
-            Shall call create_editor()
-        """
-        return super().create_inspector(parent, on_value_change)
-
-    @override
     def create_editor(
             self,
             parent: ttk.Widget,
@@ -102,7 +103,7 @@ class StrMaintainer(PrimitiveMaintainer):
 
         # Button: Update
         if self.view_mode == "Packed":
-            self.update_button = ttk.Button(self.row_frame, text="Update Attribute")
+            self.update_button = ttk.Button(self.row_frame, text="Refresh")
             self.update_button.pack(side=tk.RIGHT, padx=15)
 
         # Create a ScrolledText widget for multi-line input
@@ -115,35 +116,27 @@ class StrMaintainer(PrimitiveMaintainer):
             valid_value = self.get_default_value()
         self.scrolled_text.insert(tk.END, valid_value)
 
-        def on_value_change(event: Optional[tk.Event] = None):
-            """Handle value change"""
-            input_value: str = self.scrolled_text.get(1.0, tk.END)
-            # Remove the last \n (ScrolledText auto-added)
-            if input_value.endswith('\n'):
-                input_value = input_value[:-1]
-            is_valid, validated_value = self.editor_validate(input_value)
-            if is_valid:
-                self.editor_value = validated_value
-                self.on_value_change(validated_value)
-
         # Bind events for value change
-        self.scrolled_text.bind("<FocusOut>", on_value_change)  # 失去焦点确认
-        self.scrolled_text.bind("<Escape>", on_value_change)  # ESC确认
+        self.scrolled_text.bind("<FocusOut>", self._on_content_change)  # 失去焦点确认
+        self.scrolled_text.bind("<Escape>", self._on_content_change)  # ESC确认
 
-        # 绑定Enter键事件，手动插入换行符并阻止事件继续传播
-        def on_enter(event: Optional[tk.Event] = None):
-            # 手动插入换行符
-            self.scrolled_text.insert(tk.INSERT, "\n")
-            # 阻止事件继续传播，避免触发其他组件的事件
-            return "break"
-
-        self.scrolled_text.bind("<Return>", on_enter)  # Enter键确认
         if self.view_mode == "Packed":
-            self.update_button.config(command=on_value_change)
+            self.update_button.config(command=self._on_content_change)
 
         self.scrolled_text.focus_set()
         self.scrolled_text.tag_add(tk.SEL, "1.0", "end-1c")
         return self.editor
+
+    def _on_content_change(self, event: Optional[tk.Event] = None):
+        """Handle value change"""
+        input_value: str = self.scrolled_text.get(1.0, tk.END)
+        # Remove the last \n (ScrolledText auto-added)
+        if input_value.endswith('\n'):
+            input_value = input_value[:-1]
+        is_valid, validated_value = self.editor_validate(input_value)
+        if is_valid:
+            self.editor_value = validated_value
+            self.on_value_change(validated_value)
 
     @override
     def editor_enable(self):
@@ -157,9 +150,11 @@ class StrMaintainer(PrimitiveMaintainer):
             self.scrolled_text.unbind("<ButtonPress-1>")
             self.scrolled_text.unbind("<B1-Motion>")
             self.scrolled_text.unbind("<Key>")
+            self.scrolled_text.bind("<FocusOut>", self._on_content_change)  # 失去焦点确认
+            self.scrolled_text.bind("<Escape>", self._on_content_change)  # ESC确认
             # Enable update button
             if self.view_mode == "Packed":
-                self.update_button.config(state='normal')
+                self.update_button.config(state='normal', command=self._on_content_change)
         super().editor_enable()
 
     @override
@@ -174,9 +169,11 @@ class StrMaintainer(PrimitiveMaintainer):
             self.scrolled_text.bind("<ButtonPress-1>", lambda e: "break")
             self.scrolled_text.bind("<B1-Motion>", lambda e: "break")
             self.scrolled_text.bind("<Key>", lambda e: "break")
+            self.scrolled_text.unbind("<FocusOut>")  # 失去焦点确认
+            self.scrolled_text.unbind("<Escape>")  # ESC确认
             # 禁用Update按钮
             if self.view_mode == "Packed":
-                self.update_button.config(state='disabled')
+                self.update_button.config(state='disabled', command="")
         super().editor_disable()
 
     @override

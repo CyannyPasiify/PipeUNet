@@ -13,6 +13,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTheme
+from Logger.logger_configurer import CSVLogger
 
 
 @dataclass(frozen=True)
@@ -479,7 +480,7 @@ if __name__ == '__main__':
             devices=1,
             log_every_n_steps=5,
             check_val_every_n_epoch=2,
-            logger=pl.loggers.CSVLogger(save_dir='./Samples/callback_test', name=callback_type)
+            logger=CSVLogger(save_dir='./Samples/callback_test', name=callback_type)
         )
 
         # Train model
