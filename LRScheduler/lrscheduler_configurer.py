@@ -44,77 +44,115 @@ Usage Examples:
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
 from typing import Optional, Union, List, Tuple, Literal
-torch.mean
+from dataclasses import dataclass
+from abc import ABC, abstractmethod
+from typing_extensions import override
 
-def LinearLR(
-        optimizer: torch.optim.Optimizer,
-        start_factor: float,
-        end_factor: float,
-        total_iters: int,
-        last_epoch: int = -1
-) -> torch.optim.lr_scheduler.LinearLR:
+
+@dataclass
+class LRSchedulerBase(ABC):
+    def is_ready(self) -> bool:
+        return hasattr(self, "lr_scheduler")
+
+    def _assert_init_essentials(
+            self,
+            optimizer: torch.optim.Optimizer
+    ) -> None:
+        if self.is_ready(): return
+        self.init_essentials(optimizer)
+
+    @abstractmethod
+    def init_essentials(
+            self,
+            optimizer: torch.optim.Optimizer
+    ) -> 'LRSchedulerBase':
+        self.lr_scheduler: lr_scheduler.LRScheduler = lr_scheduler.LRScheduler(optimizer)  # Just placeholder
+        return self
+
+    def get_lr_scheduler(
+            self,
+            optimizer: torch.optim.Optimizer
+    ) -> Optional[lr_scheduler.LRScheduler]:
+        if optimizer is None:
+            if self.is_ready():
+                return self.lr_scheduler
+            else:
+                return None
+        self._assert_init_essentials(optimizer)
+        return self.lr_scheduler
+
+
+@dataclass
+class LRSchedulerLinear(LRSchedulerBase):
     """
     Creates a configured linear learning rate scheduler instance
-    
+
     Args:
-        optimizer: Optimizer whose learning rate is to be adjusted
         start_factor: Starting factor
         end_factor: Ending factor
         total_iters: Total number of iterations
         last_epoch: Last training epoch, default is -1
-        
+
     Returns:
         torch.optim.lr_scheduler.LinearLR: Configured linear learning rate scheduler instance
     """
-    # Create and return LinearLR scheduler
-    return lr_scheduler.LinearLR(
-        optimizer=optimizer,
-        start_factor=start_factor,
-        end_factor=end_factor,
-        total_iters=total_iters,
-        last_epoch=last_epoch
-    )
+    start_factor: float = 1.0 / 3
+    end_factor: float = 1.0
+    total_iters: int = 5
+    last_epoch: int = -1
+
+    @override
+    def init_essentials(
+            self,
+            optimizer: torch.optim.Optimizer
+    ) -> 'LRSchedulerLinear':
+        self.lr_scheduler: lr_scheduler.LinearLR = lr_scheduler.LinearLR(
+            optimizer=optimizer,
+            start_factor=self.start_factor,
+            end_factor=self.end_factor,
+            total_iters=self.total_iters,
+            last_epoch=self.last_epoch
+        )
+        return self
 
 
-def CosineAnnealingLR(
-        optimizer: torch.optim.Optimizer,
-        T_max: int,
-        eta_min: float = 0.0,
-        last_epoch: int = -1
-) -> torch.optim.lr_scheduler.CosineAnnealingLR:
+@dataclass
+class LRSchedulerCosineAnnealing(LRSchedulerBase):
     """
     Creates a configured cosine annealing learning rate scheduler instance
-    
+
     Args:
-        optimizer: Optimizer whose learning rate is to be adjusted
         T_max: Maximum number of iterations
         eta_min: Minimum learning rate, default is 0
         last_epoch: Last training epoch, default is -1
-        
+
     Returns:
         torch.optim.lr_scheduler.CosineAnnealingLR: Configured cosine annealing learning rate scheduler instance
     """
-    # Create and return CosineAnnealingLR scheduler
-    return lr_scheduler.CosineAnnealingLR(
-        optimizer=optimizer,
-        T_max=T_max,
-        eta_min=eta_min,
-        last_epoch=last_epoch
-    )
+    T_max: int = 100
+    eta_min: float = 0.0
+    last_epoch: int = -1
+
+    @override
+    def init_essentials(
+            self,
+            optimizer: torch.optim.Optimizer
+    ) -> 'LRSchedulerCosineAnnealing':
+        self.lr_scheduler: lr_scheduler.CosineAnnealingLR = lr_scheduler.CosineAnnealingLR(
+            optimizer=optimizer,
+            T_max=self.T_max,
+            eta_min=self.eta_min,
+            last_epoch=self.last_epoch
+        )
+        return self
 
 
-def CosineAnnealingWarmRestarts(
-        optimizer: torch.optim.Optimizer,
-        T_0: int,
-        T_mult: int = 1,
-        eta_min: float = 0.0,
-        last_epoch: int = -1
-) -> torch.optim.lr_scheduler.CosineAnnealingWarmRestarts:
+@dataclass
+class LRSchedulerCosineAnnealingWarmRestarts(LRSchedulerBase):
     """
     Creates a configured cosine annealing with warm restarts learning rate scheduler instance
     
     Args:
-        optimizer: Optimizer whose learning rate is to be adjusted
         T_0: Initial period
         T_mult: Period multiplier, default is 1
         eta_min: Minimum learning rate, default is 0
@@ -123,32 +161,32 @@ def CosineAnnealingWarmRestarts(
     Returns:
         torch.optim.lr_scheduler.CosineAnnealingWarmRestarts: Configured cosine annealing with warm restarts learning rate scheduler instance
     """
-    # Create and return CosineAnnealingWarmRestarts scheduler
-    return lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer=optimizer,
-        T_0=T_0,
-        T_mult=T_mult,
-        eta_min=eta_min,
-        last_epoch=last_epoch
-    )
+    T_0: int = 100
+    T_mult: int = 1
+    eta_min: float = 0.0
+    last_epoch: int = -1
+
+    @override
+    def init_essentials(
+            self,
+            optimizer: torch.optim.Optimizer
+    ) -> 'LRSchedulerCosineAnnealingWarmRestarts':
+        self.lr_scheduler: lr_scheduler.CosineAnnealingWarmRestarts = lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer=optimizer,
+            T_0=self.T_0,
+            T_mult=self.T_mult,
+            eta_min=self.eta_min,
+            last_epoch=self.last_epoch
+        )
+        return self
 
 
-def OneCycleLR(
-        optimizer: torch.optim.Optimizer,
-        max_lr: Union[float, List[float]],
-        total_steps: int,
-        epochs: int,
-        steps_per_epoch: int,
-        pct_start: float = 0.3,
-        div_factor: float = 25.0,
-        final_div_factor: float = 10000.0,
-        last_epoch: int = -1
-) -> torch.optim.lr_scheduler.OneCycleLR:
+@dataclass
+class LRSchedulerOneCycleLR(LRSchedulerBase):
     """
     Creates a configured OneCycle learning rate scheduler instance
     
     Args:
-        optimizer: Optimizer whose learning rate is to be adjusted
         max_lr: Maximum learning rate
         total_steps: Total steps in the cycle. Note that if no value is provided here, it must be inferred by providing values for epochs and steps_per_epoch
         epochs: Number of training epochs. This parameter, together with steps_per_epoch, is used to infer the total number of steps in the cycle, provided that no total_steps value is provided
@@ -161,35 +199,40 @@ def OneCycleLR(
     Returns:
         torch.optim.lr_scheduler.OneCycleLR: Configured OneCycle learning rate scheduler instance
     """
-    # Create and return OneCycleLR scheduler
-    return lr_scheduler.OneCycleLR(
-        optimizer=optimizer,
-        max_lr=max_lr,
-        total_steps=total_steps,
-        epochs=epochs,
-        steps_per_epoch=steps_per_epoch,
-        pct_start=pct_start,
-        div_factor=div_factor,
-        final_div_factor=final_div_factor,
-        last_epoch=last_epoch
-    )
+    max_lr: Union[float, List[float]] = 0.01
+    total_steps: Optional[int] = None
+    epochs: Optional[int] = None
+    steps_per_epoch: Optional[int] = None
+    pct_start: float = 0.3
+    div_factor: float = 25.0
+    final_div_factor: float = 10000.0
+    last_epoch: int = -1
+
+    @override
+    def init_essentials(
+            self,
+            optimizer: torch.optim.Optimizer
+    ) -> 'LRSchedulerOneCycleLR':
+        self.lr_scheduler: lr_scheduler.OneCycleLR = lr_scheduler.OneCycleLR(
+            optimizer=optimizer,
+            max_lr=self.max_lr,
+            total_steps=self.total_steps,
+            epochs=self.epochs,
+            steps_per_epoch=self.steps_per_epoch,
+            pct_start=self.pct_start,
+            div_factor=self.div_factor,
+            final_div_factor=self.final_div_factor,
+            last_epoch=self.last_epoch
+        )
+        return self
 
 
-def ReduceLROnPlateau(
-        optimizer: torch.optim.Optimizer,
-        mode: Literal["min", "max"] = 'min',
-        factor: float = 0.1,
-        patience: int = 10,
-        threshold: float = 1e-4,
-        threshold_mode: Literal["rel", "abs"] = 'rel',
-        cooldown: int = 0,
-        min_lr: float = 0
-) -> torch.optim.lr_scheduler.ReduceLROnPlateau:
+@dataclass
+class LRSchedulerReduceLROnPlateau(LRSchedulerBase):
     """
     Creates a configured performance-based learning rate scheduler instance
 
     Args:
-        optimizer: Optimizer whose learning rate is to be adjusted
         mode: Mode selection, 'min' means reduce learning rate when the metric stops decreasing, 'max' means reduce learning rate when the metric stops increasing, default is 'min'
         factor: Factor by which the learning rate is reduced, new learning rate = old learning rate * factor, default is 0.1
         patience: Number of epochs with no improvement after which learning rate will be reduced, default is 10
@@ -201,17 +244,30 @@ def ReduceLROnPlateau(
     Returns:
         torch.optim.lr_scheduler.ReduceLROnPlateau: Configured performance-based learning rate scheduler instance
     """
-    # Create and return ReduceLROnPlateau scheduler
-    return lr_scheduler.ReduceLROnPlateau(
-        optimizer=optimizer,
-        mode=mode,
-        factor=factor,
-        patience=patience,
-        threshold=threshold,
-        threshold_mode=threshold_mode,
-        cooldown=cooldown,
-        min_lr=min_lr
-    )
+    mode: Literal["min", "max"] = 'min'
+    factor: float = 0.1
+    patience: int = 10
+    threshold: float = 1e-4
+    threshold_mode: Literal["rel", "abs"] = 'rel'
+    cooldown: int = 0
+    min_lr: float = 0
+
+    @override
+    def init_essentials(
+            self,
+            optimizer: torch.optim.Optimizer
+    ) -> 'LRSchedulerReduceLROnPlateau':
+        self.lr_scheduler: lr_scheduler.ReduceLROnPlateau = lr_scheduler.ReduceLROnPlateau(
+            optimizer=optimizer,
+            mode=self.mode,
+            factor=self.factor,
+            patience=self.patience,
+            threshold=self.threshold,
+            threshold_mode=self.threshold_mode,
+            cooldown=self.cooldown,
+            min_lr=self.min_lr
+        )
+        return self
 
 
 if __name__ == "__main__":
@@ -231,30 +287,27 @@ if __name__ == "__main__":
         model = torch.nn.Linear(1, 1)
         optimizer = optim.SGD(model.parameters(), lr=initial_lr)
 
+        scheduler: LRSchedulerBase
         # Create corresponding scheduler
         if scheduler_type == 'LinearLR':
-            scheduler = LinearLR(
-                optimizer=optimizer,
+            scheduler = LRSchedulerLinear(
                 start_factor=1.0,
                 end_factor=0.01,
                 total_iters=total_steps
             )
         elif scheduler_type == 'CosineAnnealingLR':
-            scheduler = CosineAnnealingLR(
-                optimizer=optimizer,
+            scheduler = LRSchedulerCosineAnnealing(
                 T_max=total_steps,
                 eta_min=0
             )
         elif scheduler_type == 'CosineAnnealingWarmRestarts':
-            scheduler = CosineAnnealingWarmRestarts(
-                optimizer=optimizer,
+            scheduler = LRSchedulerCosineAnnealingWarmRestarts(
                 T_0=total_steps // 7,
                 T_mult=2,
                 eta_min=0
             )
         elif scheduler_type == 'OneCycleLR':
-            scheduler = OneCycleLR(
-                optimizer=optimizer,
+            scheduler = LRSchedulerOneCycleLR(
                 max_lr=initial_lr * 10,
                 total_steps=total_steps,
                 epochs=1,
@@ -264,8 +317,7 @@ if __name__ == "__main__":
                 final_div_factor=10000.0
             )
         elif scheduler_type == 'ReduceLROnPlateau':
-            scheduler = ReduceLROnPlateau(
-                optimizer=optimizer,
+            scheduler = LRSchedulerReduceLROnPlateau(
                 mode='min',
                 factor=0.5,
                 patience=10,
@@ -277,12 +329,15 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unsupported scheduler type: {scheduler_type}")
 
+        scheduler: lr_scheduler.LRScheduler = scheduler.get_lr_scheduler(optimizer)
         # Record learning rate changes
         lrs = []
         for i in range(total_steps):
             lrs.append(optimizer.param_groups[0]['lr'])
             # For ReduceLROnPlateau, we simulate metric decrease and stagnation
             if scheduler_type == 'ReduceLROnPlateau':
+                from typing import cast
+                scheduler: lr_scheduler.ReduceLROnPlateau = cast(lr_scheduler.ReduceLROnPlateau, scheduler)
                 # First 200 steps simulate metric decrease
                 if i < 200:
                     scheduler.step(1.0 - i * 0.004)  # Metric decreases from 1.0 to 0.2
@@ -319,8 +374,13 @@ if __name__ == "__main__":
 
         parser = argparse.ArgumentParser(description='Learning Rate Scheduler Test Tool')
         parser.add_argument('--scheduler', type=str, required=True,
-                            choices=['LinearLR', 'CosineAnnealingLR', 'CosineAnnealingWarmRestarts', 'OneCycleLR',
-                                     'ReduceLROnPlateau'],
+                            choices=[
+                                'LinearLR',
+                                'CosineAnnealingLR',
+                                'CosineAnnealingWarmRestarts',
+                                'OneCycleLR',
+                                'ReduceLROnPlateau'
+                            ],
                             help='LRScheduler type')
         parser.add_argument('--step', type=int, required=True, help='Number of iterations')
         parser.add_argument('--lr', type=float, required=True, help='Initial learning rate')

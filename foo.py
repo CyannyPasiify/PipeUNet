@@ -1,7 +1,8 @@
 import torch
 from dataclasses import dataclass, field
-from typing import Optional, Any, Dict, Union, List, Tuple, get_origin, get_args, Type, Callable
+from typing import Optional, Any, Dict, Union, List, Tuple, get_origin, get_args, Type, Callable, Sequence
 from Launcher.Parser.parser_ABC import ParserABC
+from pandas._typing import DtypeArg
 
 
 def default_list_int():
@@ -18,6 +19,7 @@ def default_list_nested():
 
 @dataclass
 class ParserRealBeings(ParserABC):
+    dty: Optional[DtypeArg] = "Good"
     torch_d: torch.dtype = torch.int
     na_1: None = None
     bool_1: bool = True
@@ -110,14 +112,8 @@ class footup:
 
 
 if __name__ == '__main__':
-    from Transform.tf_custom import DuplicateItemsd
-    import yaml
-    from yaml import Dumper, Loader
-
-    dup_t = DuplicateItemsd(('a', 'b', 'c'), ('d', 'e', 'f'))
-    with open('foo.yaml', 'w', encoding='utf-8') as file:
-        yaml.dump(dup_t, file, Dumper)
-
-    with open('foo.yaml', 'r', encoding='utf-8') as file:
-        import_dict: Dict[str, Any] = yaml.load(file, Loader)
-    print(import_dict)
+    l1 = [1, 2, 3]
+    l2 = (2, 3)
+    print(isinstance(l1, Sequence))
+    print(isinstance(l1, list))
+    print(isinstance(l1, tuple))

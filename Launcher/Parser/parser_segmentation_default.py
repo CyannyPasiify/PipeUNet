@@ -33,20 +33,20 @@ from Module.module_segmentation_default import NamedNetworkInitArgs, ModuleTrain
     ModuleSegmentationDefault
 from Network.net_unet import UNet
 from Loss.loss_configurer import (
-    DiceLoss, DeepSupervisionDiceLoss,
-    DiceCELoss, DeepSupervisionDiceCELoss,
-    DiceFocalLoss, DeepSupervisionDiceFocalLoss,
-    HausdorffDTLoss
+    LossDice, DeepSupervisionDiceLoss,
+    LossDiceCE, LossDeepSupervisionDiceCE,
+    LossDiceFocal, LossDeepSupervisionDiceFocal,
+    LossHausdorffDT
 )
 from Operator.operator_misc import OperatorDisplayDictKeys, OperatorDisplayConfMat, OperatorMonaiAsDiscrete, \
     OperatorTorchSoftmax
 from Optimizer.optimizer_configurer import SGD, AdamW
 from LRScheduler.lrscheduler_configurer import (
-    LinearLR,
-    CosineAnnealingLR,
-    CosineAnnealingWarmRestarts,
+    LRSchedulerLinear,
+    LRSchedulerCosineAnnealing,
+    LRSchedulerCosineAnnealingWarmRestarts,
     OneCycleLR,
-    ReduceLROnPlateau
+    LRSchedulerReduceLROnPlateau
 )
 from Metric.metric_configurer import (
     BACC, BPREC, BREC, BF1, BAUROC, BCM, BSPE, BROC, BPRC,
@@ -63,18 +63,18 @@ PhaseLike = Literal['train', 'val', 'test', 'predict']
 
 SupportedNetwork = Union[UNet]
 SupportedLoss = Union[
-    DiceLoss, DeepSupervisionDiceLoss,
-    DiceCELoss, DeepSupervisionDiceCELoss,
-    DiceFocalLoss, DeepSupervisionDiceFocalLoss,
-    HausdorffDTLoss
+    LossDice, DeepSupervisionDiceLoss,
+    LossDiceCE, LossDeepSupervisionDiceCE,
+    LossDiceFocal, LossDeepSupervisionDiceFocal,
+    LossHausdorffDT
 ]
 SupportedOptimizer = Union[SGD, AdamW]
 SupportedLRScheduler = Union[
-    LinearLR,
-    CosineAnnealingLR,
-    CosineAnnealingWarmRestarts,
+    LRSchedulerLinear,
+    LRSchedulerCosineAnnealing,
+    LRSchedulerCosineAnnealingWarmRestarts,
     OneCycleLR,
-    ReduceLROnPlateau
+    LRSchedulerReduceLROnPlateau
 ]
 SupportedMetric = Union[
     BACC, BPREC, BREC, BF1, BAUROC, BCM, BSPE, BROC, BPRC,
@@ -793,7 +793,7 @@ class ParserSegmentationDefault(ParserABC):
             ],
             loss_init_args=NamedLossInitArgs(
                 name='train/loss',
-                class_type=DeepSupervisionDiceCELoss,
+                class_type=LossDeepSupervisionDiceCE,
                 init_args={
                     'include_background': False,  # Foregrounds are small
                     'to_onehot_y': False,  # We use (B, C, X, Y, Z) C-binary map as mask
@@ -1105,7 +1105,7 @@ class ParserSegmentationDefault(ParserABC):
             ],
             loss_init_args=NamedLossInitArgs(
                 name='val/loss',
-                class_type=DeepSupervisionDiceCELoss,
+                class_type=LossDeepSupervisionDiceCE,
                 init_args={
                     'include_background': False,  # Foregrounds are small
                     'to_onehot_y': False,  # We use (B, C, X, Y, Z) C-binary map as mask
@@ -1386,7 +1386,7 @@ class ParserSegmentationDefault(ParserABC):
             ],
             loss_init_args=NamedLossInitArgs(
                 name='test/loss',
-                class_type=DeepSupervisionDiceCELoss,
+                class_type=LossDeepSupervisionDiceCE,
                 init_args={
                     'include_background': False,  # Foregrounds are small
                     'to_onehot_y': False,  # We use (B, C, X, Y, Z) C-binary map as mask

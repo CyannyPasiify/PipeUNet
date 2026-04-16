@@ -37,9 +37,11 @@ Classes:
 import torch
 import torch.nn as nn
 from torch import Tensor
-from typing import Optional, Tuple, List, Collection, Sequence, Union, Dict, Any, Type, Iterable, cast
+from typing import TypeVar, Optional, Tuple, List, Collection, Sequence, Union, Dict, Any, Type, Iterable, cast
 from Network.net_block import IODescriptive, ConvNormAct, ConvBNReLU, Concat
 
+T = TypeVar("T")
+TLSeq = Union[List[T], Tuple[T, ...]]
 
 # 00 UNet
 # UNet is an Encoder-Decoder framework for neural network building, which features multiscale representation ability and is suitable for segmentation task
@@ -131,27 +133,27 @@ class UNet(nn.Module, IODescriptive):
             self,
             focuser_in_channels: int = 1,  # FCin: Input channels (in accordance with modalities)
             focuser_out_channels: int = 16,  # FCout: Initial feature channels
-            encoder_primary_in_channels: Sequence[int] = (16, 32),  # EPCin[S1]: Primary encoder input channels
-            encoder_primary_out_channels: Sequence[int] = (32, 64),  # EPCout[S1]: Primary encoder output channels
-            encoder_primary_depth: Union[int, Sequence[int]] = 2,  # EPD[S1]: Primary encoder layer depth
-            encoder_advanced_in_channels: Sequence[int] = (64, 128),  # EACin[S2]: Advanced encoder input channels
-            encoder_advanced_out_channels: Sequence[int] = (128, 256),  # EACout[S2]: Advanced encoder output channels
-            encoder_advanced_depth: Union[int, Sequence[int]] = 2,  # EAD[S2]: Advanced encoder layer depth
+            encoder_primary_in_channels: TLSeq[int] = (16, 32),  # EPCin[S1]: Primary encoder input channels
+            encoder_primary_out_channels: TLSeq[int] = (32, 64),  # EPCout[S1]: Primary encoder output channels
+            encoder_primary_depth: Union[int, TLSeq[int]] = 2,  # EPD[S1]: Primary encoder layer depth
+            encoder_advanced_in_channels: TLSeq[int] = (64, 128),  # EACin[S2]: Advanced encoder input channels
+            encoder_advanced_out_channels: TLSeq[int] = (128, 256),  # EACout[S2]: Advanced encoder output channels
+            encoder_advanced_depth: Union[int, TLSeq[int]] = 2,  # EAD[S2]: Advanced encoder layer depth
             bottleneck_in_channels: int = 256,  # RBCin: Bottleneck input channels
             bottleneck_out_channels: int = 512,  # RBCout: Bottleneck output channels
             bottleneck_depth: int = 2,  # RBD: Bottleneck layer depth
-            decoder_advanced_in_channels: Sequence[int] = (512, 256),  # DACin[S2]: Advanced decoder input channels
-            decoder_advanced_upsample_channels: Sequence[int] = (256, 128),  # DAUC[S2]: Advanced decoder upsample channels
-            decoder_advanced_bridge_channels: Sequence[int] = (256, 128),  # DASC[S2]: Advanced decoder bridge channels
-            decoder_advanced_out_channels: Sequence[int] = (256, 128),  # DACout[S2]: Advanced decoder output channels
-            decoder_advanced_depth: Union[int, Sequence[int]] = 2,  # DAD[S2]: Advanced decoder layer depth
-            decoder_primary_in_channels: Sequence[int] = (128, 64),  # DPCin[S1]: Primary decoder input channels
-            decoder_primary_upsample_channels: Sequence[int] = (64, 32),  # DPUC[S1]: Primary decoder upsample channels
-            decoder_primary_bridge_channels: Sequence[int] = (64, 32),  # DPSC[S1]: Primary decoder bridge channels
-            decoder_primary_out_channels: Sequence[int] = (64, 32),  # DPCout[S1]: Primary decoder output channels
-            decoder_primary_depth: Union[int, Sequence[int]] = 2,  # DPD[S1]: Primary decoder layer depth
-            auxiliary_classifier_in_channels: Sequence[int] = (256, 128, 64, 32),  # ACCin[S1+S2]: Auxiliary classifier input channels
-            auxiliary_classifier_out_channels: Sequence[int] = (2, 2, 2, 2),  # ACCout[S1+S2]: Auxiliary classifier output channels (classes)
+            decoder_advanced_in_channels: TLSeq[int] = (512, 256),  # DACin[S2]: Advanced decoder input channels
+            decoder_advanced_upsample_channels: TLSeq[int] = (256, 128),  # DAUC[S2]: Advanced decoder upsample channels
+            decoder_advanced_bridge_channels: TLSeq[int] = (256, 128),  # DASC[S2]: Advanced decoder bridge channels
+            decoder_advanced_out_channels: TLSeq[int] = (256, 128),  # DACout[S2]: Advanced decoder output channels
+            decoder_advanced_depth: Union[int, TLSeq[int]] = 2,  # DAD[S2]: Advanced decoder layer depth
+            decoder_primary_in_channels: TLSeq[int] = (128, 64),  # DPCin[S1]: Primary decoder input channels
+            decoder_primary_upsample_channels: TLSeq[int] = (64, 32),  # DPUC[S1]: Primary decoder upsample channels
+            decoder_primary_bridge_channels: TLSeq[int] = (64, 32),  # DPSC[S1]: Primary decoder bridge channels
+            decoder_primary_out_channels: TLSeq[int] = (64, 32),  # DPCout[S1]: Primary decoder output channels
+            decoder_primary_depth: Union[int, TLSeq[int]] = 2,  # DPD[S1]: Primary decoder layer depth
+            auxiliary_classifier_in_channels: TLSeq[int] = (256, 128, 64, 32),  # ACCin[S1+S2]: Auxiliary classifier input channels
+            auxiliary_classifier_out_channels: TLSeq[int] = (2, 2, 2, 2),  # ACCout[S1+S2]: Auxiliary classifier output channels (classes)
             distributor_in_channels: int = 32,  # DCin: Distributor input channels
             distributor_out_channels: int = 16,  # DCout: Distributor output channels
             classifier_in_channels: int = 16,  # CCin: Classifier input channels
@@ -674,12 +676,12 @@ class UNetEncoder(nn.Module, IODescriptive):
     """
     def __init__(
             self,
-            primary_in_channels: Sequence[int],  # PCin[S1]: Primary stage input channels
-            primary_out_channels: Sequence[int],  # PCout[S1]: Primary stage output channels
-            primary_depth: Union[int, Sequence[int]],  # PD[S1]: Primary stage layer depth
-            advanced_in_channels: Sequence[int],  # ACin[S2]: Advanced stage input channels
-            advanced_out_channels: Sequence[int],  # ACout[S2]: Advanced stage output channels
-            advanced_depth: Union[int, Sequence[int]],  # AD[S2]: Advanced stage layer depth
+            primary_in_channels: TLSeq[int],  # PCin[S1]: Primary stage input channels
+            primary_out_channels: TLSeq[int],  # PCout[S1]: Primary stage output channels
+            primary_depth: Union[int, TLSeq[int]],  # PD[S1]: Primary stage layer depth
+            advanced_in_channels: TLSeq[int],  # ACin[S2]: Advanced stage input channels
+            advanced_out_channels: TLSeq[int],  # ACout[S2]: Advanced stage output channels
+            advanced_depth: Union[int, TLSeq[int]],  # AD[S2]: Advanced stage layer depth
             reserve_io: bool = False
     ):
         """
@@ -861,9 +863,9 @@ class UNetEncoderPrimaryExtractor(nn.Module, IODescriptive):
     """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
-            out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
-            depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
+            in_channels: TLSeq[int],  # Cin[S]: Input channels for each stage
+            out_channels: TLSeq[int],  # Cout[S]: Output channels for each stage
+            depth: Union[int, TLSeq[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
     ):
         """
@@ -1218,9 +1220,9 @@ class UNetEncoderAdvancedExtractor(nn.Module, IODescriptive):
     """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
-            out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
-            depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
+            in_channels: TLSeq[int],  # Cin[S]: Input channels for each stage
+            out_channels: TLSeq[int],  # Cout[S]: Output channels for each stage
+            depth: Union[int, TLSeq[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
     ):
         """
@@ -2040,16 +2042,16 @@ class UNetDecoder(nn.Module, IODescriptive):
     """
     def __init__(
             self,
-            advanced_in_channels: Sequence[int],  # ACin[S1]: Advanced stage input channels
-            advanced_upsample_channels: Sequence[int],  # AUC[S1]: Advanced upsample channels
-            advanced_bridge_channels: Sequence[int],  # ASC[S1]: Advanced bridge (skip) channels
-            advanced_out_channels: Sequence[int],  # ACout[S1]: Advanced output channels
-            advanced_depth: Union[int, Sequence[int]],  # AD[S1]: Advanced stage layer depth
-            primary_in_channels: Sequence[int],  # PCin[S2]: Primary stage input channels
-            primary_upsample_channels: Sequence[int],  # PUC[S2]: Primary upsample channels
-            primary_bridge_channels: Sequence[int],  # PSC[S2]: Primary bridge (skip) channels
-            primary_out_channels: Sequence[int],  # PCout[S2]: Primary output channels
-            primary_depth: Union[int, Sequence[int]],  # PD[S2]: Primary stage layer depth
+            advanced_in_channels: TLSeq[int],  # ACin[S1]: Advanced stage input channels
+            advanced_upsample_channels: TLSeq[int],  # AUC[S1]: Advanced upsample channels
+            advanced_bridge_channels: TLSeq[int],  # ASC[S1]: Advanced bridge (skip) channels
+            advanced_out_channels: TLSeq[int],  # ACout[S1]: Advanced output channels
+            advanced_depth: Union[int, TLSeq[int]],  # AD[S1]: Advanced stage layer depth
+            primary_in_channels: TLSeq[int],  # PCin[S2]: Primary stage input channels
+            primary_upsample_channels: TLSeq[int],  # PUC[S2]: Primary upsample channels
+            primary_bridge_channels: TLSeq[int],  # PSC[S2]: Primary bridge (skip) channels
+            primary_out_channels: TLSeq[int],  # PCout[S2]: Primary output channels
+            primary_depth: Union[int, TLSeq[int]],  # PD[S2]: Primary stage layer depth
             reserve_io: bool = False
     ):
         """
@@ -2248,11 +2250,11 @@ class UNetDecoderAdvancedAggregator(nn.Module, IODescriptive):
     """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
-            upsample_channels: Sequence[int],  # UC[S]: Upsample channels for each stage
-            bridge_channels: Sequence[int],  # SC[S]: Bridge channels for each stage
-            out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
-            depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
+            in_channels: TLSeq[int],  # Cin[S]: Input channels for each stage
+            upsample_channels: TLSeq[int],  # UC[S]: Upsample channels for each stage
+            bridge_channels: TLSeq[int],  # SC[S]: Bridge channels for each stage
+            out_channels: TLSeq[int],  # Cout[S]: Output channels for each stage
+            depth: Union[int, TLSeq[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
     ):
         """
@@ -2700,11 +2702,11 @@ class UNetDecoderPrimaryAggregator(nn.Module, IODescriptive):
     """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
-            upsample_channels: Sequence[int],  # UC[S]: Upsample channels for each stage
-            bridge_channels: Sequence[int],  # SC[S]: Bridge channels for each stage
-            out_channels: Sequence[int],  # Cout[S]: Output channels for each stage
-            depth: Union[int, Sequence[int]],  # D[S]: Layer depth for each stage
+            in_channels: TLSeq[int],  # Cin[S]: Input channels for each stage
+            upsample_channels: TLSeq[int],  # UC[S]: Upsample channels for each stage
+            bridge_channels: TLSeq[int],  # SC[S]: Bridge channels for each stage
+            out_channels: TLSeq[int],  # Cout[S]: Output channels for each stage
+            depth: Union[int, TLSeq[int]],  # D[S]: Layer depth for each stage
             reserve_io: bool = False
     ):
         """
@@ -3134,8 +3136,8 @@ class UNetAuxiliaryClassifier(nn.Module, IODescriptive):
     """
     def __init__(
             self,
-            in_channels: Sequence[int],  # Cin[S]: Input channels for each stage
-            out_channels: Sequence[int],  # Cout[S]: Output classes for each stage
+            in_channels: TLSeq[int],  # Cin[S]: Input channels for each stage
+            out_channels: TLSeq[int],  # Cout[S]: Output classes for each stage
             reserve_io: bool = False
     ):
         """
@@ -3386,27 +3388,27 @@ if __name__ == "__main__":
     # Params
     focuser_in_channels: int = 1
     focuser_out_channels: int = 16
-    encoder_primary_in_channels: Sequence[int] = (16, 32)
-    encoder_primary_out_channels: Sequence[int] = (32, 64)
-    encoder_primary_depth: Union[int, Sequence[int]] = 2
-    encoder_advanced_in_channels: Sequence[int] = (64, 128)
-    encoder_advanced_out_channels: Sequence[int] = (128, 256)
-    encoder_advanced_depth: Union[int, Sequence[int]] = 2
+    encoder_primary_in_channels: TLSeq[int] = (16, 32)
+    encoder_primary_out_channels: TLSeq[int] = (32, 64)
+    encoder_primary_depth: Union[int, TLSeq[int]] = 2
+    encoder_advanced_in_channels: TLSeq[int] = (64, 128)
+    encoder_advanced_out_channels: TLSeq[int] = (128, 256)
+    encoder_advanced_depth: Union[int, TLSeq[int]] = 2
     bottleneck_in_channels: int = 256
     bottleneck_out_channels: int = 512
     bottleneck_depth: int = 2
-    decoder_advanced_in_channels: Sequence[int] = (512, 256)
-    decoder_advanced_upsample_channels: Sequence[int] = (256, 128)
-    decoder_advanced_bridge_channels: Sequence[int] = (256, 128)
-    decoder_advanced_out_channels: Sequence[int] = (256, 128)
-    decoder_advanced_depth: Union[int, Sequence[int]] = 2
-    decoder_primary_in_channels: Sequence[int] = (128, 64)
-    decoder_primary_upsample_channels: Sequence[int] = (64, 32)
-    decoder_primary_bridge_channels: Sequence[int] = (64, 32)
-    decoder_primary_out_channels: Sequence[int] = (64, 32)
-    decoder_primary_depth: Union[int, Sequence[int]] = 2
-    auxiliary_classifier_in_channels: Sequence[int] = (256, 128, 64, 32)
-    auxiliary_classifier_out_channels: Sequence[int] = (2, 2, 2, 2)
+    decoder_advanced_in_channels: TLSeq[int] = (512, 256)
+    decoder_advanced_upsample_channels: TLSeq[int] = (256, 128)
+    decoder_advanced_bridge_channels: TLSeq[int] = (256, 128)
+    decoder_advanced_out_channels: TLSeq[int] = (256, 128)
+    decoder_advanced_depth: Union[int, TLSeq[int]] = 2
+    decoder_primary_in_channels: TLSeq[int] = (128, 64)
+    decoder_primary_upsample_channels: TLSeq[int] = (64, 32)
+    decoder_primary_bridge_channels: TLSeq[int] = (64, 32)
+    decoder_primary_out_channels: TLSeq[int] = (64, 32)
+    decoder_primary_depth: Union[int, TLSeq[int]] = 2
+    auxiliary_classifier_in_channels: TLSeq[int] = (256, 128, 64, 32)
+    auxiliary_classifier_out_channels: TLSeq[int] = (2, 2, 2, 2)
     distributor_in_channels: int = 32
     distributor_out_channels: int = 16
     classifier_in_channels: int = 16

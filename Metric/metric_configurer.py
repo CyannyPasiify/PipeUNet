@@ -7,16 +7,22 @@ enhancing the plot method to provide additional control functionality (for Torch
 """
 import numpy as np
 import torch
+import torch.nn as nn
 from torch import Tensor
-import torchmetrics
 import torchmetrics.classification
-from typing import Optional, Dict, Any, Union, List, Tuple, Literal, Sequence, Type, cast
+from typing import TypeVar, Optional, Dict, Any, Union, List, Tuple, Literal, Sequence, Type, cast
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 import monai.metrics as mm
 from monai.config import TensorOrList
 from monai.metrics.regression import KernelType
 from monai.utils import MetricReduction, Weight
+from abc import ABC, abstractmethod, ABCMeta
+from dataclasses import dataclass, field
+from typing_extensions import override
+
+T = TypeVar("T")
+TLSeq = Union[List[T], Tuple[T, ...]]
 
 """
 TorchMetrics IO Requirements
@@ -161,6 +167,125 @@ Outputs:
 """
 
 
+@dataclass
+class MetricBase(ABC):
+    def is_ready(self) -> bool:
+        return hasattr(self, "metric")
+
+    def _assert_init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> None:
+        if self.is_ready(): return
+        self.init_essentials(*args, **kwargs)
+
+    @abstractmethod
+    def init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> 'MetricBase':
+        self.metric = None  # Just placeholder
+        return self
+
+    def __call__(
+            self,
+            *args,
+            **kwargs
+    ) -> torch.Tensor:
+        self._assert_init_essentials()
+        return self.metric(*args, **kwargs)
+
+    def get_metric_operator(self, *args, **kwargs) -> nn.Module:
+        self._assert_init_essentials(*args, **kwargs)
+        return self.metric
+
+
+@dataclass
+class MetricTorch(MetricBase, metaclass=ABCMeta):
+    @override
+    def __call__(
+            self,
+            preds: Tensor,
+            target: Tensor,
+            *args,
+            **kwargs
+    ) -> Tensor:
+        self._assert_init_essentials()
+        return self.metric(preds, target, *args, **kwargs)
+
+    def plot(
+            self,
+            *args,
+            **kwargs
+    ) -> Tuple[Figure, Axes]:
+        self._assert_init_essentials()
+        return self.metric.plot(*args, **kwargs)
+
+
+@dataclass
+class MetricTorchScalar(MetricTorch, metaclass=ABCMeta):
+    @override
+    def plot(
+            self,
+            ax: Optional[Axes] = None,
+            title: Optional[str] = None,
+            ylabel: Optional[str] = None,
+            add_data_labels: bool = True,
+            figsize: Optional[Tuple[int, int]] = None
+    ) -> Tuple[Figure, Axes]:
+        """
+        Plot metric with additional control options.
+
+        Args:
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            ylabel: Y-axis label, uses default if None
+            add_data_labels: Whether to add value labels to each data point
+            figsize: Chart size, uses default if None
+
+        Returns:
+            Tuple[Figure, Axes]: Figure and axes objects
+        """
+        self._assert_init_essentials()
+        # Call original plot method
+        fig: Figure
+        ax: Axes
+        fig, ax = self.metric.plot(ax=ax)
+
+        # Set figure size
+        if figsize is not None:
+            fig.set_size_inches(figsize)
+
+        # Set title
+        if title is not None:
+            ax.set_title(title)
+
+        # Set y-axis label
+        if ylabel is not None:
+            ax.set_ylabel(ylabel)
+
+        # Add data labels
+        if add_data_labels:
+            try:
+                # Get lines and points for scatter plot
+                for line in ax.lines:
+                    # Get point coordinate data
+                    x_data: np.ndarray = line.get_xdata()  # noqa
+                    y_data: np.ndarray = line.get_ydata()  # noqa
+
+                    # Add value labels to each point
+                    for x, y in zip(x_data, y_data):
+                        # Add value label above the point
+                        ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
+            except Exception as e:
+                print(f"Error adding data labels to {self.__class__.__name__}: {e}")
+
+        fig.tight_layout()
+        return fig, ax
+
+
 # region Torchmetrics
 def assert_input_torchmetrics(
         task_type: Literal["binary", "multiclass", "multilabel"],
@@ -233,196 +358,189 @@ def assert_input_torchmetrics(
                 f'y_pred [unique={tuple(y_pred.unique())}] shall only contain {label_list}'
 
 
-class BinaryStatScores(torchmetrics.classification.BinaryStatScores):
+@dataclass
+class MetricBinaryStatScores(MetricTorch):
     """
     Wrapper class for binary classification statistical metrics.
     """
+    threshold: float = 0.5
+    multidim_average: Literal["global", "samplewise"] = "global"
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    @override
+    def init_essentials(self) -> 'MetricBinaryStatScores':
+        self.metric = torchmetrics.classification.BinaryStatScores(
+            threshold=self.threshold,
+            multidim_average=self.multidim_average,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
 
 
-class MulticlassStatScores(torchmetrics.classification.MulticlassStatScores):
+@dataclass
+class MetricMulticlassStatScores(MetricTorch):
     """
     Wrapper class for multiclass classification statistical metrics.
     """
+    num_classes: int = 2
+    top_k: int = 1
+    average: Optional[Literal["micro", "macro", "weighted", "none"]] = "macro"
+    multidim_average: Literal["global", "samplewise"] = "global"
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    @override
+    def init_essentials(self) -> 'MetricMulticlassStatScores':
+        self.metric = torchmetrics.classification.MulticlassStatScores(
+            num_classes=self.num_classes,
+            top_k=self.top_k,
+            average=self.average,
+            multidim_average=self.multidim_average,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
 
 
-class MultilabelStatScores(torchmetrics.classification.MultilabelStatScores):
+@dataclass
+class MetricMultilabelStatScores(MetricTorch):
     """
-    Wrapper class for multiclass classification statistical metrics.
+    Wrapper class for multilabel classification statistical metrics.
     """
+    num_labels: int = 2
+    threshold: float = 0.5
+    average: Optional[Literal["micro", "macro", "weighted", "none"]] = "macro"
+    multidim_average: Literal["global", "samplewise"] = "global"
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    @override
+    def init_essentials(self) -> 'MetricMultilabelStatScores':
+        self.metric = torchmetrics.classification.MultilabelStatScores(
+            num_labels=self.num_labels,
+            threshold=self.threshold,
+            average=self.average,
+            multidim_average=self.multidim_average,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
 
 
-class BinaryAccuracy(torchmetrics.classification.BinaryAccuracy):
+@dataclass
+class MetricBinaryAccuracy(MetricBinaryStatScores, MetricTorchScalar):
     """
     Wrapper class for Accuracy metric, enhanced with additional plot control functionality.
     """
 
-    def plot(
-            self,
-            ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            add_data_labels: bool = True,
-            figsize: Optional[Tuple[int, int]] = None
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot Accuracy metric with additional control options.
-        
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            ylabel: Y-axis label, uses default if None
-            add_data_labels: Whether to add value labels to each data point
-            figsize: Chart size, uses default if None
-            
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Add data labels
-        if add_data_labels:
-            try:
-                # Get lines and points for scatter plot
-                for line in ax.lines:
-                    # Get point coordinate data
-                    x_data: np.ndarray = line.get_xdata()  # noqa
-                    y_data: np.ndarray = line.get_ydata()  # noqa
-
-                    # Add value labels to each point
-                    for x, y in zip(x_data, y_data):
-                        # Add value label above the point
-                        ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
-            except Exception as e:
-                print(f"Error adding data labels to Accuracy: {e}")
-
-        fig.tight_layout()
-        return fig, ax
+    @override
+    def init_essentials(self) -> 'MetricBinaryAccuracy':
+        self.metric = torchmetrics.classification.BinaryAccuracy(
+            threshold=self.threshold,
+            multidim_average=self.multidim_average,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs,
+        )
+        return self
 
 
-class MulticlassAccuracy(torchmetrics.classification.MulticlassAccuracy):
+@dataclass
+class MetricMulticlassAccuracy(MetricMulticlassStatScores, MetricTorchScalar):
     """
     Wrapper class for Accuracy metric, enhanced with additional plot control functionality.
     For multiclass problems, average='micro' should always be set to get the correct Accuracy value.
     When MulticlassAccuracy in TorchMetrics specifies average='none' or 'macro',
     it is equivalent to Recall.
     """
+    average: Literal["micro"] = "micro",  # Always micro
 
-    def __init__(
-            self,
-            num_classes: Optional[int] = None,
-            top_k: int = 1,
-            average: Literal["micro"] = "micro",  # Always micro
-            multidim_average: Literal["global", "samplewise"] = "global",
-            ignore_index: Optional[int] = None,
-            validate_args: bool = True,
-            **kwargs: Any
-    ) -> None:
-        assert average in ["micro", None]
-        super().__init__(
-            num_classes=num_classes,
-            top_k=top_k,
-            average=average,
-            multidim_average=multidim_average,
-            ignore_index=ignore_index,
-            validate_args=validate_args,
-            **kwargs,
+    @override
+    def init_essentials(self) -> 'MetricMulticlassAccuracy':
+        self.metric = torchmetrics.classification.MulticlassAccuracy(
+            num_classes=self.num_classes,
+            top_k=self.top_k,
+            average=self.average,
+            multidim_average=self.multidim_average,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
         )
-
-    def plot(
-            self,
-            ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            add_data_labels: bool = True,
-            figsize: Optional[Tuple[int, int]] = None
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot Accuracy metric with additional control options.
-        
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            ylabel: Y-axis label, uses default if None
-            add_data_labels: Whether to add value labels to each data point
-            figsize: Chart size, uses default if None
-            
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Add data labels
-        if add_data_labels:
-            try:
-                # Get lines and points for scatter plot
-                for line in ax.lines:
-                    # Get point coordinate data
-                    x_data: np.ndarray = line.get_xdata()  # noqa
-                    y_data: np.ndarray = line.get_ydata()  # noqa
-
-                    # Add value labels to each point
-                    for x, y in zip(x_data, y_data):
-                        # Add value label above the point
-                        ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
-            except Exception as e:
-                print(f"Error adding data labels to Accuracy: {e}")
-
-        fig.tight_layout()
-        return fig, ax
+        return self
 
 
-class MultilabelAccuracy(torchmetrics.classification.MultilabelAccuracy):
+@dataclass
+class MetricMultilabelAccuracy(MetricMultilabelStatScores, MetricTorchScalar):
     """
     Wrapper class for Accuracy metric, enhanced with additional plot control functionality.
     """
 
+    @override
+    def init_essentials(self) -> 'MetricMultilabelAccuracy':
+        self.metric = torchmetrics.classification.MultilabelStatScores(
+            num_labels=self.num_labels,
+            threshold=self.threshold,
+            average=self.average,
+            multidim_average=self.multidim_average,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
+
+
+class _BetterBinaryPrecisionRecallCurve(torchmetrics.classification.BinaryPrecisionRecallCurve):
+    """
+    Better implemented class for binary classification PrecisionRecallCurve metric, enhanced with additional plot control functionality.
+    """
+
+    def compute(self) -> tuple[Tensor, Tensor, Tensor]:
+        """Compute metric.
+        This wrapped implementation could align thresholds size with precision and recall,
+        ensuring they all have the same size (n_thresholds+1) and thresholds in decreasing order
+        to meet PRCurve left-to-right (x=recall) nature.
+        """
+        precision, recall, thresholds = super().compute()
+        # precision ↑ recall ↓ thresholds ↑
+        if thresholds.size(0) != precision.size(0) and thresholds.size(0) + 1 != precision.size(0):
+            raise ValueError('Can not manage size for thresholds')
+        # Cat redundant ones to align size [*thresh, 1.0]
+        thresholds = torch.cat([thresholds, torch.ones(1, dtype=thresholds.dtype, device=thresholds.device)])
+        # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+        precision = precision.flip(0)
+        recall = recall.flip(0)
+        thresholds = thresholds.flip(0)
+        return precision, recall, thresholds
+
     def plot(
             self,
             ax: Optional[Axes] = None,
             title: Optional[str] = None,
+            xlabel: Optional[str] = None,
             ylabel: Optional[str] = None,
-            add_data_labels: bool = True,
-            figsize: Optional[Tuple[int, int]] = None
+            score: bool = True,
+            figsize: Optional[Tuple[int, int]] = None,
+            grid_kwargs: Optional[Dict[str, Any]] = None
     ) -> Tuple[Figure, Axes]:
         """
-        Plot Accuracy metric with additional control options.
+        Plot binary classification Precision-Recall curve with additional control options.
 
         Args:
             ax: Optional matplotlib axes object, creates new if None
             title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
             ylabel: Y-axis label, uses default if None
-            add_data_labels: Whether to add value labels to each data point
+            score: Whether to display AP score
             figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
 
         Returns:
             Tuple[Figure, Axes]: Figure and axes objects
@@ -430,7 +548,7 @@ class MultilabelAccuracy(torchmetrics.classification.MultilabelAccuracy):
         # Call original plot method
         fig: Figure
         ax: Axes
-        fig, ax = super().plot(ax=ax)
+        fig, ax = super().plot(ax=ax, score=score)
 
         # Set figure size
         if figsize is not None:
@@ -440,219 +558,627 @@ class MultilabelAccuracy(torchmetrics.classification.MultilabelAccuracy):
         if title is not None:
             ax.set_title(title)
 
+        # Set x-axis label
+        if xlabel is not None:
+            ax.set_xlabel(xlabel)
+
         # Set y-axis label
         if ylabel is not None:
             ax.set_ylabel(ylabel)
 
-        # Add data labels
-        if add_data_labels:
-            try:
-                # Get lines and points for scatter plot
-                for line in ax.lines:
-                    # Get point coordinate data
-                    x_data: np.ndarray = line.get_xdata()  # noqa
-                    y_data: np.ndarray = line.get_ydata()  # noqa
-
-                    # Add value labels to each point
-                    for x, y in zip(x_data, y_data):
-                        # Add value label above the point
-                        ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
-            except Exception as e:
-                print(f"Error adding data labels to Accuracy: {e}")
+        # Set grid lines
+        if grid_kwargs is None:
+            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
+        ax.grid(**grid_kwargs)
 
         fig.tight_layout()
         return fig, ax
 
 
-class BinaryAUROC(torchmetrics.classification.BinaryAUROC):
+class _BetterMulticlassPrecisionRecallCurve(torchmetrics.classification.MulticlassPrecisionRecallCurve):
+    """
+    Better implemented class for multiclass PrecisionRecallCurve metric, enhanced with additional plot control functionality.
+    """
+
+    def compute(self) -> Union[tuple[Tensor, Tensor, Tensor], tuple[List[Tensor], List[Tensor], List[Tensor]]]:
+        """Compute metric.
+        This wrapped implementation could align thresholds size with precision and recall,
+        ensuring they all have the same size (n_thresholds+1) and thresholds in decreasing order
+        to meet PRCurve left-to-right (x=recall) nature.
+        """
+        # precision ↑ recall ↓ thresholds ↑
+        precision: Union[Tensor, List[Tensor]]
+        recall: Union[Tensor, List[Tensor]]
+        thresholds: Union[Tensor, List[Tensor]]
+        precision, recall, thresholds = super().compute()
+        if isinstance(precision, torch.Tensor):  # assume they are all Tensor(C,n_thresholds)
+            if thresholds.size(0) != precision.size(0) and thresholds.size(0) + 1 != recall.size(0):
+                raise ValueError('Can not manage size for thresholds')
+            # Cat redundant ones to align size [*thresh, 1.0]
+            thresholds: Tensor = torch.cat(
+                [thresholds, torch.ones(1, dtype=thresholds.dtype, device=thresholds.device)])
+            # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+            precision: Tensor = precision.flip(0)
+            recall: Tensor = recall.flip(0)
+            thresholds: Tensor = thresholds.flip(0)
+        else:  # assume they are all [C]*Tensor(n_thresholds[+1])
+            for idx in range(len(thresholds)):
+                prec: Tensor
+                rec: Tensor
+                thresh: Tensor
+                prec, rec, thresh = precision[idx], recall[idx], thresholds[idx]
+                if thresh.size(0) != prec.size(0) and thresh.size(0) + 1 != prec.size(0):
+                    raise ValueError('Can not manage size for thresholds')
+                # Cat redundant ones to align size [*thresh, 1.0]
+                thresh = torch.cat([thresh, torch.ones(1, dtype=thresh.dtype, device=thresh.device)])
+                # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+                precision[idx] = prec.flip(0)
+                recall[idx] = rec.flip(0)
+                thresholds[idx] = thresh.flip(0)
+        return precision, recall, thresholds
+
+    def plot(
+            self,
+            ax: Optional[Axes] = None,
+            title: Optional[str] = None,
+            xlabel: Optional[str] = None,
+            ylabel: Optional[str] = None,
+            score: bool = True,
+            figsize: Optional[Tuple[int, int]] = None,
+            grid_kwargs: Optional[Dict[str, Any]] = None,
+            legend_title: Optional[str] = "Classes"
+    ) -> Tuple[Figure, Axes]:
+        """
+        Plot Precision-Recall curve with additional control options.
+
+        Args:
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
+            ylabel: Y-axis label, uses default if None
+            score: Whether to display AP score
+            figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
+            legend_title: Legend title
+
+        Returns:
+            Tuple[Figure, Axes]: Figure and axes objects
+        """
+        # Call original plot method
+        fig: Figure
+        ax: Axes
+        fig, ax = super().plot(ax=ax, score=score)
+
+        # Set figure size
+        if figsize is not None:
+            fig.set_size_inches(figsize)
+
+        # Set title
+        if title is not None:
+            ax.set_title(title)
+
+        # Set x-axis label
+        if xlabel is not None:
+            ax.set_xlabel(xlabel)
+
+        # Set y-axis label
+        if ylabel is not None:
+            ax.set_ylabel(ylabel)
+
+        # Set grid lines
+        if grid_kwargs is None:
+            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
+        ax.grid(**grid_kwargs)
+
+        # Set legend title
+        if legend_title is not None and ax.get_legend():
+            ax.legend(title=legend_title)
+
+        fig.tight_layout()
+        return fig, ax
+
+
+class _BetterMultilabelPrecisionRecallCurve(torchmetrics.classification.MultilabelPrecisionRecallCurve):
+    """
+    Better implemented class for multilabel PrecisionRecallCurve metric, enhanced with additional plot control functionality.
+    """
+
+    def compute(self) -> Union[tuple[Tensor, Tensor, Tensor], tuple[List[Tensor], List[Tensor], List[Tensor]]]:
+        """Compute metric.
+        This wrapped implementation could align thresholds size with precision and recall,
+        ensuring they all have the same size (n_thresholds+1) and thresholds in decreasing order
+        to meet PRCurve left-to-right (x=recall) nature.
+        """
+        # precision ↑ recall ↓ thresholds ↑
+        precision: Union[Tensor, List[Tensor]]
+        recall: Union[Tensor, List[Tensor]]
+        thresholds: Union[Tensor, List[Tensor]]
+        precision, recall, thresholds = super().compute()
+        if isinstance(precision, torch.Tensor):  # assume they are all Tensor(C,n_thresholds)
+            if thresholds.size(0) != precision.size(0) and thresholds.size(0) + 1 != recall.size(0):
+                raise ValueError('Can not manage size for thresholds')
+            # Cat redundant ones to align size [*thresh, 1.0]
+            thresholds: Tensor = torch.cat(
+                [thresholds, torch.ones(1, dtype=thresholds.dtype, device=thresholds.device)])
+            # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+            precision: Tensor = precision.flip(0)
+            recall: Tensor = recall.flip(0)
+            thresholds: Tensor = thresholds.flip(0)
+        else:  # assume they are all [C]*Tensor(n_thresholds[+1])
+            for idx in range(len(thresholds)):
+                prec: Tensor
+                rec: Tensor
+                thresh: Tensor
+                prec, rec, thresh = precision[idx], recall[idx], thresholds[idx]
+                if thresh.size(0) != prec.size(0) and thresh.size(0) + 1 != prec.size(0):
+                    raise ValueError('Can not manage size for thresholds')
+                # Cat redundant ones to align size [*thresh, 1.0]
+                thresh = torch.cat([thresh, torch.ones(1, dtype=thresh.dtype, device=thresh.device)])
+                # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
+                precision[idx] = prec.flip(0)
+                recall[idx] = rec.flip(0)
+                thresholds[idx] = thresh.flip(0)
+        return precision, recall, thresholds
+
+    def plot(
+            self,
+            ax: Optional[Axes] = None,
+            title: Optional[str] = None,
+            xlabel: Optional[str] = None,
+            ylabel: Optional[str] = None,
+            score: bool = True,
+            figsize: Optional[Tuple[int, int]] = None,
+            grid_kwargs: Optional[Dict[str, Any]] = None,
+            legend_title: Optional[str] = "Classes"
+    ) -> Tuple[Figure, Axes]:
+        """
+        Plot Precision-Recall curve with additional control options.
+
+        Args:
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
+            ylabel: Y-axis label, uses default if None
+            score: Whether to display AP score
+            figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
+            legend_title: Legend title
+
+        Returns:
+            Tuple[Figure, Axes]: Figure and axes objects
+        """
+        # Call original plot method
+        fig: Figure
+        ax: Axes
+        fig, ax = super().plot(ax=ax, score=score)
+
+        # Set figure size
+        if figsize is not None:
+            fig.set_size_inches(figsize)
+
+        # Set title
+        if title is not None:
+            ax.set_title(title)
+
+        # Set x-axis label
+        if xlabel is not None:
+            ax.set_xlabel(xlabel)
+
+        # Set y-axis label
+        if ylabel is not None:
+            ax.set_ylabel(ylabel)
+
+        # Set grid lines
+        if grid_kwargs is None:
+            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
+        ax.grid(**grid_kwargs)
+
+        # Set legend title
+        if legend_title is not None and ax.get_legend():
+            ax.legend(title=legend_title)
+
+        fig.tight_layout()
+        return fig, ax
+
+
+class _BetterBinaryROC(torchmetrics.classification.BinaryROC):
+    """
+    Better implemented class for binary classification ROC metric, enhanced with additional plot control functionality.
+    """
+
+    def plot(
+            self,
+            ax: Optional[Axes] = None,
+            title: Optional[str] = None,
+            xlabel: Optional[str] = None,
+            ylabel: Optional[str] = None,
+            score: bool = True,
+            figsize: Optional[Tuple[int, int]] = None,
+            grid_kwargs: Optional[Dict[str, Any]] = None
+    ) -> Tuple[Figure, Axes]:
+        """
+        Plot binary classification ROC curve with additional control options.
+
+        Args:
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
+            ylabel: Y-axis label, uses default if None
+            score: Whether to display AUROC score
+            figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
+
+        Returns:
+            Tuple[Figure, Axes]: Figure and axes objects
+        """
+        # Call original plot method
+        fig: Figure
+        ax: Axes
+        fig, ax = super().plot(ax=ax, score=score)
+
+        # Set figure size
+        if figsize is not None:
+            fig.set_size_inches(figsize)
+
+        # Set title
+        if title is not None:
+            ax.set_title(title)
+
+        # Set x-axis label
+        if xlabel is not None:
+            ax.set_xlabel(xlabel)
+
+        # Set y-axis label
+        if ylabel is not None:
+            ax.set_ylabel(ylabel)
+
+        # Set grid lines
+        if grid_kwargs is None:
+            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
+        ax.grid(**grid_kwargs)
+
+        fig.tight_layout()
+        return fig, ax
+
+
+class _BetterMulticlassROC(torchmetrics.classification.MulticlassROC):
+    """
+    Better implemented class for multiclass ROC metric, enhanced with additional plot control functionality.
+    """
+
+    def plot(
+            self,
+            ax: Optional[Axes] = None,
+            title: Optional[str] = None,
+            xlabel: Optional[str] = None,
+            ylabel: Optional[str] = None,
+            score: bool = True,
+            figsize: Optional[Tuple[int, int]] = None,
+            grid_kwargs: Optional[Dict[str, Any]] = None,
+            legend_title: Optional[str] = "Classes"
+    ) -> Tuple[Figure, Axes]:
+        """
+        Plot ROC curve with additional control options.
+
+        Args:
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
+            ylabel: Y-axis label, uses default if None
+            score: Whether to display AUROC score
+            figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
+            legend_title: Legend title
+
+        Returns:
+            Tuple[Figure, Axes]: Figure and axes objects
+        """
+        # Call original plot method
+        fig: Figure
+        ax: Axes
+        fig, ax = super().plot(ax=ax, score=score)
+
+        # Set figure size
+        if figsize is not None:
+            fig.set_size_inches(figsize)
+
+        # Set title
+        if title is not None:
+            ax.set_title(title)
+
+        # Set x-axis label
+        if xlabel is not None:
+            ax.set_xlabel(xlabel)
+
+        # Set y-axis label
+        if ylabel is not None:
+            ax.set_ylabel(ylabel)
+
+        # Set grid lines
+        if grid_kwargs is None:
+            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
+        ax.grid(**grid_kwargs)
+
+        # Set legend title
+        if legend_title is not None and ax.get_legend():
+            ax.legend(title=legend_title)
+
+        fig.tight_layout()
+        return fig, ax
+
+
+class _BetterMultilabelROC(torchmetrics.classification.MultilabelROC):
+    """
+    Better implemented class for multilabel ROC metric, enhanced with additional plot control functionality.
+    """
+
+    def plot(
+            self,
+            ax: Optional[Axes] = None,
+            title: Optional[str] = None,
+            xlabel: Optional[str] = None,
+            ylabel: Optional[str] = None,
+            score: bool = True,
+            figsize: Optional[Tuple[int, int]] = None,
+            grid_kwargs: Optional[Dict[str, Any]] = None,
+            legend_title: Optional[str] = "Classes"
+    ) -> Tuple[Figure, Axes]:
+        """
+        Plot ROC curve with additional control options.
+
+        Args:
+            ax: Optional matplotlib axes object, creates new if None
+            title: Chart title, uses default if None
+            xlabel: X-axis label, uses default if None
+            ylabel: Y-axis label, uses default if None
+            score: Whether to display AUROC score
+            figsize: Chart size, uses default if None
+            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
+            legend_title: Legend title
+
+        Returns:
+            Tuple[Figure, Axes]: Figure and axes objects
+        """
+        # Call original plot method
+        fig: Figure
+        ax: Axes
+        fig, ax = super().plot(ax=ax, score=score)
+
+        # Set figure size
+        if figsize is not None:
+            fig.set_size_inches(figsize)
+
+        # Set title
+        if title is not None:
+            ax.set_title(title)
+
+        # Set x-axis label
+        if xlabel is not None:
+            ax.set_xlabel(xlabel)
+
+        # Set y-axis label
+        if ylabel is not None:
+            ax.set_ylabel(ylabel)
+
+        # Set grid lines
+        if grid_kwargs is None:
+            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
+        ax.grid(**grid_kwargs)
+
+        # Set legend title
+        if legend_title is not None and ax.get_legend():
+            ax.legend(title=legend_title)
+
+        fig.tight_layout()
+        return fig, ax
+
+
+@dataclass
+class MetricBinaryPrecisionRecallCurve(MetricTorch):
+    """
+    Wrapper class for binary classification PrecisionRecallCurve metric, enhanced with additional plot control functionality.
+    """
+    thresholds: Optional[Union[int, List[float], Tensor]] = None
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    normalization: Optional[Literal["sigmoid", "softmax"]] = "sigmoid"
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    @override
+    def init_essentials(self) -> 'MetricBinaryPrecisionRecallCurve':
+        self.metric = _BetterBinaryPrecisionRecallCurve(
+            thresholds=self.thresholds,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            normalization=self.normalization,
+            **self.kwargs
+        )
+        return self
+
+
+@dataclass
+class MetricMulticlassPrecisionRecallCurve(MetricTorch):
+    """
+    Wrapper class for multiclass PrecisionRecallCurve metric, enhanced with additional plot control functionality.
+    """
+    num_classes: int = 2
+    thresholds: Optional[Union[int, List[float], Tensor]] = None
+    average: Optional[Literal["micro", "macro"]] = None
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    @override
+    def init_essentials(self) -> 'MetricMulticlassPrecisionRecallCurve':
+        self.metric = _BetterMulticlassPrecisionRecallCurve(
+            num_classes=self.num_classes,
+            thresholds=self.thresholds,
+            average=self.average,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
+
+
+@dataclass
+class MetricMultilabelPrecisionRecallCurve(MetricTorch):
+    """
+    Wrapper class for multilabel PrecisionRecallCurve metric, enhanced with additional plot control functionality.
+    """
+    num_labels: int = 2
+    thresholds: Optional[Union[int, List[float], Tensor]] = None
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    @override
+    def init_essentials(self) -> 'MetricMultilabelPrecisionRecallCurve':
+        self.metric = _BetterMultilabelPrecisionRecallCurve(
+            num_labels=self.num_labels,
+            thresholds=self.thresholds,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
+
+
+@dataclass
+class MetricBinaryROC(MetricTorch):
+    """
+    Wrapper class for binary classification ROC metric, enhanced with additional plot control functionality.
+    """
+    thresholds: Optional[Union[int, List[float], Tensor]] = None
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    normalization: Optional[Literal["sigmoid", "softmax"]] = "sigmoid"
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    @override
+    def init_essentials(self) -> 'MetricBinaryROC':
+        self.metric = _BetterBinaryROC(
+            thresholds=self.thresholds,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            normalization=self.normalization,
+            **self.kwargs
+        )
+        return self
+
+
+@dataclass
+class MetricMulticlassROC(MetricTorch):
+    """
+    Wrapper class for multiclass ROC metric, enhanced with additional plot control functionality.
+    """
+    num_classes: int = 2
+    thresholds: Optional[Union[int, List[float], Tensor]] = None
+    average: Optional[Literal["micro", "macro"]] = None
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    @override
+    def init_essentials(self) -> 'MetricMulticlassROC':
+        self.metric = _BetterMulticlassROC(
+            num_classes=self.num_classes,
+            thresholds=self.thresholds,
+            average=self.average,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
+
+
+@dataclass
+class MetricMultilabelROC(MetricTorch):
+    """
+    Wrapper class for multilabel ROC metric, enhanced with additional plot control functionality.
+    """
+    num_labels: int = 2
+    thresholds: Optional[Union[int, List[float], Tensor]] = None
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    @override
+    def init_essentials(self) -> 'MetricMultilabelROC':
+        self.metric = _BetterMultilabelROC(
+            num_labels=self.num_labels,
+            thresholds=self.thresholds,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
+
+
+@dataclass
+class MetricBinaryAUROC(MetricBinaryROC, MetricTorchScalar):
     """
     Wrapper class for AUROC metric, enhanced with additional plot control functionality.
     """
+    max_fpr: Optional[float] = None
+    thresholds: Optional[Union[int, list[float], Tensor]] = None
+    ignore_index: Optional[int] = None
+    validate_args: bool = True
+    kwargs: Dict[str, Any] = field(default_factory=dict)
 
-    def plot(
-            self,
-            ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            add_data_labels: bool = True,
-            figsize: Optional[Tuple[int, int]] = None
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot AUROC metric with additional control options.
-
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            ylabel: Y-axis label, uses default if None
-            add_data_labels: Whether to add value labels to each data point
-            figsize: Chart size, uses default if None
-
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Add data labels
-        if add_data_labels:
-            try:
-                # Get lines and points for scatter plot
-                for line in ax.lines:
-                    # Get point coordinate data
-                    x_data: np.ndarray = line.get_xdata()  # noqa
-                    y_data: np.ndarray = line.get_ydata()  # noqa
-
-                    # Add value labels to each point
-                    for x, y in zip(x_data, y_data):
-                        # Add value label above the point
-                        ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
-            except Exception as e:
-                print(f"Error adding data labels to AUROC: {e}")
-
-        fig.tight_layout()
-        return fig, ax
+    @override
+    def init_essentials(self) -> 'MetricBinaryAUROC':
+        self.metric = torchmetrics.classification.BinaryAUROC(
+            max_fpr=self.max_fpr,
+            thresholds=self.thresholds,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
 
 
-class MulticlassAUROC(torchmetrics.classification.MulticlassAUROC):
+@dataclass
+class MetricMulticlassAUROC(MetricMulticlassROC, MetricTorchScalar):
     """
-    Wrapper class for AUROC metric, enhanced with additional plot control functionality.
+    Wrapper class for multiclass AUROC metric, enhanced with additional plot control functionality.
     """
+    average: Optional[Literal["macro", "weighted", "none"]] = "macro"
 
-    def plot(
-            self,
-            ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            add_data_labels: bool = True,
-            figsize: Optional[Tuple[int, int]] = None
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot AUROC metric with additional control options.
-
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            ylabel: Y-axis label, uses default if None
-            add_data_labels: Whether to add value labels to each data point
-            figsize: Chart size, uses default if None
-
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Add data labels
-        if add_data_labels:
-            try:
-                # Get lines and points for scatter plot
-                for line in ax.lines:
-                    # Get point coordinate data
-                    x_data: np.ndarray = line.get_xdata()  # noqa
-                    y_data: np.ndarray = line.get_ydata()  # noqa
-
-                    # Add value labels to each point
-                    for x, y in zip(x_data, y_data):
-                        # Add value label above the point
-                        ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
-            except Exception as e:
-                print(f"Error adding data labels to AveragePrecision: {e}")
-
-        fig.tight_layout()
-        return fig, ax
+    @override
+    def init_essentials(self) -> 'MetricMulticlassAUROC':
+        self.metric = torchmetrics.classification.MulticlassAUROC(
+            num_classes=self.num_classes,
+            average=self.average,
+            thresholds=self.thresholds,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
 
 
-class MultilabelAUROC(torchmetrics.classification.MultilabelAUROC):
+@dataclass
+class MetricMultilabelAUROC(MetricMultilabelROC, MetricTorchScalar):
     """
-    Wrapper class for AUROC metric, enhanced with additional plot control functionality.
+    Wrapper class for multilable AUROC metric, enhanced with additional plot control functionality.
     """
+    average: Optional[Literal["macro", "weighted", "none"]] = "macro"
 
-    def plot(
-            self,
-            ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            add_data_labels: bool = True,
-            figsize: Optional[Tuple[int, int]] = None
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot AUROC metric with additional control options.
-
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            ylabel: Y-axis label, uses default if None
-            add_data_labels: Whether to add value labels to each data point
-            figsize: Chart size, uses default if None
-
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Add data labels
-        if add_data_labels:
-            try:
-                # Get lines and points for scatter plot
-                for line in ax.lines:
-                    # Get point coordinate data
-                    x_data: np.ndarray = line.get_xdata()  # noqa
-                    y_data: np.ndarray = line.get_ydata()  # noqa
-
-                    # Add value labels to each point
-                    for x, y in zip(x_data, y_data):
-                        # Add value label above the point
-                        ax.text(x, y + 0.01, f'{y:.3f}', ha='center', va='bottom', fontsize=9)
-            except Exception as e:
-                print(f"Error adding data labels to AveragePrecision: {e}")
-
-        fig.tight_layout()
-        return fig, ax
+    @override
+    def init_essentials(self) -> 'MetricMultilabelAUROC':
+        self.metric = torchmetrics.classification.MultilabelAUROC(
+            num_labels=self.num_labels,
+            average=self.average,
+            thresholds=self.thresholds,
+            ignore_index=self.ignore_index,
+            validate_args=self.validate_args,
+            **self.kwargs
+        )
+        return self
 
 
+# TODO
 class BinaryAveragePrecision(torchmetrics.classification.BinaryAveragePrecision):
     """
     Wrapper class for binary classification AveragePrecision metric, enhanced with additional plot control functionality.
@@ -1419,290 +1945,6 @@ class MultilabelPrecision(torchmetrics.classification.MultilabelPrecision):
         return fig, ax
 
 
-class BinaryPrecisionRecallCurve(torchmetrics.classification.BinaryPrecisionRecallCurve):
-    """
-    Wrapper class for binary classification PrecisionRecallCurve metric, enhanced with additional plot control functionality.
-    """
-
-    def compute(self) -> tuple[Tensor, Tensor, Tensor]:
-        """Compute metric.
-        This wrapped implementation could align thresholds size with precision and recall,
-        ensuring they all have the same size (n_thresholds+1) and thresholds in decreasing order
-        to meet PRCurve left-to-right (x=recall) nature.
-        """
-        precision, recall, thresholds = super().compute()
-        # precision ↑ recall ↓ thresholds ↑
-        if thresholds.size(0) != precision.size(0) and thresholds.size(0) + 1 != precision.size(0):
-            raise ValueError('Can not manage size for thresholds')
-        # Cat redundant ones to align size [*thresh, 1.0]
-        thresholds = torch.cat([thresholds, torch.ones(1, dtype=thresholds.dtype, device=thresholds.device)])
-        # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
-        precision = precision.flip(0)
-        recall = recall.flip(0)
-        thresholds = thresholds.flip(0)
-        return precision, recall, thresholds
-
-    def plot(
-            self,
-            ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            xlabel: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            score: bool = True,
-            figsize: Optional[Tuple[int, int]] = None,
-            grid_kwargs: Optional[Dict[str, Any]] = None
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot binary classification Precision-Recall curve with additional control options.
-        
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            xlabel: X-axis label, uses default if None
-            ylabel: Y-axis label, uses default if None
-            score: Whether to display AP score
-            figsize: Chart size, uses default if None
-            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
-            
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax, score=score)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set x-axis label
-        if xlabel is not None:
-            ax.set_xlabel(xlabel)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Set grid lines
-        if grid_kwargs is None:
-            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
-        ax.grid(**grid_kwargs)
-
-        fig.tight_layout()
-        return fig, ax
-
-
-class MulticlassPrecisionRecallCurve(torchmetrics.classification.MulticlassPrecisionRecallCurve):
-    """
-    Wrapper class for PrecisionRecallCurve metric, enhanced with additional plot control functionality.
-    """
-
-    def compute(self) -> Union[tuple[Tensor, Tensor, Tensor], tuple[List[Tensor], List[Tensor], List[Tensor]]]:
-        """Compute metric.
-        This wrapped implementation could align thresholds size with precision and recall,
-        ensuring they all have the same size (n_thresholds+1) and thresholds in decreasing order
-        to meet PRCurve left-to-right (x=recall) nature.
-        """
-        # precision ↑ recall ↓ thresholds ↑
-        precision: Union[Tensor, List[Tensor]]
-        recall: Union[Tensor, List[Tensor]]
-        thresholds: Union[Tensor, List[Tensor]]
-        precision, recall, thresholds = super().compute()
-        if isinstance(precision, torch.Tensor):  # assume they are all Tensor(C,n_thresholds)
-            if thresholds.size(0) != precision.size(0) and thresholds.size(0) + 1 != recall.size(0):
-                raise ValueError('Can not manage size for thresholds')
-            # Cat redundant ones to align size [*thresh, 1.0]
-            thresholds: Tensor = torch.cat(
-                [thresholds, torch.ones(1, dtype=thresholds.dtype, device=thresholds.device)])
-            # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
-            precision: Tensor = precision.flip(0)
-            recall: Tensor = recall.flip(0)
-            thresholds: Tensor = thresholds.flip(0)
-        else:  # assume they are all [C]*Tensor(n_thresholds[+1])
-            for idx in range(len(thresholds)):
-                prec: Tensor
-                rec: Tensor
-                thresh: Tensor
-                prec, rec, thresh = precision[idx], recall[idx], thresholds[idx]
-                if thresh.size(0) != prec.size(0) and thresh.size(0) + 1 != prec.size(0):
-                    raise ValueError('Can not manage size for thresholds')
-                # Cat redundant ones to align size [*thresh, 1.0]
-                thresh = torch.cat([thresh, torch.ones(1, dtype=thresh.dtype, device=thresh.device)])
-                # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
-                precision[idx] = prec.flip(0)
-                recall[idx] = rec.flip(0)
-                thresholds[idx] = thresh.flip(0)
-        return precision, recall, thresholds
-
-    def plot(
-            self,
-            ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            xlabel: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            score: bool = True,
-            figsize: Optional[Tuple[int, int]] = None,
-            grid_kwargs: Optional[Dict[str, Any]] = None,
-            legend_title: Optional[str] = "Classes"
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot Precision-Recall curve with additional control options.
-        
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            xlabel: X-axis label, uses default if None
-            ylabel: Y-axis label, uses default if None
-            score: Whether to display AP score
-            figsize: Chart size, uses default if None
-            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
-            legend_title: Legend title
-            
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax, score=score)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set x-axis label
-        if xlabel is not None:
-            ax.set_xlabel(xlabel)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Set grid lines
-        if grid_kwargs is None:
-            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
-        ax.grid(**grid_kwargs)
-
-        # Set legend title
-        if legend_title is not None and ax.get_legend():
-            ax.legend(title=legend_title)
-
-        fig.tight_layout()
-        return fig, ax
-
-
-class MultilabelPrecisionRecallCurve(torchmetrics.classification.MultilabelPrecisionRecallCurve):
-    """
-    Wrapper class for PrecisionRecallCurve metric, enhanced with additional plot control functionality.
-    """
-
-    def compute(self) -> Union[tuple[Tensor, Tensor, Tensor], tuple[List[Tensor], List[Tensor], List[Tensor]]]:
-        """Compute metric.
-        This wrapped implementation could align thresholds size with precision and recall,
-        ensuring they all have the same size (n_thresholds+1) and thresholds in decreasing order
-        to meet PRCurve left-to-right (x=recall) nature.
-        """
-        # precision ↑ recall ↓ thresholds ↑
-        precision: Union[Tensor, List[Tensor]]
-        recall: Union[Tensor, List[Tensor]]
-        thresholds: Union[Tensor, List[Tensor]]
-        precision, recall, thresholds = super().compute()
-        if isinstance(precision, torch.Tensor):  # assume they are all Tensor(C,n_thresholds)
-            if thresholds.size(0) != precision.size(0) and thresholds.size(0) + 1 != recall.size(0):
-                raise ValueError('Can not manage size for thresholds')
-            # Cat redundant ones to align size [*thresh, 1.0]
-            thresholds: Tensor = torch.cat(
-                [thresholds, torch.ones(1, dtype=thresholds.dtype, device=thresholds.device)])
-            # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
-            precision: Tensor = precision.flip(0)
-            recall: Tensor = recall.flip(0)
-            thresholds: Tensor = thresholds.flip(0)
-        else:  # assume they are all [C]*Tensor(n_thresholds[+1])
-            for idx in range(len(thresholds)):
-                prec: Tensor
-                rec: Tensor
-                thresh: Tensor
-                prec, rec, thresh = precision[idx], recall[idx], thresholds[idx]
-                if thresh.size(0) != prec.size(0) and thresh.size(0) + 1 != prec.size(0):
-                    raise ValueError('Can not manage size for thresholds')
-                # Cat redundant ones to align size [*thresh, 1.0]
-                thresh = torch.cat([thresh, torch.ones(1, dtype=thresh.dtype, device=thresh.device)])
-                # Flip all metrics, now precision ↓ recall ↑ thresholds ↓
-                precision[idx] = prec.flip(0)
-                recall[idx] = rec.flip(0)
-                thresholds[idx] = thresh.flip(0)
-        return precision, recall, thresholds
-
-    def plot(
-            self,
-            ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            xlabel: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            score: bool = True,
-            figsize: Optional[Tuple[int, int]] = None,
-            grid_kwargs: Optional[Dict[str, Any]] = None,
-            legend_title: Optional[str] = "Classes"
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot Precision-Recall curve with additional control options.
-
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            xlabel: X-axis label, uses default if None
-            ylabel: Y-axis label, uses default if None
-            score: Whether to display AP score
-            figsize: Chart size, uses default if None
-            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
-            legend_title: Legend title
-
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax, score=score)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set x-axis label
-        if xlabel is not None:
-            ax.set_xlabel(xlabel)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Set grid lines
-        if grid_kwargs is None:
-            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
-        ax.grid(**grid_kwargs)
-
-        # Set legend title
-        if legend_title is not None and ax.get_legend():
-            ax.legend(title=legend_title)
-
-        fig.tight_layout()
-        return fig, ax
-
-
 class BinaryRecall(torchmetrics.classification.BinaryRecall):
     """
     Wrapper class for binary classification Recall metric, enhanced with additional plot control functionality.
@@ -2081,208 +2323,24 @@ class MultilabelSpecificity(torchmetrics.classification.MultilabelSpecificity):
         return fig, ax
 
 
-class BinaryROC(torchmetrics.classification.BinaryROC):
-    """
-    Wrapper class for binary classification ROC metric, enhanced with additional plot control functionality.
-    """
-
-    def plot(
-            self,
-            ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            xlabel: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            score: bool = True,
-            figsize: Optional[Tuple[int, int]] = None,
-            grid_kwargs: Optional[Dict[str, Any]] = None
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot binary classification ROC curve with additional control options.
-        
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            xlabel: X-axis label, uses default if None
-            ylabel: Y-axis label, uses default if None
-            score: Whether to display AUROC score
-            figsize: Chart size, uses default if None
-            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
-            
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax, score=score)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set x-axis label
-        if xlabel is not None:
-            ax.set_xlabel(xlabel)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Set grid lines
-        if grid_kwargs is None:
-            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
-        ax.grid(**grid_kwargs)
-
-        fig.tight_layout()
-        return fig, ax
-
-
-class MulticlassROC(torchmetrics.classification.MulticlassROC):
-    """
-    Wrapper class for ROC metric, enhanced with additional plot control functionality.
-    """
-
-    def plot(
-            self, ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            xlabel: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            score: bool = True,
-            figsize: Optional[Tuple[int, int]] = None,
-            grid_kwargs: Optional[Dict[str, Any]] = None,
-            legend_title: Optional[str] = "Classes"
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot ROC curve with additional control options.
-        
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            xlabel: X-axis label, uses default if None
-            ylabel: Y-axis label, uses default if None
-            score: Whether to display AUROC score
-            figsize: Chart size, uses default if None
-            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
-            legend_title: Legend title
-            
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax, score=score)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set x-axis label
-        if xlabel is not None:
-            ax.set_xlabel(xlabel)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Set grid lines
-        if grid_kwargs is None:
-            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
-        ax.grid(**grid_kwargs)
-
-        # Set legend title
-        if legend_title is not None and ax.get_legend():
-            ax.legend(title=legend_title)
-
-        fig.tight_layout()
-        return fig, ax
-
-
-class MultilabelROC(torchmetrics.classification.MultilabelROC):
-    """
-    Wrapper class for ROC metric, enhanced with additional plot control functionality.
-    """
-
-    def plot(
-            self, ax: Optional[Axes] = None,
-            title: Optional[str] = None,
-            xlabel: Optional[str] = None,
-            ylabel: Optional[str] = None,
-            score: bool = True,
-            figsize: Optional[Tuple[int, int]] = None,
-            grid_kwargs: Optional[Dict[str, Any]] = None,
-            legend_title: Optional[str] = "Classes"
-    ) -> Tuple[Figure, Axes]:
-        """
-        Plot ROC curve with additional control options.
-
-        Args:
-            ax: Optional matplotlib axes object, creates new if None
-            title: Chart title, uses default if None
-            xlabel: X-axis label, uses default if None
-            ylabel: Y-axis label, uses default if None
-            score: Whether to display AUROC score
-            figsize: Chart size, uses default if None
-            grid_kwargs: Dictionary of parameters passed to ax.grid function, uses default if None
-            legend_title: Legend title
-
-        Returns:
-            Tuple[Figure, Axes]: Figure and axes objects
-        """
-        # Call original plot method
-        fig: Figure
-        ax: Axes
-        fig, ax = super().plot(ax=ax, score=score)
-
-        # Set figure size
-        if figsize is not None:
-            fig.set_size_inches(figsize)
-
-        # Set title
-        if title is not None:
-            ax.set_title(title)
-
-        # Set x-axis label
-        if xlabel is not None:
-            ax.set_xlabel(xlabel)
-
-        # Set y-axis label
-        if ylabel is not None:
-            ax.set_ylabel(ylabel)
-
-        # Set grid lines
-        if grid_kwargs is None:
-            grid_kwargs = {'visible': True, 'linestyle': '--', 'alpha': 0.7}
-        ax.grid(**grid_kwargs)
-
-        # Set legend title
-        if legend_title is not None and ax.get_legend():
-            ax.legend(title=legend_title)
-
-        fig.tight_layout()
-        return fig, ax
-
-
 # endregion
 
 # region Torchmetrics Alias
-BSS = BinaryStatScores
-MCSS = MulticlassStatScores
-MLSS = MultilabelStatScores
-BACC = BinaryAccuracy
-MCACC = MulticlassAccuracy
-MLACC = MultilabelAccuracy
-BAUROC = BinaryAUROC
-MCAUROC = MulticlassAUROC
-MLAUROC = MultilabelAUROC
+BSS = MetricBinaryStatScores
+MCSS = MetricMulticlassStatScores
+MLSS = MetricMultilabelStatScores
+BACC = MetricBinaryAccuracy
+MCACC = MetricMulticlassAccuracy
+MLACC = MetricMultilabelAccuracy
+BPRC = MetricBinaryPrecisionRecallCurve
+MCPRC = MetricMulticlassPrecisionRecallCurve
+MLPRC = MetricMultilabelPrecisionRecallCurve
+BROC = MetricBinaryROC
+MCROC = MetricMulticlassROC
+MLROC = MetricMultilabelROC
+BAUROC = MetricBinaryAUROC
+MCAUROC = MetricMulticlassAUROC
+MLAUROC = MetricMultilabelAUROC
 BAP = BinaryAveragePrecision
 MCAP = MulticlassAveragePrecision
 MLAP = MultilabelAveragePrecision
@@ -2295,18 +2353,12 @@ MLF1 = MultilabelF1Score
 BPREC = BinaryPrecision
 MCPREC = MulticlassPrecision
 MLPREC = MultilabelPrecision
-BPRC = BinaryPrecisionRecallCurve
-MCPRC = MulticlassPrecisionRecallCurve
-MLPRC = MultilabelPrecisionRecallCurve
 BREC = BinaryRecall
 MCRECALL = MulticlassRecall
 MLREC = MultilabelRecall
 BSPE = BinarySpecificity
 MCSPEC = MulticlassSpecificity
 MLSPE = MultilabelSpecificity
-BROC = BinaryROC
-MCROC = MulticlassROC
-MLROC = MultilabelROC
 # endregion
 
 

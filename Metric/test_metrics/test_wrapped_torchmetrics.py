@@ -22,17 +22,17 @@ import numpy.typing as npt
 # Import wrapped classes from metric_configurer
 from Metric.metric_configurer import (
     # Multiclass metrics
-    MulticlassAccuracy, MulticlassAUROC, MulticlassAveragePrecision, MulticlassConfusionMatrix,
-    MulticlassF1Score, MulticlassPrecision, MulticlassPrecisionRecallCurve, MulticlassRecall,
-    MulticlassSpecificity, MulticlassROC,
+    MetricMulticlassAccuracy, MulticlassAUROC, MulticlassAveragePrecision, MulticlassConfusionMatrix,
+    MulticlassF1Score, MulticlassPrecision, MetricMulticlassPrecisionRecallCurve, MulticlassRecall,
+    MulticlassSpecificity, MetricMulticlassROC,
     # Binary metrics
-    BinaryAccuracy, BinaryAUROC, BinaryAveragePrecision, BinaryConfusionMatrix,
-    BinaryF1Score, BinaryPrecision, BinaryPrecisionRecallCurve, BinaryRecall,
-    BinarySpecificity, BinaryROC,
+    MetricBinaryAccuracy, MetricBinaryAUROC, BinaryAveragePrecision, BinaryConfusionMatrix,
+    BinaryF1Score, BinaryPrecision, MetricBinaryPrecisionRecallCurve, BinaryRecall,
+    BinarySpecificity, MetricBinaryROC,
     # Multilabel metrics
-    MultilabelAccuracy, MultilabelAUROC, MultilabelAveragePrecision, MultilabelConfusionMatrix,
-    MultilabelF1Score, MultilabelPrecision, MultilabelPrecisionRecallCurve, MultilabelRecall,
-    MultilabelSpecificity, MultilabelROC,
+    MetricMultilabelAccuracy, MultilabelAUROC, MultilabelAveragePrecision, MultilabelConfusionMatrix,
+    MultilabelF1Score, MultilabelPrecision, _BetterMultilabelPrecisionRecallCurve, MultilabelRecall,
+    MultilabelSpecificity, MetricMultilabelROC,
     # Assert functions
     assert_input_torchmetrics
 )
@@ -320,15 +320,15 @@ def compute_binary_metrics(y_true: torch.Tensor, y_pred_probs: torch.Tensor) -> 
     y_pred: torch.Tensor = (y_pred_probs >= 0.5).long()
 
     # Initialize binary classification metric calculators
-    accuracy = BinaryAccuracy().to(device)
-    auroc = BinaryAUROC().to(device)
+    accuracy = MetricBinaryAccuracy().to(device)
+    auroc = MetricBinaryAUROC().to(device)
     average_precision = BinaryAveragePrecision().to(device)
     conf_matrix = BinaryConfusionMatrix().to(device)
     f1_score = BinaryF1Score().to(device)
-    prc = BinaryPrecisionRecallCurve().to(device)
+    prc = MetricBinaryPrecisionRecallCurve().to(device)
     precision = BinaryPrecision().to(device)
     recall = BinaryRecall().to(device)
-    roc = BinaryROC().to(device)
+    roc = MetricBinaryROC().to(device)
     specificity = BinarySpecificity().to(device)
 
     # Calculate metric values
@@ -405,15 +405,15 @@ def compute_multiclass_metrics(y_true: torch.Tensor, y_pred_probs: torch.Tensor,
     y_pred: torch.Tensor = y_pred_probs.argmax(dim=1)
 
     # Initialize metric calculators - overall metrics (macro average but for Acc)
-    accuracy = MulticlassAccuracy(num_classes=num_classes).to(device)
+    accuracy = MetricMulticlassAccuracy(num_classes=num_classes).to(device)
     auroc = MulticlassAUROC(num_classes=num_classes).to(device)
     average_precision = MulticlassAveragePrecision(num_classes=num_classes).to(device)
     conf_matrix = MulticlassConfusionMatrix(num_classes=num_classes).to(device)
     f1_score = MulticlassF1Score(num_classes=num_classes).to(device)
-    prc = MulticlassPrecisionRecallCurve(num_classes=num_classes).to(device)
+    prc = MetricMulticlassPrecisionRecallCurve(num_classes=num_classes).to(device)
     precision = MulticlassPrecision(num_classes=num_classes).to(device)
     recall = MulticlassRecall(num_classes=num_classes).to(device)
-    roc = MulticlassROC(num_classes=num_classes).to(device)
+    roc = MetricMulticlassROC(num_classes=num_classes).to(device)
     specificity = MulticlassSpecificity(num_classes=num_classes).to(device)
 
     # Initialize per-class metric calculators
@@ -519,19 +519,19 @@ def compute_multilabel_metrics(y_true: torch.Tensor, y_pred_probs: torch.Tensor,
     y_pred: torch.Tensor = (y_pred_probs >= 0.5).float()
 
     # Initialize metric calculators - overall metrics (macro average)
-    accuracy = MultilabelAccuracy(num_labels=num_labels).to(device)
+    accuracy = MetricMultilabelAccuracy(num_labels=num_labels).to(device)
     auroc = MultilabelAUROC(num_labels=num_labels).to(device)
     average_precision = MultilabelAveragePrecision(num_labels=num_labels).to(device)
     conf_matrix = MultilabelConfusionMatrix(num_labels=num_labels).to(device)
     f1_score = MultilabelF1Score(num_labels=num_labels).to(device)
-    prc = MultilabelPrecisionRecallCurve(num_labels=num_labels).to(device)
+    prc = _BetterMultilabelPrecisionRecallCurve(num_labels=num_labels).to(device)
     precision = MultilabelPrecision(num_labels=num_labels).to(device)
     recall = MultilabelRecall(num_labels=num_labels).to(device)
-    roc = MultilabelROC(num_labels=num_labels).to(device)
+    roc = MetricMultilabelROC(num_labels=num_labels).to(device)
     specificity = MultilabelSpecificity(num_labels=num_labels).to(device)
 
     # Initialize per-class metric calculators
-    class_accuracy = MultilabelAccuracy(num_labels=num_labels, average=None).to(device)
+    class_accuracy = MetricMultilabelAccuracy(num_labels=num_labels, average=None).to(device)
     class_auroc = MultilabelAUROC(num_labels=num_labels, average=None).to(device)
     class_average_precision = MultilabelAveragePrecision(num_labels=num_labels, average=None).to(device)
     class_f1_score = MultilabelF1Score(num_labels=num_labels, average=None).to(device)
@@ -1081,7 +1081,7 @@ def plot_binary_metrics_with_wrapped_metrics(metrics: Dict[str, Any], save_dir: 
 
     # Use wrapped class plot method to draw ROC curve
     try:
-        roc: BinaryROC = metrics['roc']
+        roc: MetricBinaryROC = metrics['roc']
         fig, ax = roc.plot(
             score=True,
             title='Binary ROC Curve',
@@ -1099,7 +1099,7 @@ def plot_binary_metrics_with_wrapped_metrics(metrics: Dict[str, Any], save_dir: 
 
     # Use wrapped class plot method to draw PR curve
     try:
-        prc: BinaryPrecisionRecallCurve = metrics['prc']
+        prc: MetricBinaryPrecisionRecallCurve = metrics['prc']
         fig, ax = prc.plot(
             score=True,
             title='Binary Precision-Recall Curve',
@@ -1231,7 +1231,7 @@ def plot_multiclass_metrics_with_wrapped_metrics(metrics: Dict[str, Any], save_d
 
     # Use wrapped class plot method to draw ROC curve, utilizing grid_kwargs parameter
     try:
-        roc: MulticlassROC = metrics['roc']
+        roc: MetricMulticlassROC = metrics['roc']
         fig, ax = roc.plot(
             score=True,
             title='ROC Curve',
@@ -1250,7 +1250,7 @@ def plot_multiclass_metrics_with_wrapped_metrics(metrics: Dict[str, Any], save_d
 
     # Use wrapped class plot method to draw PR curve, utilizing grid_kwargs parameter
     try:
-        prc: MulticlassPrecisionRecallCurve = metrics['prc']
+        prc: MetricMulticlassPrecisionRecallCurve = metrics['prc']
         fig, ax = prc.plot(
             score=True,
             title='Precision-Recall Curve',
@@ -1373,7 +1373,7 @@ def plot_multilabel_metrics_with_wrapped_metrics(metrics: Dict[str, Any], save_d
 
     # Use wrapped class plot method to draw ROC curve, utilizing grid_kwargs parameter
     try:
-        roc: MultilabelROC = metrics['roc']
+        roc: MetricMultilabelROC = metrics['roc']
         fig, ax = roc.plot(
             score=True,
             title='Multilabel ROC Curve',
@@ -1392,7 +1392,7 @@ def plot_multilabel_metrics_with_wrapped_metrics(metrics: Dict[str, Any], save_d
 
     # Use wrapped class plot method to draw PR curve, utilizing grid_kwargs parameter
     try:
-        prc: MultilabelPrecisionRecallCurve = metrics['prc']
+        prc: _BetterMultilabelPrecisionRecallCurve = metrics['prc']
         fig, ax = prc.plot(
             score=True,
             title='Multilabel Precision-Recall Curve',

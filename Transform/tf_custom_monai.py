@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Custom Transform Module
+Custom MONAI Transform Module
 
 This module provides custom extended MONAI transforms for data preprocessing and augmentation.
 

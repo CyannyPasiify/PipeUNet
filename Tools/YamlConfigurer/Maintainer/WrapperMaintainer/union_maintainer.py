@@ -126,21 +126,25 @@ class UnionMaintainer(WrapperMaintainer):
         combobox_width = max_length + buffer
 
         # Find the Maintainer that is compatible with the current value
-        first_valid_type_name: Optional[str] = None
-        type_name: str
-        type_cls: Type
-        mt: BaseMaintainer
-        for type_name, (type_cls, mt) in self.map_maintainer_cls.items():
-            if mt.is_value_compatible_static(self.attribute_value, type_cls):
-                if first_valid_type_name is None:
-                    first_valid_type_name = type_name
-
-        if first_valid_type_name is not None:
-            self.type_string_var.set(first_valid_type_name)
-        elif len(self.maintainer_cls) > 0:
-            # Get first record
-            type_name, (type_cls, mt) = next(iter(self.map_maintainer_cls.items()))
-            self.type_string_var.set(type_name)
+        first_defined_maintainer_cls: Optional[Type[BaseMaintainer]] = None
+        first_unsupported_maintainer_cls: Optional[Type[BaseMaintainer]] = None
+        for m in self.maintainer_cls:
+            m.attribute_value = self.attribute_value
+            if m.is_value_compatible_static(self.attribute_value, self.attribute_type):
+                if issubclass(m, UnsupportedMaintainer):
+                    if first_unsupported_maintainer_cls is None:
+                        first_unsupported_maintainer_cls = m
+                else:
+                    if first_defined_maintainer_cls is None:
+                        first_defined_maintainer_cls = m
+                if first_unsupported_maintainer_cls is not None and first_defined_maintainer_cls is not None:
+                    break
+        valid_maintainer_cls: Optional[Type[BaseMaintainer]] = first_defined_maintainer_cls \
+            if first_defined_maintainer_cls is not None else first_unsupported_maintainer_cls
+        if valid_maintainer_cls is not None:
+            self.type_string_var.set(
+                valid_maintainer_cls.get_simplest_type_name_static(target_type=self.attribute_type)
+            )
         else:  # Type not compatible
             self.type_string_var.set("<Not Compatible>")
 
@@ -257,7 +261,8 @@ class UnionMaintainer(WrapperMaintainer):
                     else:
                         if first_defined_maintainer_cls is None:
                             first_defined_maintainer_cls = m
-                    break
+                    if first_unsupported_maintainer_cls is not None and first_defined_maintainer_cls is not None:
+                        break
             valid_maintainer_cls: Optional[Type[BaseMaintainer]] = first_defined_maintainer_cls \
                 if first_defined_maintainer_cls is not None else first_unsupported_maintainer_cls
             if valid_maintainer_cls is not None:

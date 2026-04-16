@@ -25,57 +25,114 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from typing import Optional, Tuple, Iterable, Dict, Any, Callable
+from dataclasses import dataclass
+from abc import ABC, abstractmethod
+from typing_extensions import override
 
 
-def SGD(
-        params: Iterable[torch.nn.parameter.Parameter],
-        lr: float
-) -> torch.optim.SGD:
+@dataclass
+class OptimizerBase(ABC):
+    def is_ready(self) -> bool:
+        return hasattr(self, "optimizer")
+
+    def _assert_init_essentials(
+            self,
+            params: Iterable[torch.nn.parameter.Parameter]
+    ) -> None:
+        if self.is_ready(): return
+        self.init_essentials(params)
+
+    @abstractmethod
+    def init_essentials(
+            self,
+            params: Iterable[torch.nn.parameter.Parameter]
+    ) -> 'OptimizerBase':
+        self.optimizer: optim.Optimizer = optim.Optimizer(params, {})  # Just placeholder
+        return self
+
+    def get_optimizer(
+            self,
+            params: Optional[Iterable[torch.nn.parameter.Parameter]] = None
+    ) -> Optional[optim.Optimizer]:
+        if params is None:
+            if self.is_ready():
+                return self.optimizer
+            else:
+                return None
+        self._assert_init_essentials(params)
+        return self.optimizer
+
+
+@dataclass
+class OptimizerSGD(OptimizerBase):
     """
     Creates a configured SGD optimizer instance
     
     Args:
-        params: Model parameters to be optimized
         lr: Learning rate
+        momentum: Momentum for updating
+        weight_decay: Weight decay for updating
         
     Returns:
         torch.optim.SGD: Configured SGD optimizer instance
     """
-    # Create and return SGD optimizer
-    return optim.SGD(
-        params=params,
-        lr=lr,
-        momentum=0.9,
-        weight_decay=1e-4,
-        nesterov=True
-    )
+    lr: float = 0.001
+    momentum: float = 0.9
+    weight_decay: float = 1e-4
+
+    @override
+    def init_essentials(
+            self,
+            params: Iterable[torch.nn.parameter.Parameter]
+    ) -> 'OptimizerSGD':
+        # Init SGD optimizer
+        self.optimizer = optim.SGD(
+            params=params,
+            lr=self.lr,
+            momentum=self.momentum,
+            weight_decay=self.weight_decay,
+            nesterov=True
+        )
+        return self
 
 
-def AdamW(
-        params: Iterable[torch.nn.parameter.Parameter],
-        lr: float,
-        amsgrad: bool = False
-) -> torch.optim.AdamW:
+@dataclass
+class OptimizerAdamW(OptimizerBase):
     """
     Creates a configured AdamW optimizer instance
     
     Args:
-        params: Model parameters to be optimized
         lr: Learning rate
+        betas: β1 and β2 weight
+        eps: ε for stability
+        weight_decay: Weight decay for updating
         amsgrad: Whether to use AMSGrad variant, default is False
         
     Returns:
         torch.optim.AdamW: Configured AdamW optimizer instance
     """
-    # Create and return AdamW optimizer
-    return optim.AdamW(
-        params=params,
-        lr=lr,
-        betas=(0.9, 0.999),
-        eps=1e-8,
-        weight_decay=0.01,
-        amsgrad=amsgrad
-    )
+
+    lr: float = 0.001
+    betas: Tuple[float, float] = (0.9, 0.999)
+    eps: float = 1e-8
+    weight_decay: float = 0.01
+    amsgrad: bool = False
+
+    @override
+    def init_essentials(
+            self,
+            params: Iterable[torch.nn.parameter.Parameter]
+    ) -> 'OptimizerAdamW':
+        # Init AdamW optimizer
+        self.optimizer = optim.AdamW(
+            params=params,
+            lr=self.lr,
+            betas=self.betas,
+            eps=self.eps,
+            weight_decay=self.weight_decay,
+            amsgrad=self.amsgrad
+        )
+        return self
 
 
 if __name__ == "__main__":
@@ -101,11 +158,7 @@ if __name__ == "__main__":
             return x, y
 
         # Test function: train model for 3 steps and return final weights
-        def train_model_steps(
-                optimizer_fn: Callable,
-                *optimizer_args: Any,
-                **optimizer_kwargs: Any
-        ) -> Dict[str, torch.Tensor]:
+        def train_model_steps(optimizer: OptimizerBase) -> Dict[str, torch.Tensor]:
             """Train model for 3 steps and return final weights"""
             # Create new model
             model: nn.Linear = nn.Linear(input_dim, output_dim)
@@ -114,8 +167,8 @@ if __name__ == "__main__":
             for param in model.parameters():
                 nn.init.normal_(param)
 
-            # Create optimizer
-            optimizer: optim.Optimizer = optimizer_fn(model.parameters(), *optimizer_args, **optimizer_kwargs)
+            # Init optimizer
+            opt: optim.Optimizer = optimizer.get_optimizer(model.parameters())
 
             # Train for 3 steps
             for step in range(3):
@@ -128,9 +181,9 @@ if __name__ == "__main__":
                 loss: torch.Tensor = nn.MSELoss()(outputs, y)
 
                 # Backward pass and optimization
-                optimizer.zero_grad()
+                opt.zero_grad()
                 loss.backward()
-                optimizer.step()
+                opt.step()
 
                 print(f"  Step {step + 1} loss: {loss.item():.6f}")
 
@@ -144,15 +197,9 @@ if __name__ == "__main__":
         print("-" * 100)
         print("[1] SGD Optimizer Consistency Test")
         print("1st training:")
-        weights1: Dict[str, torch.Tensor] = train_model_steps(
-            SGD,
-            lr=0.01
-        )
+        weights1: Dict[str, torch.Tensor] = train_model_steps(OptimizerSGD(lr=0.01))
         print("2nd training:")
-        weights2: Dict[str, torch.Tensor] = train_model_steps(
-            SGD,
-            lr=0.01
-        )
+        weights2: Dict[str, torch.Tensor] = train_model_steps(OptimizerSGD(lr=0.01))
 
         # Compare weights from both trainings
         weight_diff: torch.Tensor = torch.norm(weights1['weight'] - weights2['weight'])
@@ -166,15 +213,9 @@ if __name__ == "__main__":
         print("-" * 100)
         print("[2] AdamW Optimizer Consistency Test")
         print("1st training:")
-        weights3: Dict[str, torch.Tensor] = train_model_steps(
-            AdamW,
-            lr=0.001
-        )
+        weights3: Dict[str, torch.Tensor] = train_model_steps(OptimizerAdamW(lr=0.001))
         print("2nd training:")
-        weights4: Dict[str, torch.Tensor] = train_model_steps(
-            AdamW,
-            lr=0.001
-        )
+        weights4: Dict[str, torch.Tensor] = train_model_steps(OptimizerAdamW(lr=0.001))
 
         # Compare weights from both trainings
         weight_diff: torch.Tensor = torch.norm(weights3['weight'] - weights4['weight'])

@@ -13,7 +13,7 @@ Classes:
 Key Features:
     - Supports volume and mask preprocessing
     - Provides train-specific augmentations (e.g., random cropping)
-    - Includes inference-specific pre and post processing
+    - Includes inference-specific pre and post-processing
     - Supports random state management for reproducibility
 """
 import os
@@ -22,39 +22,38 @@ import numpy as np
 import monai.transforms as mT
 from monai.data import MetaTensor
 from monai.utils import GridSampleMode, GridSamplePadMode, PytorchPadMode, NumpyPadMode
-from typing import Dict, Any, Optional, Union, List, Sequence
-from Transform.tf_custom import DuplicateItemsd, RandCropByLabelClassesd
+from typing import Dict, Any, Optional, Union, List, Sequence, Tuple
+from typing_extensions import override
+from Transform.tf_custom_monai import DuplicateItemsd, RandCropByLabelClassesd
 from dataclasses import dataclass
+from abc import ABC
 
 PathLike = Union[str, os.PathLike]
 DtypeLike = Union[np.dtype, type, str, None]
 
 
-class TransformSegmentationDefaultBase(mT.Transform):
+@dataclass
+class TransformSegmentationDefaultBase(ABC):
     """
     Base class for segmentation transforms
     
     Provides common functionality for all segmentation transform pipelines
     """
+    volume_key: Optional[str] = None
+    mask_key: Optional[str] = None
 
-    def __init__(
-            self,
-            volume_key: Optional[str],
-            mask_key: Optional[str]
-    ) -> None:
-        """
-        Initialize the base transform
-        
-        Args:
-            volume_key: Key for volume data in the input dictionary
-            mask_key: Key for mask data in the input dictionary
-        """
-        self.volume_key: Optional[str] = volume_key
-        self.mask_key: Optional[str] = mask_key
-        self.transform_dict: Dict[str, mT.Transform] = {}  # Dictionary to store individual transforms
-        # Make a Composed transform with the same functionality as much as possible for convenient use
-        # May not be valid in some cases
-        self._comp_transform: mT.Compose = mT.Compose()  # Composed transform pipeline
+    def is_ready(self) -> bool:
+        return hasattr(self, "_composed_transform") and \
+            hasattr(self, "transform_dict")
+
+    def init_essentials(self) -> 'TransformSegmentationDefaultBase':
+        self._composed_transform: Optional[mT.Compose] = mT.Compose()
+        self.transform_dict: Dict[str, mT.Compose] = {}
+        return self
+
+    def _assert_init_essentials(self) -> None:
+        if self.is_ready(): return
+        self.init_essentials()
 
     def get_composed_transform(self) -> mT.Compose:
         """
@@ -63,7 +62,8 @@ class TransformSegmentationDefaultBase(mT.Transform):
         Returns:
             Composed transform pipeline
         """
-        return self._comp_transform
+        self._assert_init_essentials()
+        return self._composed_transform
 
     def __call__(
             self,
@@ -78,22 +78,10 @@ class TransformSegmentationDefaultBase(mT.Transform):
         Returns:
             Transformed data
         """
-        result_data = self._comp_transform(data)
-        return result_data
+        self._assert_init_essentials()
+        if self._composed_transform is not None:
+            return self._composed_transform(data)
 
-    def execute(
-            self,
-            data: Dict[str, Union[Sequence[PathLike], PathLike]]
-    ) -> Union[List[Dict[str, Any]], Dict[str, MetaTensor]]:
-        """
-        Execute transforms individually with logging
-        
-        Args:
-            data: Input data dictionary
-            
-        Returns:
-            Transformed data
-        """
         result_data: Dict[str, Any] = data
         for name, transform in self.transform_dict.items():
             if isinstance(result_data, List):
@@ -105,115 +93,120 @@ class TransformSegmentationDefaultBase(mT.Transform):
                 result_data: Dict[str, Any] = transform(result_data)
         return result_data
 
+    def get_state(self) -> Dict[str, Dict[str, Any]]:
+        return dict()
 
+    def set_state(self, state_dict: Dict[str, Dict[str, Any]]) -> None:
+        return
+
+
+@dataclass
 class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
     """
     Transform pipeline for training segmentation models
     
     Includes a sequence of transforms for data loading, preprocessing, augmentation,
     and preparation for model training
+
+    Initialize the training transform pipeline
+
+    Args:
+        volume_key: Key for volume data in the input dictionary
+        mask_key: Key for mask data in the input dictionary
+        param_volume_tf_duplicate_items_dup_keys_volume: Key for duplicated volume data
+        param_mask_tf_duplicate_items_dup_keys_mask: Key for duplicated mask data
+        param_tf_spacing_pixdim: Voxel spacing for resampling
+        param_tf_spacing_mode_volume: Interpolation mode for volume resampling
+        param_tf_spacing_mode_mask: Interpolation mode for mask resampling
+        param_tf_padding_mode_volume: Padding mode for volume resampling
+        param_tf_padding_mode_mask: Padding mode for mask resampling
+        param_tf_spatial_pad_spatial_size: Spatial size for padding
+        param_tf_spatial_pad_mode: Padding mode for spatial padding
+        param_tf_rand_crop_by_label_classes_spatial_size: Spatial size for random cropping
+        param_tf_rand_crop_by_label_classes_ratios: Ratios for class-based cropping
+        param_tf_rand_crop_by_label_classes_num_classes: Number of classes for cropping
+        param_tf_rand_crop_by_label_classes_num_samples: Number of samples to generate
+        param_tf_scale_intensity_range_a_min: Minimum intensity value for scaling
+        param_tf_scale_intensity_range_a_max: Maximum intensity value for scaling
+        param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
+        param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
+        param_tf_scale_intensity_range_clip: Whether to clip intensity values
+        param_tf_allow_missing_keys: Whether to allow missing keys
+        random_seed: Random seed for reproducibility
     """
+    volume_key: str = 'volume'
+    mask_key: str = 'mask'
+    param_volume_tf_duplicate_items_dup_keys_volume: Optional[str] = 'volume_raw'
+    param_mask_tf_duplicate_items_dup_keys_mask: Optional[str] = 'mask_raw'
+    param_tf_spacing_pixdim: Union[Tuple[float, ...], List[float], float] = (1.0, 1.0, 1.0)
+    param_tf_spacing_mode_volume: GridSampleMode = GridSampleMode.BILINEAR
+    param_tf_spacing_mode_mask: GridSampleMode = GridSampleMode.NEAREST
+    param_tf_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.BORDER
+    param_tf_padding_mode_mask: GridSamplePadMode = GridSamplePadMode.BORDER
+    param_tf_spatial_pad_spatial_size: Union[Tuple[int, ...], List[float], int] = (128, 128, 128)
+    param_tf_spatial_pad_mode: Union[PytorchPadMode, NumpyPadMode] = PytorchPadMode.REPLICATE
+    param_tf_rand_crop_by_label_classes_spatial_size: Union[Tuple[int, ...], List[float], int] = (128, 128, 128)
+    param_tf_rand_crop_by_label_classes_ratios: Optional[List[Union[float, int]]] = None
+    param_tf_rand_crop_by_label_classes_num_classes: Optional[int] = None
+    param_tf_rand_crop_by_label_classes_num_samples: int = 1
+    param_tf_scale_intensity_range_a_min: float = -1000.0
+    param_tf_scale_intensity_range_a_max: float = 1000.0
+    param_tf_scale_intensity_range_b_min: Optional[float] = 0.0
+    param_tf_scale_intensity_range_b_max: Optional[float] = 1.0
+    param_tf_scale_intensity_range_clip: bool = True
+    param_tf_allow_missing_keys: bool = False
+    random_seed: Optional[int] = None
 
-    def __init__(
-            self,
-            volume_key: str = 'volume',
-            mask_key: str = 'mask',
-            param_volume_tf_duplicate_items_dup_keys_volume: str = 'volume_raw',
-            param_mask_tf_duplicate_items_dup_keys_mask: str = 'mask_raw',
-            param_tf_spacing_pixdim: Union[Sequence[float], float] = (1.0, 1.0, 1.0),
-            param_tf_spacing_mode_volume: GridSampleMode = GridSampleMode.BILINEAR,
-            param_tf_spacing_mode_mask: GridSampleMode = GridSampleMode.NEAREST,
-            param_tf_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.BORDER,
-            param_tf_padding_mode_mask: GridSamplePadMode = GridSamplePadMode.BORDER,
-            param_tf_spatial_pad_spatial_size: Union[Sequence[int], int] = (128, 128, 128),
-            param_tf_spatial_pad_mode: Union[PytorchPadMode, NumpyPadMode] = PytorchPadMode.REPLICATE,
-            param_tf_rand_crop_by_label_classes_spatial_size: Union[Sequence[int], int] = (128, 128, 128),
-            param_tf_rand_crop_by_label_classes_ratios: Optional[List[Union[float, int]]] = None,
-            param_tf_rand_crop_by_label_classes_num_classes: Optional[int] = None,
-            param_tf_rand_crop_by_label_classes_num_samples: int = 1,
-            param_tf_scale_intensity_range_a_min: float = -1000.0,
-            param_tf_scale_intensity_range_a_max: float = 1000.0,
-            param_tf_scale_intensity_range_b_min: Optional[float] = 0.0,
-            param_tf_scale_intensity_range_b_max: Optional[float] = 1.0,
-            param_tf_scale_intensity_range_clip: bool = True,
-            param_tf_allow_missing_keys: bool = False,
-            random_seed: Optional[int] = None
-    ) -> None:
-        """
-        Initialize the training transform pipeline
-        
-        Args:
-            volume_key: Key for volume data in the input dictionary
-            mask_key: Key for mask data in the input dictionary
-            param_volume_tf_duplicate_items_dup_keys_volume: Key for duplicated volume data
-            param_mask_tf_duplicate_items_dup_keys_mask: Key for duplicated mask data
-            param_tf_spacing_pixdim: Voxel spacing for resampling
-            param_tf_spacing_mode_volume: Interpolation mode for volume resampling
-            param_tf_spacing_mode_mask: Interpolation mode for mask resampling
-            param_tf_padding_mode_volume: Padding mode for volume resampling
-            param_tf_padding_mode_mask: Padding mode for mask resampling
-            param_tf_spatial_pad_spatial_size: Spatial size for padding
-            param_tf_spatial_pad_mode: Padding mode for spatial padding
-            param_tf_rand_crop_by_label_classes_spatial_size: Spatial size for random cropping
-            param_tf_rand_crop_by_label_classes_ratios: Ratios for class-based cropping
-            param_tf_rand_crop_by_label_classes_num_classes: Number of classes for cropping
-            param_tf_rand_crop_by_label_classes_num_samples: Number of samples to generate
-            param_tf_scale_intensity_range_a_min: Minimum intensity value for scaling
-            param_tf_scale_intensity_range_a_max: Maximum intensity value for scaling
-            param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
-            param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
-            param_tf_scale_intensity_range_clip: Whether to clip intensity values
-            param_tf_allow_missing_keys: Whether to allow missing keys
-            random_seed: Random seed for reproducibility
-        """
-        super().__init__(volume_key, mask_key)
-        self.random_seed: Optional[int] = random_seed
-
+    @override
+    def init_essentials(self) -> 'TransformSegmentationDefaultTrain':
         # Initialize individual transforms
         self._tf_load_image: mT.LoadImaged = mT.LoadImaged(
-            keys=[volume_key, mask_key],
+            keys=[self.volume_key, self.mask_key],
             ensure_channel_first=True,
-            allow_missing_keys=param_tf_allow_missing_keys
+            allow_missing_keys=self.param_tf_allow_missing_keys
         )
         self._tf_duplicate_items: DuplicateItemsd = DuplicateItemsd(
-            keys=[volume_key, mask_key],
-            dup_keys=[param_volume_tf_duplicate_items_dup_keys_volume, param_mask_tf_duplicate_items_dup_keys_mask]
+            keys=[self.volume_key, self.mask_key],
+            dup_keys=[
+                self.param_volume_tf_duplicate_items_dup_keys_volume,
+                self.param_mask_tf_duplicate_items_dup_keys_mask
+            ]
         )
         self._tf_spacing: mT.Spacingd = mT.Spacingd(
-            keys=[volume_key, mask_key],
-            pixdim=param_tf_spacing_pixdim,
-            mode=[param_tf_spacing_mode_volume, param_tf_spacing_mode_mask],
-            padding_mode=[param_tf_padding_mode_volume, param_tf_padding_mode_mask],
-            allow_missing_keys=param_tf_allow_missing_keys
+            keys=[self.volume_key, self.mask_key],
+            pixdim=self.param_tf_spacing_pixdim,
+            mode=[self.param_tf_spacing_mode_volume, self.param_tf_spacing_mode_mask],
+            padding_mode=[self.param_tf_padding_mode_volume, self.param_tf_padding_mode_mask],
+            allow_missing_keys=self.param_tf_allow_missing_keys
         )
         self._tf_spatial_pad: mT.SpatialPadd = mT.SpatialPadd(
-            keys=[volume_key, mask_key],
-            spatial_size=param_tf_spatial_pad_spatial_size,
-            mode=param_tf_spatial_pad_mode,
-            allow_missing_keys=param_tf_allow_missing_keys
+            keys=[self.volume_key, self.mask_key],
+            spatial_size=self.param_tf_spatial_pad_spatial_size,
+            mode=self.param_tf_spatial_pad_mode,
+            allow_missing_keys=self.param_tf_allow_missing_keys
         )
         self._tf_scale_intensity_range: mT.ScaleIntensityRanged = mT.ScaleIntensityRanged(
-            keys=volume_key,
-            a_min=param_tf_scale_intensity_range_a_min,
-            a_max=param_tf_scale_intensity_range_a_max,
-            b_min=param_tf_scale_intensity_range_b_min,
-            b_max=param_tf_scale_intensity_range_b_max,
-            clip=param_tf_scale_intensity_range_clip,
-            allow_missing_keys=param_tf_allow_missing_keys
+            keys=self.volume_key,
+            a_min=self.param_tf_scale_intensity_range_a_min,
+            a_max=self.param_tf_scale_intensity_range_a_max,
+            b_min=self.param_tf_scale_intensity_range_b_min,
+            b_max=self.param_tf_scale_intensity_range_b_max,
+            clip=self.param_tf_scale_intensity_range_clip,
+            allow_missing_keys=self.param_tf_allow_missing_keys
         )
         self._tf_rand_crop_by_label_classes: RandCropByLabelClassesd = RandCropByLabelClassesd(
-            keys=[volume_key, mask_key],
-            label_key=mask_key,
-            spatial_size=param_tf_rand_crop_by_label_classes_spatial_size,
-            ratios=param_tf_rand_crop_by_label_classes_ratios,
-            num_classes=param_tf_rand_crop_by_label_classes_num_classes,
-            num_samples=param_tf_rand_crop_by_label_classes_num_samples,
-            allow_missing_keys=param_tf_allow_missing_keys
+            keys=[self.volume_key, self.mask_key],
+            label_key=self.mask_key,
+            spatial_size=self.param_tf_rand_crop_by_label_classes_spatial_size,
+            ratios=self.param_tf_rand_crop_by_label_classes_ratios,
+            num_classes=self.param_tf_rand_crop_by_label_classes_num_classes,
+            num_samples=self.param_tf_rand_crop_by_label_classes_num_samples,
+            allow_missing_keys=self.param_tf_allow_missing_keys
         )
         self._tf_cast_to_type: mT.CastToTyped = mT.CastToTyped(
-            keys=[volume_key, mask_key],
+            keys=[self.volume_key, self.mask_key],
             dtype=torch.float,
-            allow_missing_keys=param_tf_allow_missing_keys
+            allow_missing_keys=self.param_tf_allow_missing_keys
         )
 
         # Build transform dictionary
@@ -231,7 +224,9 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
         self._initialize_transforms()
 
         # Compose transforms into a pipeline
-        self._comp_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
+        self._composed_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
+
+        return self
 
     def _initialize_transforms(self) -> None:
         """
@@ -244,13 +239,15 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
                 random_state: np.random.RandomState = np.random.RandomState(transform_seed)
                 transform.set_random_state(state=random_state)
 
+    @override
     def get_state(self) -> Dict[str, Dict[str, Any]]:
         """
         Get the current state of all transforms for reproducibility
-        
+
         Returns:
             Dictionary containing the random states of all applicable transforms
         """
+        self._assert_init_essentials()
         state_dict: Dict[str, Dict[str, Any]] = {}
         for name, transform in self.transform_dict.items():
             if hasattr(transform, 'get_random_state'):
@@ -263,13 +260,15 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
 
         return state_dict
 
+    @override
     def set_state(self, state_dict: Dict[str, Dict[str, Any]]) -> None:
         """
         Set the state of transforms from a saved state dictionary
-        
+
         Args:
             state_dict: Dictionary containing the random states of transforms
         """
+        self._assert_init_essentials()
         for name, state in state_dict.items():
             if name not in self.transform_dict:
                 raise ValueError(f"{name} do not exists")
@@ -283,34 +282,16 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
                     raise ValueError(f"Fail to set random_state for {name}: {str(e)}")
 
 
+@dataclass
 class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase):
     """
     Transform pipeline for inference preprocessing
     
     Includes a sequence of transforms for data loading, preprocessing,
     and preparation for model inference
-    """
 
-    def __init__(
-            self,
-            volume_key: str = 'volume',
-            mask_key: Optional[str] = None,
-            param_volume_tf_duplicate_items_dup_keys_volume: str = 'volume_raw',
-            param_mask_tf_duplicate_items_dup_keys_mask: Optional[str] = None,
-            param_tf_spacing_pixdim: Union[Sequence[float], float] = (1.0, 1.0, 1.0),
-            param_tf_spacing_mode_volume: GridSampleMode = GridSampleMode.BILINEAR,
-            param_tf_spacing_mode_mask: GridSampleMode = GridSampleMode.NEAREST,
-            param_tf_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.BORDER,
-            param_tf_padding_mode_mask: GridSamplePadMode = GridSamplePadMode.BORDER,
-            param_tf_scale_intensity_range_a_min: float = -1000.0,
-            param_tf_scale_intensity_range_a_max: float = 1000.0,
-            param_tf_scale_intensity_range_b_min: Optional[float] = 0.0,
-            param_tf_scale_intensity_range_b_max: Optional[float] = 1.0,
-            param_tf_scale_intensity_range_clip: bool = True
-    ) -> None:
-        """
-        Initialize the inference preprocessing transform pipeline
-        
+    Initialize the inference preprocessing transform pipeline
+
         Args:
             volume_key: Key for volume data in the input dictionary
             mask_key: Key for mask data in the input dictionary (optional)
@@ -326,37 +307,56 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
             param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
             param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
             param_tf_scale_intensity_range_clip: Whether to clip intensity values
-        """
-        super().__init__(volume_key, mask_key)
+    """
 
+    volume_key: str = 'volume'
+    mask_key: Optional[str] = None
+    param_volume_tf_duplicate_items_dup_keys_volume: str = 'volume_raw'
+    param_mask_tf_duplicate_items_dup_keys_mask: Optional[str] = None
+    param_tf_spacing_pixdim: Union[Tuple[float, ...], List[float], float] = (1.0, 1.0, 1.0)
+    param_tf_spacing_mode_volume: GridSampleMode = GridSampleMode.BILINEAR
+    param_tf_spacing_mode_mask: GridSampleMode = GridSampleMode.NEAREST
+    param_tf_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.BORDER
+    param_tf_padding_mode_mask: GridSamplePadMode = GridSamplePadMode.BORDER
+    param_tf_scale_intensity_range_a_min: float = -1000.0
+    param_tf_scale_intensity_range_a_max: float = 1000.0
+    param_tf_scale_intensity_range_b_min: Optional[float] = 0.0
+    param_tf_scale_intensity_range_b_max: Optional[float] = 1.0
+    param_tf_scale_intensity_range_clip: bool = True
+
+    @override
+    def init_essentials(self) -> 'TransformSegmentationDefaultInferencePre':
         # Initialize individual transforms
         self._tf_load_image: mT.LoadImaged = mT.LoadImaged(
-            keys=[volume_key, mask_key],
+            keys=[self.volume_key, self.mask_key],
             ensure_channel_first=True,
             allow_missing_keys=True
         )
         self._tf_duplicate_items: DuplicateItemsd = DuplicateItemsd(
-            keys=[volume_key, mask_key],
-            dup_keys=[param_volume_tf_duplicate_items_dup_keys_volume, param_mask_tf_duplicate_items_dup_keys_mask]
+            keys=[self.volume_key, self.mask_key],
+            dup_keys=[
+                self.param_volume_tf_duplicate_items_dup_keys_volume,
+                self.param_mask_tf_duplicate_items_dup_keys_mask
+            ]
         )
         self._tf_spacing: mT.Spacingd = mT.Spacingd(
-            keys=[volume_key, mask_key],
-            pixdim=param_tf_spacing_pixdim,
-            mode=[param_tf_spacing_mode_volume, param_tf_spacing_mode_mask],
-            padding_mode=[param_tf_padding_mode_volume, param_tf_padding_mode_mask],
+            keys=[self.volume_key, self.mask_key],
+            pixdim=self.param_tf_spacing_pixdim,
+            mode=[self.param_tf_spacing_mode_volume, self.param_tf_spacing_mode_mask],
+            padding_mode=[self.param_tf_padding_mode_volume, self.param_tf_padding_mode_mask],
             allow_missing_keys=True
         )
         self._tf_scale_intensity_range: mT.ScaleIntensityRanged = mT.ScaleIntensityRanged(
-            keys=volume_key,
-            a_min=param_tf_scale_intensity_range_a_min,
-            a_max=param_tf_scale_intensity_range_a_max,
-            b_min=param_tf_scale_intensity_range_b_min,
-            b_max=param_tf_scale_intensity_range_b_max,
-            clip=param_tf_scale_intensity_range_clip,
+            keys=self.volume_key,
+            a_min=self.param_tf_scale_intensity_range_a_min,
+            a_max=self.param_tf_scale_intensity_range_a_max,
+            b_min=self.param_tf_scale_intensity_range_b_min,
+            b_max=self.param_tf_scale_intensity_range_b_max,
+            clip=self.param_tf_scale_intensity_range_clip,
             allow_missing_keys=True
         )
         self._tf_cast_to_type: mT.CastToTyped = mT.CastToTyped(
-            keys=[volume_key, mask_key],
+            keys=[self.volume_key, self.mask_key],
             dtype=torch.float,
             allow_missing_keys=True
         )
@@ -371,78 +371,79 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
         }
 
         # Compose transforms into a pipeline
-        self._comp_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
+        self._composed_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
+
+        return self
 
 
+@dataclass
 class TransformSegmentationDefaultInferencePost(TransformSegmentationDefaultBase):
     """
     Transform pipeline for inference postprocessing
     
     Includes a sequence of transforms for post-processing model outputs,
     such as resampling to match original dimensions and intensity scaling
+
+    Initialize the inference postprocessing transform pipeline
+
+    Args:
+        volume_key: Key for volume data in the input dictionary (optional)
+        mask_key: Key for mask data in the input dictionary
+        ref_key: Key for reference data used for resampling
+        param_tf_resample_to_match_mode_volume: Interpolation mode for volume resampling
+        param_tf_resample_to_match_mode_mask: Interpolation mode for mask resampling
+        param_tf_resample_to_match_padding_mode_volume: Padding mode for volume resampling
+        param_tf_resample_to_match_padding_mode_mask: Padding mode for mask resampling
+        param_tf_scale_intensity_range_a_min: Minimum intensity value for scaling
+        param_tf_scale_intensity_range_a_max: Maximum intensity value for scaling
+        param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
+        param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
+        param_tf_scale_intensity_range_clip: Whether to clip intensity values
+        param_tf_cast_to_type_dtype_volume: Data type for volume casting
+        param_tf_cast_to_type_dtype_mask: Data type for mask casting
     """
+    volume_key: Optional[str] = None
+    mask_key: str = 'mask'
+    ref_key: str = 'ref'
+    param_tf_resample_to_match_mode_volume: GridSampleMode = GridSampleMode.BILINEAR
+    param_tf_resample_to_match_mode_mask: GridSampleMode = GridSampleMode.NEAREST
+    param_tf_resample_to_match_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.BORDER
+    param_tf_resample_to_match_padding_mode_mask: GridSamplePadMode = GridSamplePadMode.BORDER
+    param_tf_scale_intensity_range_a_min: float = 0.0
+    param_tf_scale_intensity_range_a_max: float = 1.0
+    param_tf_scale_intensity_range_b_min: Optional[float] = -1000.0
+    param_tf_scale_intensity_range_b_max: Optional[float] = 1000.0
+    param_tf_scale_intensity_range_clip: bool = True
+    param_tf_cast_to_type_dtype_volume: Union[DtypeLike, torch.dtype] = torch.float32
+    param_tf_cast_to_type_dtype_mask: Union[DtypeLike, torch.dtype] = torch.uint8
 
-    def __init__(
-            self,
-            volume_key: Optional[str] = None,
-            mask_key: str = 'mask',
-            ref_key: str = 'ref',
-            param_tf_resample_to_match_mode_volume: GridSampleMode = GridSampleMode.BILINEAR,
-            param_tf_resample_to_match_mode_mask: GridSampleMode = GridSampleMode.NEAREST,
-            param_tf_resample_to_match_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.BORDER,
-            param_tf_resample_to_match_padding_mode_mask: GridSamplePadMode = GridSamplePadMode.BORDER,
-            param_tf_scale_intensity_range_a_min: float = 0.0,
-            param_tf_scale_intensity_range_a_max: float = 1.0,
-            param_tf_scale_intensity_range_b_min: Optional[float] = -1000.0,
-            param_tf_scale_intensity_range_b_max: Optional[float] = 1000.0,
-            param_tf_scale_intensity_range_clip: bool = True,
-            param_tf_cast_to_type_dtype_volume: Union[DtypeLike, torch.dtype] = torch.float32,
-            param_tf_cast_to_type_dtype_mask: Union[DtypeLike, torch.dtype] = torch.uint8
-    ) -> None:
-        """
-        Initialize the inference postprocessing transform pipeline
-        
-        Args:
-            volume_key: Key for volume data in the input dictionary (optional)
-            mask_key: Key for mask data in the input dictionary
-            ref_key: Key for reference data used for resampling
-            param_tf_resample_to_match_mode_volume: Interpolation mode for volume resampling
-            param_tf_resample_to_match_mode_mask: Interpolation mode for mask resampling
-            param_tf_resample_to_match_padding_mode_volume: Padding mode for volume resampling
-            param_tf_resample_to_match_padding_mode_mask: Padding mode for mask resampling
-            param_tf_scale_intensity_range_a_min: Minimum intensity value for scaling
-            param_tf_scale_intensity_range_a_max: Maximum intensity value for scaling
-            param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
-            param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
-            param_tf_scale_intensity_range_clip: Whether to clip intensity values
-            param_tf_cast_to_type_dtype_volume: Data type for volume casting
-            param_tf_cast_to_type_dtype_mask: Data type for mask casting
-        """
-        super().__init__(volume_key, mask_key)
-        self.ref_key: str = ref_key
-
+    @override
+    def init_essentials(self) -> 'TransformSegmentationDefaultInferencePost':
         # Initialize individual transforms
         self.tf_resample_to_match: mT.ResampleToMatchd = mT.ResampleToMatchd(
-            keys=[volume_key, mask_key],
-            key_dst=ref_key,
-            mode=[param_tf_resample_to_match_mode_volume, param_tf_resample_to_match_mode_mask],
-            padding_mode=[param_tf_resample_to_match_padding_mode_volume, param_tf_resample_to_match_padding_mode_mask],
+            keys=[self.volume_key, self.mask_key],
+            key_dst=self.ref_key,
+            mode=[self.param_tf_resample_to_match_mode_volume, self.param_tf_resample_to_match_mode_mask],
+            padding_mode=[
+                self.param_tf_resample_to_match_padding_mode_volume,
+                self.param_tf_resample_to_match_padding_mode_mask
+            ],
             allow_missing_keys=True
         )
 
         self._tf_scale_intensity_range: mT.ScaleIntensityRanged = mT.ScaleIntensityRanged(
-            keys=volume_key,
-            a_min=param_tf_scale_intensity_range_a_min,
-            a_max=param_tf_scale_intensity_range_a_max,
-            b_min=param_tf_scale_intensity_range_b_min,
-            b_max=param_tf_scale_intensity_range_b_max,
-            clip=param_tf_scale_intensity_range_clip,
+            keys=self.volume_key,
+            a_min=self.param_tf_scale_intensity_range_a_min,
+            a_max=self.param_tf_scale_intensity_range_a_max,
+            b_min=self.param_tf_scale_intensity_range_b_min,
+            b_max=self.param_tf_scale_intensity_range_b_max,
+            clip=self.param_tf_scale_intensity_range_clip,
             allow_missing_keys=True
         )
 
         self._tf_cast_to_type: mT.CastToTyped = mT.CastToTyped(
-            keys=[volume_key, mask_key],
-            dtype=[param_tf_cast_to_type_dtype_volume, param_tf_cast_to_type_dtype_mask],
+            keys=[self.volume_key, self.mask_key],
+            dtype=[self.param_tf_cast_to_type_dtype_volume, self.param_tf_cast_to_type_dtype_mask],
             allow_missing_keys=True
         )
 
@@ -454,8 +455,9 @@ class TransformSegmentationDefaultInferencePost(TransformSegmentationDefaultBase
         }
 
         # Compose transforms into a pipeline
-        self._comp_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
+        self._composed_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
 
+        return self
 
 if __name__ == "__main__":
     import pathlib as pl
@@ -491,23 +493,10 @@ if __name__ == "__main__":
         param_tf_allow_missing_keys=True
     )
 
-    # Explicitly execute
-    transformed_data: List[Dict[str, MetaTensor]] = tf_train.execute(data)
-    print(f'[{type(tf_train).__name__}.execute]')
-    # print(transformed_data)
-    print(f'len of transformed_data: {len(transformed_data)}')
-    print(f'key of transformed_data: {transformed_data[0].keys()}')
-    for idx, tup in enumerate(transformed_data):
-        print(f'[{idx}]')
-        print(f'volume: {tup["volume"].shape}, {tup["volume"].dtype}')
-        print(f'mask: {tup["mask"].shape}, {tup["mask"].dtype}')
-        print(f'volume_raw: {tup["volume_raw"].shape}, {tup["volume_raw"].dtype}')
-        print(f'mask_raw: {tup["mask_raw"].shape}, {tup["mask_raw"].dtype}')
-
     # Debug state_dict
     print(tf_train.get_state())
 
-    # Composed execute
+    # Call transform
     transformed_data: List[Dict[str, MetaTensor]] = tf_train(data)
     print(f'[{type(tf_train).__name__}.__call__]')
     # print(transformed_data)
@@ -528,17 +517,7 @@ if __name__ == "__main__":
         param_mask_tf_duplicate_items_dup_keys_mask='mask_raw'
     )
 
-    # Explicitly execute
-    transformed_data_w_mask: Dict[str, MetaTensor] = tf_infer_pre_w_mask.execute(data)
-    print(f'[{type(tf_infer_pre_w_mask).__name__}.execute] with mask')
-    # print(transformed_data_w_mask)
-    print(f'key of transformed_data_w_mask: {transformed_data_w_mask.keys()}')
-    print(f'volume: {transformed_data_w_mask["volume"].shape}, {transformed_data_w_mask["volume"].dtype}')
-    print(f'mask: {transformed_data_w_mask["mask"].shape}, {transformed_data_w_mask["mask"].dtype}')
-    print(f'volume_raw: {transformed_data_w_mask["volume_raw"].shape}, {transformed_data_w_mask["volume_raw"].dtype}')
-    print(f'mask_raw: {transformed_data_w_mask["mask_raw"].shape}, {transformed_data_w_mask["mask_raw"].dtype}')
-
-    # Composed execute
+    # Call transform
     transformed_data_w_mask: Dict[str, MetaTensor] = tf_infer_pre_w_mask(data)
     print(f'[{type(tf_infer_pre_w_mask).__name__}.__call__] with mask')
     # print(transformed_data_w_mask)
@@ -554,15 +533,7 @@ if __name__ == "__main__":
         param_volume_tf_duplicate_items_dup_keys_volume='volume_raw'
     )
 
-    # Explicitly execute
-    transformed_data_wo_mask: Dict[str, MetaTensor] = tf_infer_pre_wo_mask.execute(data)
-    print(f'[{type(tf_infer_pre_wo_mask).__name__}.execute] without mask')
-    # print(transformed_data_wo_mask)
-    print(f'key of transformed_data_wo_mask: {transformed_data_wo_mask.keys()}')
-    print(f'volume: {transformed_data_wo_mask["volume"].shape}, {transformed_data_wo_mask["volume"].dtype}')
-    print(f'volume_raw: {transformed_data_wo_mask["volume_raw"].shape}, {transformed_data_wo_mask["volume_raw"].dtype}')
-
-    # Composed execute
+    # Call transform
     transformed_data_wo_mask: Dict[str, MetaTensor] = tf_infer_pre_wo_mask(data)
     print(f'[{type(tf_infer_pre_wo_mask).__name__}.__call__] without mask')
     # print(transformed_data_wo_mask)
@@ -577,18 +548,7 @@ if __name__ == "__main__":
         ref_key='volume_raw'
     )
 
-    # Explicitly execute
-    transformed_data_w_vol: Union[List[Dict[str, MetaTensor]], Dict[str, MetaTensor]] = \
-        tf_infer_post_w_volume.execute(transformed_data_w_mask)
-    print(f'[{type(tf_infer_post_w_volume).__name__}.execute] with volume')
-    # print(transformed_data_w_vol)
-    print(f'key of transformed_data_w_vol: {transformed_data_w_vol.keys()}')
-    print(f'volume: {transformed_data_w_vol["volume"].shape}, {transformed_data_w_vol["volume"].dtype}')
-    print(f'mask: {transformed_data_w_vol["mask"].shape}, {transformed_data_w_vol["mask"].dtype}')
-    print(f'volume_raw: {transformed_data_w_vol["volume_raw"].shape}, {transformed_data_w_vol["volume_raw"].dtype}')
-    print(f'mask_raw: {transformed_data_w_vol["mask_raw"].shape}, {transformed_data_w_vol["mask_raw"].dtype}')
-
-    # Composed execute
+    # Call transform
     transformed_data_w_vol: Union[List[Dict[str, MetaTensor]], Dict[str, MetaTensor]] = \
         tf_infer_post_w_volume(transformed_data_w_mask)
     print(f'[{type(tf_infer_post_w_volume).__name__}.__call__] with volume')
@@ -605,18 +565,7 @@ if __name__ == "__main__":
         ref_key='volume_raw'
     )
 
-    # Explicitly execute
-    transformed_data_wo_vol: Union[List[Dict[str, MetaTensor]], Dict[str, MetaTensor]] = \
-        tf_infer_post_wo_volume.execute(transformed_data_w_mask)
-    print(f'[{type(tf_infer_post_wo_volume).__name__}.execute] without volume')
-    # print(transformed_data_wo_vol)
-    print(f'key of transformed_data_wo_vol: {transformed_data_wo_vol.keys()}')
-    print(f'volume: {transformed_data_wo_vol["volume"].shape}, {transformed_data_wo_vol["volume"].dtype}')
-    print(f'mask: {transformed_data_wo_vol["mask"].shape}, {transformed_data_wo_vol["mask"].dtype}')
-    print(f'volume_raw: {transformed_data_wo_vol["volume_raw"].shape}, {transformed_data_wo_vol["volume_raw"].dtype}')
-    print(f'mask_raw: {transformed_data_wo_vol["mask_raw"].shape}, {transformed_data_wo_vol["mask_raw"].dtype}')
-
-    # Composed execute
+    # Call transform
     transformed_data_wo_vol: Union[List[Dict[str, MetaTensor]], Dict[str, MetaTensor]] = \
         tf_infer_post_wo_volume(transformed_data_w_mask)
     print(f'[{type(tf_infer_post_wo_volume).__name__}.__call__] without volume')
@@ -626,5 +575,3 @@ if __name__ == "__main__":
     print(f'mask: {transformed_data_wo_vol["mask"].shape}, {transformed_data_wo_vol["mask"].dtype}')
     print(f'volume_raw: {transformed_data_wo_vol["volume_raw"].shape}, {transformed_data_wo_vol["volume_raw"].dtype}')
     print(f'mask_raw: {transformed_data_wo_vol["mask_raw"].shape}, {transformed_data_wo_vol["mask_raw"].dtype}')
-
-    pass

@@ -20,59 +20,73 @@ import os
 import pandas as pd
 import pathlib as pl
 import monai.data as mD
-
-from typing import Dict, Any, Optional, List, Union, Sequence, Callable, Iterable, Set, Type
+from typing import Dict, Any, Optional, List, Union, Sequence, Callable, Iterable, Set, Type, Tuple
 from pandas._typing import DtypeArg
+from dataclasses import dataclass, field
+
+from Dataset.ds_default_seg import DatasetBase, DatasetPersistent
+from Operator.operator_misc import OperatorIdentity
 
 PathLike = Union[str, os.PathLike]
 
 
+def _default_empty_dict():
+    return dict()
+
+
+def _default_empty_list():
+    return list()
+
+
+@dataclass
 class DatasetManifestRetrieverSegmentationDefault:
     """
     Dataset manifest retriever for segmentation tasks
     
     Loads and processes dataset manifests from Excel files, validates required columns,
     and creates MONAI datasets with specified transforms
-    """
-    def __init__(
-            self,
-            root_dir: PathLike,
-            manifest_file: PathLike,
-            column_key_map: Dict[str, str],
-            column_key_relative_path: Iterable[str],
-            column_group_map: Dict[str, Iterable[str]],
-            column_dtype_map: Optional[DtypeArg] = None
-    ) -> None:
-        """
-        Initialize the dataset manifest retriever
-        
-        Args:
-            root_dir: Root directory for the dataset
-            manifest_file: Path to the Excel manifest file
-            column_key_map: Mapping from Excel column names to internal keys
-            column_key_relative_path: Columns that contain relative paths
-            column_group_map: Mapping from group names to list of keys
-            column_dtype_map: Optional dtype mapping for Excel columns
-            
-        Raises:
-            ValueError: If root_dir or manifest_file does not exist
-        """
-        # Validate root_dir and manifest_file
-        if not pl.Path(root_dir).exists():
-            raise ValueError(f"root_dir not exists: {root_dir}")
 
-        if not pl.Path(manifest_file).exists():
-            raise ValueError(f"manifest_file not exists: {manifest_file}")
+    Initialize the dataset manifest retriever
+
+    Args:
+        root_dir: Root directory for the dataset
+        manifest_file: Path to the Excel manifest file
+        column_key_map: Mapping from Excel column names to internal keys
+        column_key_relative_path: Columns that contain relative paths
+        column_group_map: Mapping from group names to list of keys
+        column_dtype_map: Optional dtype mapping for Excel columns
+
+    Raises:
+        ValueError: If root_dir or manifest_file does not exist
+    """
+    root_dir: PathLike = ""
+    manifest_file: PathLike = ""
+    column_key_map: Dict[str, str] = field(default_factory=_default_empty_dict)
+    column_key_relative_path: Union[Tuple[str, ...], List[str]] = ()
+    column_group_map: Dict[str, Union[Tuple[str, ...], List[str]]] = field(default_factory=_default_empty_dict)
+    column_dtype_map: Optional[DtypeArg] = None
+
+    def is_ready(self) -> bool:
+        return hasattr(self, "_is_ready")
+
+    def _assert_init_essentials(self) -> None:
+        if self.is_ready(): return
+        self.init_essentials()
+
+    def init_essentials(self) -> 'DatasetManifestRetrieverSegmentationDefault':
+        # Validate root_dir and manifest_file
+        if not pl.Path(self.root_dir).exists():
+            raise ValueError(f"root_dir not exists: {self.root_dir}")
+
+        if not pl.Path(self.manifest_file).exists():
+            raise ValueError(f"manifest_file not exists: {self.manifest_file}")
 
         # Store parameters
-        self.root_dir: pl.Path = pl.Path(root_dir)
-        self.manifest_file: pl.Path = pl.Path(manifest_file)
-        self.column_dtype_map: Optional[DtypeArg] = column_dtype_map
-        self.column_key_map: Dict[str, str] = column_key_map
-        self.column_key_relative_path: Iterable[str] = column_key_relative_path
-        
+        self.root_dir: pl.Path = pl.Path(self.root_dir)
+        self.manifest_file: pl.Path = pl.Path(self.manifest_file)
+
         # Process column groups
-        self.column_group_map: Dict[str, Set[str]] = {group: set(keys) for group, keys in column_group_map.items()}
+        self.column_group_map: Dict[str, Set[str]] = {group: set(keys) for group, keys in self.column_group_map.items()}
         self._column_group_inv_map: Dict[str, Set[str]] = {}
         for group, keys in self.column_group_map.items():
             for key in keys:
@@ -88,6 +102,11 @@ class DatasetManifestRetrieverSegmentationDefault:
         #   'mask': ['label_0.nii.gz', 'label_1.nii.gz', 'label_2.nii.gz', ...]
         # }
         self.manifest: List[Dict[str, Any]] = self._load_and_validate_manifest()
+
+        # Mark as ready
+        self._is_ready: bool = True
+
+        return self
 
     def _load_and_validate_manifest(self) -> List[Dict[str, Any]]:
         """
@@ -149,26 +168,27 @@ class DatasetManifestRetrieverSegmentationDefault:
         Returns:
             Number of samples
         """
+        self._assert_init_essentials()
         return len(self.manifest)
 
     def get_monai_dataset(
             self,
-            dataset_class: Type[Union[mD.PersistentDataset, mD.CacheDataset, mD.LMDBDataset]],
-            transform: Union[Sequence[Callable], Callable],
-            **kwargs
-    ) -> mD.Dataset:
+            dataset: DatasetBase,
+            transform: Union[Sequence[Callable], Callable] = OperatorIdentity()
+    ) -> DatasetBase:
         """
         Create a MONAI dataset from the manifest
         
         Args:
-            dataset_class: MONAI dataset class to use
-            transform: Transform or sequence of transforms to apply
-            **kwargs: Additional keyword arguments for the dataset class
+            dataset: Wrapped MONAI dataset (before init_essentials) to use
+            transform: Transform pipe to process the data
             
         Returns:
-            MONAI dataset instance
+            Wrapped MONAI dataset instance
         """
-        return dataset_class(self.manifest, transform, **kwargs)
+        self._assert_init_essentials()
+        dataset.init_essentials(self.manifest, transform)
+        return dataset
 
 
 if __name__ == "__main__":
@@ -219,10 +239,9 @@ if __name__ == "__main__":
     pds: mD.PersistentDataset = cast(
         mD.PersistentDataset,
         ds.get_monai_dataset(
-            dataset_class=mD.PersistentDataset,
-            transform=transform.get_composed_transform(),
-            cache_dir='./Samples/dataset_manifest_retriever_test/cache'
-        )
+            DatasetPersistent(cache_dir='./Samples/dataset_manifest_retriever_test/cache'),
+            transform.get_composed_transform()
+        ).get_dataset()
     )
 
     for idx, batch in enumerate(pds):
@@ -246,10 +265,9 @@ if __name__ == "__main__":
         pds_1: mD.PersistentDataset = cast(
             mD.PersistentDataset,
             ds.get_monai_dataset(
-                dataset_class=mD.PersistentDataset,
-                transform=transform_1.get_composed_transform(),
-                cache_dir='./Samples/dataset_manifest_retriever_test/cache'
-            )
+                DatasetPersistent(cache_dir='./Samples/dataset_manifest_retriever_test/cache'),
+                transform_1.get_composed_transform()
+            ).get_dataset()
         )
         start_round = random.randint(0, max_len - 2)
         print(f'  Warmup Round: {start_round}', end='\n ')
@@ -264,10 +282,9 @@ if __name__ == "__main__":
         pds_2: mD.PersistentDataset = cast(
             mD.PersistentDataset,
             ds.get_monai_dataset(
-                dataset_class=mD.PersistentDataset,
-                transform=transform_2.get_composed_transform(),
-                cache_dir='./Samples/dataset_manifest_retriever_test/cache'
-            )
+                DatasetPersistent(cache_dir='./Samples/dataset_manifest_retriever_test/cache'),
+                transform_2.get_composed_transform()
+            ).get_dataset()
         )
         print()
 
