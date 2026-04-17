@@ -30,14 +30,40 @@ if TYPE_CHECKING:
     from wandb.sdk.lib import RunDisabled
     from wandb.wandb_run import Run
 
+from abc import ABC, abstractmethod, ABCMeta
+from dataclasses import dataclass, field
+from typing_extensions import override
 
-def CSVLogger(
-        save_dir: Union[str, Path],
-        name: Optional[str] = "csv_logs",
-        version: Optional[Union[int, str]] = None,
-        prefix: str = "",
-        flush_logs_every_n_steps: int = 100
-) -> loggers.CSVLogger:
+
+@dataclass
+class ConfigLoggerBase(ABC):
+    def is_ready(self) -> bool:
+        return hasattr(self, "logger")
+
+    def _assert_init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> None:
+        if self.is_ready(): return
+        self.init_essentials(*args, **kwargs)
+
+    @abstractmethod
+    def init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> 'ConfigLoggerBase':
+        self.logger = None  # Just placeholder
+        return self
+
+    def get_logger(self, *args, **kwargs) -> loggers.Logger:
+        self._assert_init_essentials(*args, **kwargs)
+        return self.logger
+
+
+@dataclass
+class ConfigLoggerCSV(ConfigLoggerBase):
     """
     Initializes CSVLogger wrapper
     
@@ -48,28 +74,27 @@ def CSVLogger(
         prefix: Log prefix
         flush_logs_every_n_steps: Flush logs every N steps
     """
-    # Create original CSVLogger
-    logger: loggers.CSVLogger = loggers.CSVLogger(
-        save_dir=save_dir,
-        name=name,
-        version=version,
-        prefix=prefix,
-        flush_logs_every_n_steps=flush_logs_every_n_steps,
-    )
+    save_dir: Union[str, Path] = "Experiments"
+    name: Optional[str] = "csv_logs"
+    version: Optional[Union[int, str]] = None
+    prefix: str = ""
+    flush_logs_every_n_steps: int = 100
 
-    return logger
+    @override
+    def init_essentials(self) -> 'ConfigLoggerCSV':
+        # Create original CSVLogger
+        self.logger: loggers.CSVLogger = loggers.CSVLogger(
+            save_dir=self.save_dir,
+            name=self.name,
+            version=self.version,
+            prefix=self.prefix,
+            flush_logs_every_n_steps=self.flush_logs_every_n_steps
+        )
+        return self
 
 
-def TensorBoardLogger(
-        save_dir: Union[str, Path],
-        name: Optional[str] = "tb_logs",
-        version: Optional[Union[int, str]] = None,
-        log_graph: bool = False,
-        default_hp_metric: bool = True,
-        prefix: str = "",
-        sub_dir: Optional[Union[str, Path]] = None,
-        **kwargs: Any
-) -> loggers.TensorBoardLogger:
+@dataclass
+class ConfigLoggerTensorBoard(ConfigLoggerBase):
     """
     Initializes TensorBoardLogger wrapper
     
@@ -81,36 +106,35 @@ def TensorBoardLogger(
         default_hp_metric: Whether to log default hyperparameter metrics
         prefix: Log prefix
         sub_dir: Subdirectory
-        **kwargs: Other parameters passed to TensorBoardLogger
+        kwargs: Other parameters passed to TensorBoardLogger
     """
-    # Create original TensorBoardLogger
-    logger: loggers.TensorBoardLogger = loggers.TensorBoardLogger(
-        save_dir=save_dir,
-        name=name,
-        version=version,
-        log_graph=log_graph,
-        default_hp_metric=default_hp_metric,
-        prefix=prefix,
-        sub_dir=sub_dir,
-        **kwargs
-    )
+    save_dir: Union[str, Path] = "Experiments"
+    name: Optional[str] = "tb_logs"
+    version: Optional[Union[int, str]] = None
+    log_graph: bool = False
+    default_hp_metric: bool = True
+    prefix: str = ""
+    sub_dir: Optional[Union[str, Path]] = None
+    kwargs: Dict[str, Any] = field(default_factory=dict)
 
-    return logger
+    @override
+    def init_essentials(self) -> 'ConfigLoggerTensorBoard':
+        # Create original TensorBoardLogger
+        self.logger: loggers.TensorBoardLogger = loggers.TensorBoardLogger(
+            save_dir=self.save_dir,
+            name=self.name,
+            version=self.version,
+            log_graph=self.log_graph,
+            default_hp_metric=self.default_hp_metric,
+            prefix=self.prefix,
+            sub_dir=self.sub_dir,
+            **self.kwargs
+        )
+        return self
 
 
-def WandbLogger(
-        name: Optional[str] = None,
-        save_dir: Union[str, Path] = ".",
-        version: Optional[str] = None,
-        offline: bool = False,
-        anonymous: Optional[bool] = None,
-        project: Optional[str] = None,
-        log_model: Union[Literal["all"], bool] = False,
-        prefix: str = "",
-        experiment: Union["Run", "RunDisabled", None] = None,
-        checkpoint_name: Optional[str] = None,
-        **kwargs: Any
-) -> loggers.WandbLogger:
+@dataclass
+class ConfigLoggerWandb(ConfigLoggerBase):
     """
     Initializes WandbLogger wrapper
     
@@ -125,25 +149,37 @@ def WandbLogger(
         prefix: Prefix for recorded metric names
         experiment: Wandb experiment object
         checkpoint_name: Checkpoint name
-        **kwargs: Other parameters passed to WandbLogger   
+        kwargs: Other parameters passed to WandbLogger
     """
-    # If save directory is specified, ensure it exists
-    # Create original WandbLogger
-    logger: loggers.WandbLogger = loggers.WandbLogger(
-        name=name,
-        save_dir=save_dir,
-        version=version,
-        offline=offline,
-        anonymous=anonymous,
-        project=project,
-        log_model=log_model,
-        prefix=prefix,
-        experiment=experiment,
-        checkpoint_name=checkpoint_name,
-        **kwargs
-    )
+    name: Optional[str] = None,
+    save_dir: Union[str, Path] = ".",
+    version: Optional[str] = None,
+    offline: bool = False,
+    anonymous: Optional[bool] = None,
+    project: Optional[str] = None,
+    log_model: Union[Literal["all"], bool] = False,
+    prefix: str = "",
+    experiment: Union["Run", "RunDisabled", None] = None,
+    checkpoint_name: Optional[str] = None,
+    kwargs: Dict[str, Any] = field(default_factory=dict)
 
-    return logger
+    @override
+    def init_essentials(self) -> 'ConfigLoggerWandb':
+        # Create original WandbLogger
+        self.logger: loggers.WandbLogger = loggers.WandbLogger(
+            name=self.name,
+            save_dir=self.save_dir,
+            version=self.version,
+            offline=self.offline,
+            anonymous=self.anonymous,
+            project=self.project,
+            log_model=self.log_model,
+            prefix=self.prefix,
+            experiment=self.experiment,
+            checkpoint_name=self.checkpoint_name,
+            **self.kwargs
+        )
+        return self
 
 
 # Add LoggerFactory class definition
@@ -177,11 +213,11 @@ class LoggerFactory:
 
         # Create corresponding logger based on type
         if logger_type == 'csv':
-            return CSVLogger(**kwargs)
+            return ConfigLoggerCSV(**kwargs).get_logger()
         elif logger_type == 'tensorboard':
-            return TensorBoardLogger(**kwargs)
+            return ConfigLoggerTensorBoard(**kwargs).get_logger()
         elif logger_type == 'wandb':
-            return WandbLogger(**kwargs)
+            return ConfigLoggerWandb(**kwargs).get_logger()
         else:
             raise ValueError(f"Unsupported logger type: {logger_type}")
 
@@ -462,8 +498,8 @@ if __name__ == "__main__":
                      name='wandb_test',
                      project='logger_capability_demo',
                      offline=True,  # Use offline mode to avoid needing an account
-                     anonymous='allow',
-                     tags=['test', 'logger_capability', 'offline'])
+                     anonymous='allow'
+                 )
                  )
         print(f"  Created WandbLogger: {wandb_logger}")
         print(f"  Log directory: {wandb_logger.save_dir}")

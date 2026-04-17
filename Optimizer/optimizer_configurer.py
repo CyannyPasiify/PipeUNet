@@ -31,7 +31,7 @@ from typing_extensions import override
 
 
 @dataclass
-class OptimizerBase(ABC):
+class ConfigOptimizerBase(ABC):
     def is_ready(self) -> bool:
         return hasattr(self, "optimizer")
 
@@ -46,7 +46,7 @@ class OptimizerBase(ABC):
     def init_essentials(
             self,
             params: Iterable[torch.nn.parameter.Parameter]
-    ) -> 'OptimizerBase':
+    ) -> 'ConfigOptimizerBase':
         self.optimizer: optim.Optimizer = optim.Optimizer(params, {})  # Just placeholder
         return self
 
@@ -64,7 +64,7 @@ class OptimizerBase(ABC):
 
 
 @dataclass
-class OptimizerSGD(OptimizerBase):
+class ConfigOptimizerSGD(ConfigOptimizerBase):
     """
     Creates a configured SGD optimizer instance
     
@@ -84,7 +84,7 @@ class OptimizerSGD(OptimizerBase):
     def init_essentials(
             self,
             params: Iterable[torch.nn.parameter.Parameter]
-    ) -> 'OptimizerSGD':
+    ) -> 'ConfigOptimizerSGD':
         # Init SGD optimizer
         self.optimizer = optim.SGD(
             params=params,
@@ -97,7 +97,7 @@ class OptimizerSGD(OptimizerBase):
 
 
 @dataclass
-class OptimizerAdamW(OptimizerBase):
+class ConfigOptimizerAdamW(ConfigOptimizerBase):
     """
     Creates a configured AdamW optimizer instance
     
@@ -122,7 +122,7 @@ class OptimizerAdamW(OptimizerBase):
     def init_essentials(
             self,
             params: Iterable[torch.nn.parameter.Parameter]
-    ) -> 'OptimizerAdamW':
+    ) -> 'ConfigOptimizerAdamW':
         # Init AdamW optimizer
         self.optimizer = optim.AdamW(
             params=params,
@@ -158,7 +158,7 @@ if __name__ == "__main__":
             return x, y
 
         # Test function: train model for 3 steps and return final weights
-        def train_model_steps(optimizer: OptimizerBase) -> Dict[str, torch.Tensor]:
+        def train_model_steps(optimizer: ConfigOptimizerBase) -> Dict[str, torch.Tensor]:
             """Train model for 3 steps and return final weights"""
             # Create new model
             model: nn.Linear = nn.Linear(input_dim, output_dim)
@@ -197,9 +197,9 @@ if __name__ == "__main__":
         print("-" * 100)
         print("[1] SGD Optimizer Consistency Test")
         print("1st training:")
-        weights1: Dict[str, torch.Tensor] = train_model_steps(OptimizerSGD(lr=0.01))
+        weights1: Dict[str, torch.Tensor] = train_model_steps(ConfigOptimizerSGD(lr=0.01))
         print("2nd training:")
-        weights2: Dict[str, torch.Tensor] = train_model_steps(OptimizerSGD(lr=0.01))
+        weights2: Dict[str, torch.Tensor] = train_model_steps(ConfigOptimizerSGD(lr=0.01))
 
         # Compare weights from both trainings
         weight_diff: torch.Tensor = torch.norm(weights1['weight'] - weights2['weight'])
@@ -213,9 +213,9 @@ if __name__ == "__main__":
         print("-" * 100)
         print("[2] AdamW Optimizer Consistency Test")
         print("1st training:")
-        weights3: Dict[str, torch.Tensor] = train_model_steps(OptimizerAdamW(lr=0.001))
+        weights3: Dict[str, torch.Tensor] = train_model_steps(ConfigOptimizerAdamW(lr=0.001))
         print("2nd training:")
-        weights4: Dict[str, torch.Tensor] = train_model_steps(OptimizerAdamW(lr=0.001))
+        weights4: Dict[str, torch.Tensor] = train_model_steps(ConfigOptimizerAdamW(lr=0.001))
 
         # Compare weights from both trainings
         weight_diff: torch.Tensor = torch.norm(weights3['weight'] - weights4['weight'])

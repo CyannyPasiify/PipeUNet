@@ -20,61 +20,110 @@ from typing import Optional, Dict, Any, Union, Literal, Type, Mapping
 from monai.inferers import Inferer, SimpleInferer
 from yaml.constructor import ConstructorError
 
-from Callback.callback_configurer import ModelCheckpointInitArgs, DeviceStatsMonitorInitArgs, EarlyStoppingInitArgs, \
-    LearningRateMonitorInitArgs, RichModelSummaryInitArgs, RichProgressBarInitArgs
-from DataModule.dm_default_seg import DataModuleSegmentationDefault, DataModuleSegmentationDefaultInitArgs
-from Inferer.inferer_configurer import SlidingWindowInferer, MainWithAuxSlidingWindowInferer
+from Callback.callback_configurer import (
+    ConfigCallbackBase,
+    ConfigCallbackModelCheckpoint,
+    ConfigCallbackDeviceStatsMonitor,
+    ConfigCallbackEarlyStopping,
+    ConfigCallbackLearningRateMonitor,
+    ConfigCallbackRichModelSummary,
+    ConfigCallbackRichProgressBar
+)
+from DataModule.data_module_segmentation_default import (
+    DataModuleSegmentationDefault,
+    DataModuleSegmentationDefaultInitArgs
+)
+from Inferer.inferer_configurer import (
+    ConfigInfererBase,
+    ConfigInfererSimple,
+    ConfigInfererSlidingWindow,
+    ConfigInfererMainWithAuxSlidingWindow
+)
 from monai.utils import MetricReduction, BlendMode, PytorchPadMode, GridSampleMode, GridSamplePadMode
 import monai.data.dataset as mD
 
-from Module.module_segmentation_default import NamedNetworkInitArgs, ModuleTrainingStepAdditionArgs, \
-    NamedMetricInitArgs, NamedLossInitArgs, NamedOptimizerInitArgs, NamedLRSchedulerInitArgs, \
-    ModuleTestStepAdditionArgs, ModuleValidationStepAdditionArgs, ModulePredictStepAdditionArgs, \
+from Module.ltn_module_segmentation_default import (
+    NamedNetworkInitArgs,
+    ModuleTrainingStepAdditionArgs,
+    NamedMetricInitArgs,
+    NamedLossInitArgs,
+    NamedOptimizerInitArgs,
+    NamedLRSchedulerInitArgs,
+    ModuleTestStepAdditionArgs,
+    ModuleValidationStepAdditionArgs,
+    ModulePredictStepAdditionArgs,
     ModuleSegmentationDefault
-from Network.net_unet import UNet
-from Loss.loss_configurer import (
-    LossDice, DeepSupervisionDiceLoss,
-    LossDiceCE, LossDeepSupervisionDiceCE,
-    LossDiceFocal, LossDeepSupervisionDiceFocal,
-    LossHausdorffDT
 )
-from Operator.operator_misc import OperatorDisplayDictKeys, OperatorDisplayConfMat, OperatorMonaiAsDiscrete, \
-    OperatorTorchSoftmax
-from Optimizer.optimizer_configurer import SGD, AdamW
+from Network.network_configurer import (
+    ConfigNetworkBase,
+    ConfigNetworkUNet
+)
+from Loss.loss_configurer import (
+    ConfigLossBase,
+    ConfigLossDice,
+    ConfigLossDeepSupervisionDice,
+    ConfigLossDiceCE,
+    ConfigLossDeepSupervisionDiceCE,
+    ConfigLossDiceFocal,
+    ConfigLossDeepSupervisionDiceFocal,
+    ConfigLossHausdorffDT
+)
+from Operator.operator_configurer import (
+    ConfigOperatorBase,
+    ConfigOperatorDisplayDictKeys,
+    ConfigOperatorDisplayConfMat,
+    ConfigOperatorMonaiAsDiscrete,
+    ConfigOperatorTorchSoftmax
+)
+from Optimizer.optimizer_configurer import (
+    ConfigOptimizerBase,
+    ConfigOptimizerSGD,
+    ConfigOptimizerAdamW
+)
 from LRScheduler.lrscheduler_configurer import (
-    LRSchedulerLinear,
-    LRSchedulerCosineAnnealing,
-    LRSchedulerCosineAnnealingWarmRestarts,
-    OneCycleLR,
-    LRSchedulerReduceLROnPlateau
+    ConfigLRSchedulerBase,
+    ConfigLRSchedulerLinear,
+    ConfigLRSchedulerCosineAnnealing,
+    ConfigLRSchedulerCosineAnnealingWarmRestarts,
+    ConfigLRSchedulerOneCycleConfigLR,
+    ConfigLRSchedulerReduceConfigLROnPlateau
 )
 from Metric.metric_configurer import (
+    ConfigMetricBase,
     BACC, BPREC, BREC, BF1, BAUROC, BCM, BSPE, BROC, BPRC,
     MCACC, MCPREC, MCRECALL, MCF1, MCAUROC, MCCM, MCSPEC, MCROC, MCPRC,
     MLACC, MLPREC, MLREC, MLF1, MLAUROC, MLCM, MLSPE, MLROC, MLPRC,
     Dice, IoU, HD, SD, NSD,
-    BaseEfficiencyMetric, VPS
+    ConfigMetricEfficiency, VPS
 )
-from Trainer.trainer_default_seg import TrainerInitArgs, CallbackInitArgs, LoggerInitArgs, TrainerSegmentationDefault
-from Transform.tf_default_seg import TransformSegmentationDefaultTrain, TransformSegmentationDefaultInferencePre
+from Trainer.trainer_configurer import (
+    TrainerInitArgs,
+    CallbackInitArgs,
+    LoggerInitArgs,
+    ConfigTrainerSegmentationDefault
+)
+from Transform.transform_configurer import (
+    ConfigTransformSegmentationDefaultTrain,
+    ConfigTransformSegmentationDefaultInferencePre
+)
 from Launcher.Parser.parser_ABC import ParserABC
 
 PhaseLike = Literal['train', 'val', 'test', 'predict']
 
 SupportedNetwork = Union[UNet]
 SupportedLoss = Union[
-    LossDice, DeepSupervisionDiceLoss,
-    LossDiceCE, LossDeepSupervisionDiceCE,
-    LossDiceFocal, LossDeepSupervisionDiceFocal,
-    LossHausdorffDT
+    ConfigLossDice, DeepSupervisionDiceLoss,
+    ConfigLossDiceCE, ConfigLossDeepSupervisionDiceCE,
+    ConfigLossDiceFocal, ConfigLossDeepSupervisionDiceFocal,
+    ConfigLossHausdorffDT
 ]
 SupportedOptimizer = Union[SGD, AdamW]
 SupportedLRScheduler = Union[
-    LRSchedulerLinear,
-    LRSchedulerCosineAnnealing,
-    LRSchedulerCosineAnnealingWarmRestarts,
+    ConfigLRSchedulerLinear,
+    ConfigLRSchedulerCosineAnnealing,
+    ConfigLRSchedulerCosineAnnealingWarmRestarts,
     OneCycleLR,
-    LRSchedulerReduceLROnPlateau
+    ConfigLRSchedulerReduceConfigLROnPlateau
 ]
 SupportedMetric = Union[
     BACC, BPREC, BREC, BF1, BAUROC, BCM, BSPE, BROC, BPRC,
@@ -166,8 +215,8 @@ class ParserSegmentationDefault(ParserABC):
         return 'Train-001'
 
     @staticmethod
-    def default_trainer_class() -> Type[TrainerSegmentationDefault]:
-        return TrainerSegmentationDefault
+    def default_trainer_class() -> Type[ConfigTrainerSegmentationDefault]:
+        return ConfigTrainerSegmentationDefault
 
     @staticmethod
     def default_trainer_init_args() -> TrainerInitArgs:
@@ -202,30 +251,30 @@ class ParserSegmentationDefault(ParserABC):
     def default_callback_init_args() -> CallbackInitArgs:
         return CallbackInitArgs(
             enable_device_stats_monitor=True,
-            device_stats_monitor_init_args=DeviceStatsMonitorInitArgs(cpu_stats=True),
+            callback_device_stats_monitor=DeviceStatsMonitorInitArgs(cpu_stats=True),
             enable_early_stopping=True,
-            early_stopping_init_args=EarlyStoppingInitArgs(
+            callback_early_stopping=EarlyStoppingInitArgs(
                 monitor='val/loss',
                 patience=20,
                 mode='min',
                 verbose=True
             ),
             enable_learning_rate_monitor=True,
-            learning_rate_monitor_init_args=LearningRateMonitorInitArgs(
+            callback_learning_rate_monitor=LearningRateMonitorInitArgs(
                 logging_interval='epoch',
                 log_momentum=True,
                 log_weight_decay=True
             ),
             enable_rich_model_summary=True,
-            rich_model_summary_init_args=RichModelSummaryInitArgs(max_depth=5),
+            callback_rich_model_summary=RichModelSummaryInitArgs(max_depth=5),
             enable_rich_progressbar=True,
-            rich_progressbar_init_args=RichProgressBarInitArgs(
+            callback_rich_progressbar=RichProgressBarInitArgs(
                 refresh_rate=1,
                 leave=True,
                 theme=RichProgressBarTheme(),
                 console_kwargs=None
             ),
-            model_checkpoint_init_args_collection=[
+            callback_model_checkpoints=[
                 ModelCheckpointInitArgs(
                     dirpath='milestone',
                     filename='{epoch:03d}-loss={val/loss:4f}-DSC={val/DSC:4f}-HD95{val/HD95:4f}',
@@ -391,7 +440,7 @@ class ParserSegmentationDefault(ParserABC):
             dataset_params={
                 'cache_dir': 'Samples/cache'
             },
-            transform_cls=TransformSegmentationDefaultTrain,
+            transform_cls=ConfigTransformSegmentationDefaultTrain,
             transform_params={
                 'volume_key': 'volume',
                 'mask_key': 'mask',
@@ -448,7 +497,7 @@ class ParserSegmentationDefault(ParserABC):
             dataset_params={
                 'cache_dir': 'Samples/cache'
             },
-            transform_cls=TransformSegmentationDefaultInferencePre,
+            transform_cls=ConfigTransformSegmentationDefaultInferencePre,
             transform_params={
                 'volume_key': 'volume',
                 'mask_key': 'mask',
@@ -489,7 +538,7 @@ class ParserSegmentationDefault(ParserABC):
             dataset_params={
                 'cache_dir': 'Samples/cache'
             },
-            transform_cls=TransformSegmentationDefaultInferencePre,
+            transform_cls=ConfigTransformSegmentationDefaultInferencePre,
             transform_params={
                 'volume_key': 'volume',
                 'mask_key': 'mask',
@@ -528,7 +577,7 @@ class ParserSegmentationDefault(ParserABC):
             dataset_params={
                 'cache_dir': 'Samples/cache'
             },
-            transform_cls=TransformSegmentationDefaultInferencePre,
+            transform_cls=ConfigTransformSegmentationDefaultInferencePre,
             transform_params={
                 'volume_key': 'volume',
                 'param_volume_tf_duplicate_items_dup_keys_volume': 'volume_raw',
@@ -568,13 +617,13 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Dice similarity coefficient (also known as DSC) metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
                         dtype=torch.int
                     ),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
@@ -601,13 +650,13 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Normalized surface Dice metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
                         dtype=torch.int
                     ),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
@@ -632,13 +681,13 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='95% percentile Hausdorff distance metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
                         dtype=torch.int
                     ),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
@@ -660,9 +709,9 @@ class ParserSegmentationDefault(ParserABC):
                         'normalize': 'none'
                     },
                     description_info='Confusion Matrix for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    postprocess_metric_func=OperatorDisplayConfMat(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    postprocess_metric_func=ConfigOperatorDisplayConfMat(
                         'train',
                         'ConfMat',
                         ((0, 'gt'), (1, 'pred'))
@@ -684,8 +733,8 @@ class ParserSegmentationDefault(ParserABC):
                         'multidim_average': 'global'
                     },
                     description_info='Accuracy metric for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -702,8 +751,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Precision metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -720,8 +769,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Recall metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -738,8 +787,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Specificity metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -756,8 +805,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='F1-Score metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -773,8 +822,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='AUROC metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorTorchSoftmax(dim=1),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorTorchSoftmax(dim=1),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -793,7 +842,7 @@ class ParserSegmentationDefault(ParserABC):
             ],
             loss_init_args=NamedLossInitArgs(
                 name='train/loss',
-                class_type=LossDeepSupervisionDiceCE,
+                class_type=ConfigLossDeepSupervisionDiceCE,
                 init_args={
                     'include_background': False,  # Foregrounds are small
                     'to_onehot_y': False,  # We use (B, C, X, Y, Z) C-binary map as mask
@@ -849,13 +898,13 @@ class ParserSegmentationDefault(ParserABC):
             ),
             volume_key='volume',
             mask_key='mask',
-            hook_functions=[OperatorDisplayDictKeys(('Train', 'Step returns'))]
+            hook_functions=[ConfigOperatorDisplayDictKeys(('Train', 'Step returns'))]
         )
 
     @staticmethod
     def default_module_validation_step_addition_args(num_classes: int = 2) -> ModuleValidationStepAdditionArgs:
         return ModuleValidationStepAdditionArgs(
-            inferer=MainWithAuxSlidingWindowInferer,
+            inferer=ConfigInfererMainWithAuxSlidingWindow,
             inferer_init_args={
                 'roi_size': (128, 128, 128),
                 'sw_batch_size': 1,
@@ -880,13 +929,13 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Dice similarity coefficient (also known as DSC) metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
                         dtype=torch.int
                     ),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
@@ -913,13 +962,13 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Normalized surface dice metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
                         dtype=torch.int
                     ),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
@@ -944,13 +993,13 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='95% percentile Hausdorff distance metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
                         dtype=torch.int)
                     ,
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
@@ -972,9 +1021,9 @@ class ParserSegmentationDefault(ParserABC):
                         'normalize': 'none'
                     },
                     description_info='Confusion Matrix for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    postprocess_metric_func=OperatorDisplayConfMat(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    postprocess_metric_func=ConfigOperatorDisplayConfMat(
                         'val',
                         'ConfMat',
                         ((0, 'gt'), (1, 'pred'))
@@ -996,8 +1045,8 @@ class ParserSegmentationDefault(ParserABC):
                         'multidim_average': 'global'
                     },
                     description_info='Accuracy metric for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1014,8 +1063,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Precision metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1032,8 +1081,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Recall metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1050,8 +1099,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Specificity metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1068,8 +1117,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='F1-Score metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1085,8 +1134,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='AUROC metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorTorchSoftmax(dim=1),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorTorchSoftmax(dim=1),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1105,7 +1154,7 @@ class ParserSegmentationDefault(ParserABC):
             ],
             loss_init_args=NamedLossInitArgs(
                 name='val/loss',
-                class_type=LossDeepSupervisionDiceCE,
+                class_type=ConfigLossDeepSupervisionDiceCE,
                 init_args={
                     'include_background': False,  # Foregrounds are small
                     'to_onehot_y': False,  # We use (B, C, X, Y, Z) C-binary map as mask
@@ -1130,13 +1179,13 @@ class ParserSegmentationDefault(ParserABC):
             ),
             volume_key='volume',
             mask_key='mask',
-            hook_functions=[OperatorDisplayDictKeys(('Val', 'Step returns'))]
+            hook_functions=[ConfigOperatorDisplayDictKeys(('Val', 'Step returns'))]
         )
 
     @staticmethod
     def default_module_test_step_addition_args(num_classes: int = 2) -> ModuleTestStepAdditionArgs:
         return ModuleTestStepAdditionArgs(
-            inferer=MainWithAuxSlidingWindowInferer,
+            inferer=ConfigInfererMainWithAuxSlidingWindow,
             inferer_init_args={
                 'roi_size': (128, 128, 128),
                 'sw_batch_size': 1,
@@ -1161,13 +1210,13 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Dice similarity coefficient (also known as DSC) metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
                         dtype=torch.int
                     ),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
@@ -1194,13 +1243,13 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Normalized surface dice metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
                         dtype=torch.int
                     ),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
@@ -1225,13 +1274,13 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='95% percentile Hausdorff distance metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
                         dtype=torch.int
                     ),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(
                         argmax=True,
                         to_onehot=num_classes,
                         dim=1,
@@ -1253,9 +1302,9 @@ class ParserSegmentationDefault(ParserABC):
                         'normalize': 'none'
                     },
                     description_info='Confusion Matrix for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    postprocess_metric_func=OperatorDisplayConfMat(
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    postprocess_metric_func=ConfigOperatorDisplayConfMat(
                         'test',
                         'ConfMat',
                         ((0, 'gt'), (1, 'pred'))
@@ -1277,8 +1326,8 @@ class ParserSegmentationDefault(ParserABC):
                         'multidim_average': 'global'
                     },
                     description_info='Accuracy metric for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1295,8 +1344,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Precision metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1313,8 +1362,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Recall metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1331,8 +1380,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='Specificity metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1349,8 +1398,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='F1-Score metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1366,8 +1415,8 @@ class ParserSegmentationDefault(ParserABC):
                     },
                     description_info='AUROC metric (ignoring background) '
                                      'for multi-class (organs not overlapped) segmentation',
-                    preprocess_pred_func=OperatorTorchSoftmax(dim=1),
-                    preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                    preprocess_pred_func=ConfigOperatorTorchSoftmax(dim=1),
+                    preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=False,
@@ -1386,7 +1435,7 @@ class ParserSegmentationDefault(ParserABC):
             ],
             loss_init_args=NamedLossInitArgs(
                 name='test/loss',
-                class_type=LossDeepSupervisionDiceCE,
+                class_type=ConfigLossDeepSupervisionDiceCE,
                 init_args={
                     'include_background': False,  # Foregrounds are small
                     'to_onehot_y': False,  # We use (B, C, X, Y, Z) C-binary map as mask
@@ -1411,13 +1460,13 @@ class ParserSegmentationDefault(ParserABC):
             ),
             volume_key='volume',
             mask_key='mask',
-            hook_functions=[OperatorDisplayDictKeys(('Test', 'Step returns'))]
+            hook_functions=[ConfigOperatorDisplayDictKeys(('Test', 'Step returns'))]
         )
 
     @staticmethod
     def default_module_predict_step_addition_args() -> ModulePredictStepAdditionArgs:
         return ModulePredictStepAdditionArgs(
-            inferer=MainWithAuxSlidingWindowInferer,
+            inferer=ConfigInfererMainWithAuxSlidingWindow,
             inferer_init_args={
                 'roi_size': (128, 128, 128),
                 'sw_batch_size': 1,
@@ -1440,7 +1489,7 @@ class ParserSegmentationDefault(ParserABC):
                 )
             ],
             volume_key='volume',
-            hook_functions=[OperatorDisplayDictKeys(('Predict', 'Step returns'))]
+            hook_functions=[ConfigOperatorDisplayDictKeys(('Predict', 'Step returns'))]
         )
 
     @staticmethod
@@ -1543,7 +1592,7 @@ class ParserSegmentationDefault(ParserABC):
     experiment_name: Optional[str] = None
     experiment_version: Optional[str] = None
     # Trainer shall be subtype of TrainerSegmentationDefault
-    trainer_class: Optional[Type[TrainerSegmentationDefault]] = None
+    trainer_class: Optional[Type[ConfigTrainerSegmentationDefault]] = None
     trainer_init_args: Optional[TrainerInitArgs] = None
     callback_init_args: Optional[CallbackInitArgs] = None
     logger_init_args: Optional[LoggerInitArgs] = None

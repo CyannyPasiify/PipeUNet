@@ -50,7 +50,7 @@ from typing_extensions import override
 
 
 @dataclass
-class LRSchedulerBase(ABC):
+class ConfigLRSchedulerBase(ABC):
     def is_ready(self) -> bool:
         return hasattr(self, "lr_scheduler")
 
@@ -65,7 +65,7 @@ class LRSchedulerBase(ABC):
     def init_essentials(
             self,
             optimizer: torch.optim.Optimizer
-    ) -> 'LRSchedulerBase':
+    ) -> 'ConfigLRSchedulerBase':
         self.lr_scheduler: lr_scheduler.LRScheduler = lr_scheduler.LRScheduler(optimizer)  # Just placeholder
         return self
 
@@ -83,7 +83,7 @@ class LRSchedulerBase(ABC):
 
 
 @dataclass
-class LRSchedulerLinear(LRSchedulerBase):
+class ConfigLRSchedulerLinear(ConfigLRSchedulerBase):
     """
     Creates a configured linear learning rate scheduler instance
 
@@ -105,7 +105,7 @@ class LRSchedulerLinear(LRSchedulerBase):
     def init_essentials(
             self,
             optimizer: torch.optim.Optimizer
-    ) -> 'LRSchedulerLinear':
+    ) -> 'ConfigLRSchedulerLinear':
         self.lr_scheduler: lr_scheduler.LinearLR = lr_scheduler.LinearLR(
             optimizer=optimizer,
             start_factor=self.start_factor,
@@ -117,7 +117,7 @@ class LRSchedulerLinear(LRSchedulerBase):
 
 
 @dataclass
-class LRSchedulerCosineAnnealing(LRSchedulerBase):
+class ConfigLRSchedulerCosineAnnealing(ConfigLRSchedulerBase):
     """
     Creates a configured cosine annealing learning rate scheduler instance
 
@@ -137,7 +137,7 @@ class LRSchedulerCosineAnnealing(LRSchedulerBase):
     def init_essentials(
             self,
             optimizer: torch.optim.Optimizer
-    ) -> 'LRSchedulerCosineAnnealing':
+    ) -> 'ConfigLRSchedulerCosineAnnealing':
         self.lr_scheduler: lr_scheduler.CosineAnnealingLR = lr_scheduler.CosineAnnealingLR(
             optimizer=optimizer,
             T_max=self.T_max,
@@ -148,7 +148,7 @@ class LRSchedulerCosineAnnealing(LRSchedulerBase):
 
 
 @dataclass
-class LRSchedulerCosineAnnealingWarmRestarts(LRSchedulerBase):
+class ConfigLRSchedulerCosineAnnealingWarmRestarts(ConfigLRSchedulerBase):
     """
     Creates a configured cosine annealing with warm restarts learning rate scheduler instance
     
@@ -170,7 +170,7 @@ class LRSchedulerCosineAnnealingWarmRestarts(LRSchedulerBase):
     def init_essentials(
             self,
             optimizer: torch.optim.Optimizer
-    ) -> 'LRSchedulerCosineAnnealingWarmRestarts':
+    ) -> 'ConfigLRSchedulerCosineAnnealingWarmRestarts':
         self.lr_scheduler: lr_scheduler.CosineAnnealingWarmRestarts = lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer=optimizer,
             T_0=self.T_0,
@@ -182,7 +182,7 @@ class LRSchedulerCosineAnnealingWarmRestarts(LRSchedulerBase):
 
 
 @dataclass
-class LRSchedulerOneCycleLR(LRSchedulerBase):
+class ConfigLRSchedulerOneCycleConfigLR(ConfigLRSchedulerBase):
     """
     Creates a configured OneCycle learning rate scheduler instance
     
@@ -212,7 +212,7 @@ class LRSchedulerOneCycleLR(LRSchedulerBase):
     def init_essentials(
             self,
             optimizer: torch.optim.Optimizer
-    ) -> 'LRSchedulerOneCycleLR':
+    ) -> 'ConfigLRSchedulerOneCycleConfigLR':
         self.lr_scheduler: lr_scheduler.OneCycleLR = lr_scheduler.OneCycleLR(
             optimizer=optimizer,
             max_lr=self.max_lr,
@@ -228,7 +228,7 @@ class LRSchedulerOneCycleLR(LRSchedulerBase):
 
 
 @dataclass
-class LRSchedulerReduceLROnPlateau(LRSchedulerBase):
+class ConfigLRSchedulerReduceConfigLROnPlateau(ConfigLRSchedulerBase):
     """
     Creates a configured performance-based learning rate scheduler instance
 
@@ -256,7 +256,7 @@ class LRSchedulerReduceLROnPlateau(LRSchedulerBase):
     def init_essentials(
             self,
             optimizer: torch.optim.Optimizer
-    ) -> 'LRSchedulerReduceLROnPlateau':
+    ) -> 'ConfigLRSchedulerReduceConfigLROnPlateau':
         self.lr_scheduler: lr_scheduler.ReduceLROnPlateau = lr_scheduler.ReduceLROnPlateau(
             optimizer=optimizer,
             mode=self.mode,
@@ -287,27 +287,27 @@ if __name__ == "__main__":
         model = torch.nn.Linear(1, 1)
         optimizer = optim.SGD(model.parameters(), lr=initial_lr)
 
-        scheduler: LRSchedulerBase
+        scheduler: ConfigLRSchedulerBase
         # Create corresponding scheduler
         if scheduler_type == 'LinearLR':
-            scheduler = LRSchedulerLinear(
+            scheduler = ConfigLRSchedulerLinear(
                 start_factor=1.0,
                 end_factor=0.01,
                 total_iters=total_steps
             )
         elif scheduler_type == 'CosineAnnealingLR':
-            scheduler = LRSchedulerCosineAnnealing(
+            scheduler = ConfigLRSchedulerCosineAnnealing(
                 T_max=total_steps,
                 eta_min=0
             )
         elif scheduler_type == 'CosineAnnealingWarmRestarts':
-            scheduler = LRSchedulerCosineAnnealingWarmRestarts(
+            scheduler = ConfigLRSchedulerCosineAnnealingWarmRestarts(
                 T_0=total_steps // 7,
                 T_mult=2,
                 eta_min=0
             )
         elif scheduler_type == 'OneCycleLR':
-            scheduler = LRSchedulerOneCycleLR(
+            scheduler = ConfigLRSchedulerOneCycleConfigLR(
                 max_lr=initial_lr * 10,
                 total_steps=total_steps,
                 epochs=1,
@@ -317,7 +317,7 @@ if __name__ == "__main__":
                 final_div_factor=10000.0
             )
         elif scheduler_type == 'ReduceLROnPlateau':
-            scheduler = LRSchedulerReduceLROnPlateau(
+            scheduler = ConfigLRSchedulerReduceConfigLROnPlateau(
                 mode='min',
                 factor=0.5,
                 patience=10,

@@ -24,7 +24,7 @@ from monai.data import MetaTensor
 from monai.utils import GridSampleMode, GridSamplePadMode, PytorchPadMode, NumpyPadMode
 from typing import Dict, Any, Optional, Union, List, Sequence, Tuple
 from typing_extensions import override
-from Transform.tf_custom_monai import DuplicateItemsd, RandCropByLabelClassesd
+from Transform.monai_transform_custom import DuplicateItemsd, RandCropByLabelClassesd
 from dataclasses import dataclass
 from abc import ABC
 
@@ -33,11 +33,11 @@ DtypeLike = Union[np.dtype, type, str, None]
 
 
 @dataclass
-class TransformSegmentationDefaultBase(ABC):
+class ConfigTransformBase(ABC):
     """
-    Base class for segmentation transforms
+    Base class for transforms
     
-    Provides common functionality for all segmentation transform pipelines
+    Provides common functionality for all transform pipelines
     """
     volume_key: Optional[str] = None
     mask_key: Optional[str] = None
@@ -46,7 +46,7 @@ class TransformSegmentationDefaultBase(ABC):
         return hasattr(self, "_composed_transform") and \
             hasattr(self, "transform_dict")
 
-    def init_essentials(self) -> 'TransformSegmentationDefaultBase':
+    def init_essentials(self) -> 'ConfigTransformBase':
         self._composed_transform: Optional[mT.Compose] = mT.Compose()
         self.transform_dict: Dict[str, mT.Compose] = {}
         return self
@@ -101,7 +101,7 @@ class TransformSegmentationDefaultBase(ABC):
 
 
 @dataclass
-class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
+class ConfigTransformSegmentationDefaultTrain(ConfigTransformBase):
     """
     Transform pipeline for training segmentation models
     
@@ -158,7 +158,7 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
     random_seed: Optional[int] = None
 
     @override
-    def init_essentials(self) -> 'TransformSegmentationDefaultTrain':
+    def init_essentials(self) -> 'ConfigTransformSegmentationDefaultTrain':
         # Initialize individual transforms
         self._tf_load_image: mT.LoadImaged = mT.LoadImaged(
             keys=[self.volume_key, self.mask_key],
@@ -283,7 +283,7 @@ class TransformSegmentationDefaultTrain(TransformSegmentationDefaultBase):
 
 
 @dataclass
-class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase):
+class ConfigTransformSegmentationDefaultInferencePre(ConfigTransformBase):
     """
     Transform pipeline for inference preprocessing
     
@@ -292,21 +292,21 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
 
     Initialize the inference preprocessing transform pipeline
 
-        Args:
-            volume_key: Key for volume data in the input dictionary
-            mask_key: Key for mask data in the input dictionary (optional)
-            param_volume_tf_duplicate_items_dup_keys_volume: Key for duplicated volume data
-            param_mask_tf_duplicate_items_dup_keys_mask: Key for duplicated mask data (optional)
-            param_tf_spacing_pixdim: Voxel spacing for resampling
-            param_tf_spacing_mode_volume: Interpolation mode for volume resampling
-            param_tf_spacing_mode_mask: Interpolation mode for mask resampling
-            param_tf_padding_mode_volume: Padding mode for volume resampling
-            param_tf_padding_mode_mask: Padding mode for mask resampling
-            param_tf_scale_intensity_range_a_min: Minimum intensity value for scaling
-            param_tf_scale_intensity_range_a_max: Maximum intensity value for scaling
-            param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
-            param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
-            param_tf_scale_intensity_range_clip: Whether to clip intensity values
+    Args:
+        volume_key: Key for volume data in the input dictionary
+        mask_key: Key for mask data in the input dictionary (optional)
+        param_volume_tf_duplicate_items_dup_keys_volume: Key for duplicated volume data
+        param_mask_tf_duplicate_items_dup_keys_mask: Key for duplicated mask data (optional)
+        param_tf_spacing_pixdim: Voxel spacing for resampling
+        param_tf_spacing_mode_volume: Interpolation mode for volume resampling
+        param_tf_spacing_mode_mask: Interpolation mode for mask resampling
+        param_tf_padding_mode_volume: Padding mode for volume resampling
+        param_tf_padding_mode_mask: Padding mode for mask resampling
+        param_tf_scale_intensity_range_a_min: Minimum intensity value for scaling
+        param_tf_scale_intensity_range_a_max: Maximum intensity value for scaling
+        param_tf_scale_intensity_range_b_min: Minimum scaled intensity value
+        param_tf_scale_intensity_range_b_max: Maximum scaled intensity value
+        param_tf_scale_intensity_range_clip: Whether to clip intensity values
     """
 
     volume_key: str = 'volume'
@@ -325,7 +325,7 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
     param_tf_scale_intensity_range_clip: bool = True
 
     @override
-    def init_essentials(self) -> 'TransformSegmentationDefaultInferencePre':
+    def init_essentials(self) -> 'ConfigTransformSegmentationDefaultInferencePre':
         # Initialize individual transforms
         self._tf_load_image: mT.LoadImaged = mT.LoadImaged(
             keys=[self.volume_key, self.mask_key],
@@ -377,7 +377,7 @@ class TransformSegmentationDefaultInferencePre(TransformSegmentationDefaultBase)
 
 
 @dataclass
-class TransformSegmentationDefaultInferencePost(TransformSegmentationDefaultBase):
+class ConfigTransformSegmentationDefaultInferencePost(ConfigTransformBase):
     """
     Transform pipeline for inference postprocessing
     
@@ -418,7 +418,7 @@ class TransformSegmentationDefaultInferencePost(TransformSegmentationDefaultBase
     param_tf_cast_to_type_dtype_mask: Union[DtypeLike, torch.dtype] = torch.uint8
 
     @override
-    def init_essentials(self) -> 'TransformSegmentationDefaultInferencePost':
+    def init_essentials(self) -> 'ConfigTransformSegmentationDefaultInferencePost':
         # Initialize individual transforms
         self.tf_resample_to_match: mT.ResampleToMatchd = mT.ResampleToMatchd(
             keys=[self.volume_key, self.mask_key],
@@ -485,7 +485,7 @@ if __name__ == "__main__":
     print(data)
 
     # Transform for train
-    tf_train: TransformSegmentationDefaultTrain = TransformSegmentationDefaultTrain(
+    tf_train: ConfigTransformSegmentationDefaultTrain = ConfigTransformSegmentationDefaultTrain(
         volume_key='volume',
         mask_key='mask',
         param_tf_spatial_pad_spatial_size=(200, 200, 200),
@@ -510,7 +510,7 @@ if __name__ == "__main__":
         print(f'mask_raw: {tup["mask_raw"].shape}, {tup["mask_raw"].dtype}')
 
     # Transform for inference preprocess (with mask)
-    tf_infer_pre_w_mask: TransformSegmentationDefaultInferencePre = TransformSegmentationDefaultInferencePre(
+    tf_infer_pre_w_mask: ConfigTransformSegmentationDefaultInferencePre = ConfigTransformSegmentationDefaultInferencePre(
         volume_key='volume',
         mask_key='mask',
         param_volume_tf_duplicate_items_dup_keys_volume='volume_raw',
@@ -528,7 +528,7 @@ if __name__ == "__main__":
     print(f'mask_raw: {transformed_data_w_mask["mask_raw"].shape}, {transformed_data_w_mask["mask_raw"].dtype}')
 
     # Transform for inference preprocess (without mask)
-    tf_infer_pre_wo_mask: TransformSegmentationDefaultInferencePre = TransformSegmentationDefaultInferencePre(
+    tf_infer_pre_wo_mask: ConfigTransformSegmentationDefaultInferencePre = ConfigTransformSegmentationDefaultInferencePre(
         volume_key='volume',
         param_volume_tf_duplicate_items_dup_keys_volume='volume_raw'
     )
@@ -542,7 +542,7 @@ if __name__ == "__main__":
     print(f'volume_raw: {transformed_data_wo_mask["volume_raw"].shape}, {transformed_data_wo_mask["volume_raw"].dtype}')
 
     # Transform for inference postprocess (with volume)
-    tf_infer_post_w_volume: TransformSegmentationDefaultInferencePost = TransformSegmentationDefaultInferencePost(
+    tf_infer_post_w_volume: ConfigTransformSegmentationDefaultInferencePost = ConfigTransformSegmentationDefaultInferencePost(
         volume_key='volume',
         mask_key='mask',
         ref_key='volume_raw'
@@ -560,7 +560,7 @@ if __name__ == "__main__":
     print(f'mask_raw: {transformed_data_w_vol["mask_raw"].shape}, {transformed_data_w_vol["mask_raw"].dtype}')
 
     # transform for inference postprocess (without volume)
-    tf_infer_post_wo_volume: TransformSegmentationDefaultInferencePost = TransformSegmentationDefaultInferencePost(
+    tf_infer_post_wo_volume: ConfigTransformSegmentationDefaultInferencePost = ConfigTransformSegmentationDefaultInferencePost(
         mask_key='mask',
         ref_key='volume_raw'
     )

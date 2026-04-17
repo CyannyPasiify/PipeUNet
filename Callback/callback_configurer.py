@@ -8,16 +8,44 @@ Overview:
 """
 
 import lightning.pytorch.callbacks as callbacks
-from typing import Optional, Union, List, Literal, Dict, Any
+from typing import Optional, Union, Literal, Dict, Any
 from pathlib import Path
-from dataclasses import dataclass
-
 from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTheme
-from Logger.logger_configurer import CSVLogger
+from Logger.logger_configurer import ConfigLoggerCSV
+from abc import ABC, abstractmethod, ABCMeta
+from dataclasses import dataclass
+from typing_extensions import override
 
 
-@dataclass(frozen=True)
-class DeviceStatsMonitorInitArgs:
+@dataclass
+class ConfigCallbackBase(ABC):
+    def is_ready(self) -> bool:
+        return hasattr(self, "callback")
+
+    def _assert_init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> None:
+        if self.is_ready(): return
+        self.init_essentials(*args, **kwargs)
+
+    @abstractmethod
+    def init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> 'ConfigCallbackBase':
+        self.callback: callbacks.Callback = callbacks.Callback()  # Just placeholder
+        return self
+
+    def get_callback_hooker(self, *args, **kwargs) -> callbacks.Callback:
+        self._assert_init_essentials(*args, **kwargs)
+        return self.callback
+
+
+@dataclass
+class ConfigCallbackDeviceStatsMonitor(ConfigCallbackBase):
     """
     Initialization arguments for DeviceStatsMonitor.
     Attributes:
@@ -25,24 +53,14 @@ class DeviceStatsMonitorInitArgs:
     """
     cpu_stats: Optional[bool] = None
 
-
-def DeviceStatsMonitor(cpu_stats: Optional[bool] = None) -> callbacks.DeviceStatsMonitor:
-    """
-    Creates a device status monitoring callback instance
-
-    Args:
-        cpu_stats: Whether to monitor CPU status. If None, only monitor when using CPU accelerator;
-                  if True, monitor CPU status regardless of which accelerator is used;
-                  if False, don't monitor CPU status.
-
-    Returns:
-        callbacks.DeviceStatsMonitor: Configured device status monitoring callback instance.
-    """
-    return callbacks.DeviceStatsMonitor(cpu_stats=cpu_stats)
+    @override
+    def init_essentials(self) -> 'ConfigCallbackDeviceStatsMonitor':
+        self.callback: callbacks.DeviceStatsMonitor = callbacks.DeviceStatsMonitor(cpu_stats=self.cpu_stats)
+        return self
 
 
-@dataclass(frozen=True)
-class EarlyStoppingInitArgs:
+@dataclass
+class ConfigCallbackEarlyStopping(ConfigCallbackBase):
     """
     Initialization arguments for EarlyStopping.
     Attributes:
@@ -52,44 +70,26 @@ class EarlyStoppingInitArgs:
         mode: Monitoring mode for the metric, 'min' means smaller is better, 'max' means larger is better.
         verbose: Whether to output detailed information.
     """
-    monitor: str
+    monitor: str = ''
     min_delta: float = 0.0
     patience: int = 3
     mode: Literal['min', 'max'] = 'min'
     verbose: bool = False
 
-
-def EarlyStopping(
-        monitor: str,
-        min_delta: float = 0.0,
-        patience: int = 3,
-        mode: Literal['min', 'max'] = 'min',
-        verbose: bool = False
-) -> callbacks.EarlyStopping:
-    """
-    Creates an early stopping callback instance
-    
-    Args:
-        monitor: Name of the metric to monitor.
-        min_delta: Minimum change considered as an improvement.
-        patience: Number of consecutive checks with no improvement before stopping training.
-        mode: Monitoring mode for the metric, 'min' means smaller is better, 'max' means larger is better.
-        verbose: Whether to output detailed information.
-    
-    Returns:
-        callbacks.EarlyStopping: Configured early stopping callback instance.
-    """
-    return callbacks.EarlyStopping(
-        monitor=monitor,
-        min_delta=min_delta,
-        patience=patience,
-        mode=mode,
-        verbose=verbose
-    )
+    @override
+    def init_essentials(self) -> 'ConfigCallbackEarlyStopping':
+        self.callback: callbacks.EarlyStopping = callbacks.EarlyStopping(
+            monitor=self.monitor,
+            min_delta=self.min_delta,
+            patience=self.patience,
+            mode=self.mode,
+            verbose=self.verbose
+        )
+        return self
 
 
-@dataclass(frozen=True)
-class LearningRateMonitorInitArgs:
+@dataclass
+class ConfigCallbackLearningRateMonitor(ConfigCallbackBase):
     """
     Initialization arguments for LearningRateMonitor.
     Attributes:
@@ -101,32 +101,18 @@ class LearningRateMonitorInitArgs:
     log_momentum: bool = False
     log_weight_decay: bool = False
 
-
-def LearningRateMonitor(
-        logging_interval: Optional[Literal['step', 'epoch']] = None,
-        log_momentum: bool = False,
-        log_weight_decay: bool = False
-) -> callbacks.LearningRateMonitor:
-    """
-    Creates a learning rate monitoring callback instance
-    
-    Args:
-        logging_interval: Logging interval, can be 'step', 'epoch', or None.
-        log_momentum: Whether to log optimizer momentum values.
-        log_weight_decay: Whether to log optimizer weight decay values.
-    
-    Returns:
-        callbacks.LearningRateMonitor: Configured learning rate monitoring callback instance.
-    """
-    return callbacks.LearningRateMonitor(
-        logging_interval=logging_interval,
-        log_momentum=log_momentum,
-        log_weight_decay=log_weight_decay
-    )
+    @override
+    def init_essentials(self) -> 'ConfigCallbackLearningRateMonitor':
+        self.callback: callbacks.LearningRateMonitor = callbacks.LearningRateMonitor(
+            logging_interval=self.logging_interval,
+            log_momentum=self.log_momentum,
+            log_weight_decay=self.log_weight_decay
+        )
+        return self
 
 
-@dataclass(frozen=True)
-class ModelCheckpointInitArgs:
+@dataclass
+class ConfigCallbackModelCheckpoint(ConfigCallbackBase):
     """
     Initialization arguments for ModelCheckpoint.
     Attributes:
@@ -134,7 +120,7 @@ class ModelCheckpointInitArgs:
         filename: checkpoint filename. Can contain named formatting options to be auto-filled.
             # save any arbitrary metrics like `val_loss`, etc. in name
             # saves a file like: my/path/epoch=2-val_loss=0.02-other_metric=0.03.ckpt
-            >>> checkpoint_callback = ModelCheckpoint(
+            >>> checkpoint_callback = ConfigCallbackModelCheckpoint(
             >>>     dirpath='my/path',
             >>>     filename='{epoch}-{val_loss:.2f}-{other_metric:.2f}'
             >>> )
@@ -145,53 +131,31 @@ class ModelCheckpointInitArgs:
         save_last: When True, saves a last.ckpt copy whenever a checkpoint file gets saved. Can be set to 'link' on a local filesystem to create a symbolic link. This allows accessing the latest checkpoint in a deterministic manner. Default: None.
         every_n_epochs: Number of epochs between checkpoints. This value must be None or non-negative. To disable saving top-k checkpoints, set every_n_epochs = 0. This argument does not impact the saving of save_last=True checkpoints. If all of every_n_epochs is None, we save a checkpoint at the end of every epoch (equivalent to every_n_epochs = 1). Setting both ModelCheckpoint(..., every_n_epochs=V) and Trainer(max_epochs=N, check_val_every_n_epoch=M) will only save checkpoints at epochs 0 < E <= N where both values for every_n_epochs and check_val_every_n_epoch evenly divide E.
     """
-    dirpath: Optional[Union[str, Path]] = None,
-    filename: Optional[str] = None,
-    monitor: Optional[str] = None,
-    save_top_k: int = 1,
-    mode: Literal['min', 'max'] = 'min',
-    save_last: Optional[Union[bool, Literal['link']]] = None,
+    dirpath: Optional[Union[str, Path]] = None
+    filename: Optional[str] = None
+    monitor: Optional[str] = None
+    save_top_k: int = 1
+    mode: Literal['min', 'max'] = 'min'
+    save_last: Optional[Union[bool, Literal['link']]] = None
     every_n_epochs: Optional[int] = None
 
-
-def ModelCheckpoint(
-        dirpath: Optional[Union[str, Path]] = None,
-        filename: Optional[str] = None,
-        monitor: Optional[str] = None,
-        save_top_k: int = 1,
-        mode: Literal['min', 'max'] = 'min',
-        save_last: Optional[Union[bool, Literal['link']]] = None,
-        every_n_epochs: Optional[int] = None
-) -> callbacks.ModelCheckpoint:
-    """
-    Creates a model checkpoint callback instance
-    
-    Args:
-        dirpath: Directory path to save checkpoints.
-        filename: Checkpoint filename template.
-        monitor: Name of the metric to monitor, None means only save the last epoch's checkpoint.
-        save_top_k: Save the top k best models, 0 means no saving, -1 means save all.
-        mode: Monitoring mode for the metric, 'min' means smaller is better, 'max' means larger is better.
-        save_last: Whether to save the last checkpoint, 'link' means create a symbolic link.
-        every_n_epochs: Check whether to save checkpoint every n epochs.
-    
-    Returns:
-        callbacks.ModelCheckpoint: Configured model checkpoint callback instance.
-    """
-    return callbacks.ModelCheckpoint(
-        dirpath=dirpath,
-        filename=filename,
-        monitor=monitor,
-        save_top_k=save_top_k,
-        mode=mode,
-        save_last=save_last,
-        auto_insert_metric_name=False,
-        every_n_epochs=every_n_epochs
-    )
+    @override
+    def init_essentials(self) -> 'ConfigCallbackModelCheckpoint':
+        self.callback: callbacks.ModelCheckpoint = callbacks.ModelCheckpoint(
+            dirpath=self.dirpath,
+            filename=self.filename,
+            monitor=self.monitor,
+            save_top_k=self.save_top_k,
+            mode=self.mode,
+            save_last=self.save_last,
+            auto_insert_metric_name=False,
+            every_n_epochs=self.every_n_epochs
+        )
+        return self
 
 
-@dataclass(frozen=True)
-class ModelSummaryInitArgs:
+@dataclass
+class ConfigCallbackModelSummary(ConfigCallbackBase):
     """
     Initialization arguments for ModelSummary.
     Attributes:
@@ -199,22 +163,14 @@ class ModelSummaryInitArgs:
     """
     max_depth: int = 1
 
-
-def ModelSummary(max_depth: int = 1) -> callbacks.ModelSummary:
-    """
-    Creates a model summary callback instance
-    
-    Args:
-        max_depth: Maximum depth of layer nesting, 0 means disable layer summary
-    
-    Returns:
-        callbacks.ModelSummary: Configured model summary callback instance
-    """
-    return callbacks.ModelSummary(max_depth=max_depth)
+    @override
+    def init_essentials(self) -> 'ConfigCallbackModelSummary':
+        self.callback: callbacks.ModelSummary = callbacks.ModelSummary(max_depth=self.max_depth)
+        return self
 
 
-@dataclass(frozen=True)
-class RichModelSummaryInitArgs:
+@dataclass
+class ConfigCallbackRichModelSummary(ConfigCallbackBase):
     """
     Initialization arguments for RichModelSummary
     Attributes:
@@ -222,22 +178,14 @@ class RichModelSummaryInitArgs:
     """
     max_depth: int = 1
 
-
-def RichModelSummary(max_depth: int = 1) -> callbacks.RichModelSummary:
-    """
-    Creates a Rich-formatted model summary callback instance
-    
-    Args:
-        max_depth: Maximum depth of layer nesting, 0 means disable layer summary.
-    
-    Returns:
-        callbacks.RichModelSummary: Configured Rich model summary callback instance.
-    """
-    return callbacks.RichModelSummary(max_depth=max_depth)
+    @override
+    def init_essentials(self) -> 'ConfigCallbackRichModelSummary':
+        self.callback: callbacks.RichModelSummary = callbacks.RichModelSummary(max_depth=self.max_depth)
+        return self
 
 
-@dataclass(frozen=True)
-class RichProgressBarInitArgs:
+@dataclass
+class ConfigCallbackRichProgressBar(ConfigCallbackBase):
     """
     Initialization arguments for RichProgressBar
     Attributes:
@@ -248,38 +196,22 @@ class RichProgressBarInitArgs:
     """
     refresh_rate: int = 1
     leave: bool = False
-    theme: RichProgressBarTheme = RichProgressBarTheme(),
+    theme: RichProgressBarTheme = RichProgressBarTheme()
     console_kwargs: Optional[dict[str, Any]] = None
 
-
-def RichProgressBar(
-        refresh_rate: int = 1,
-        leave: bool = False,
-        theme: RichProgressBarTheme = RichProgressBarTheme(),
-        console_kwargs: Optional[dict[str, Any]] = None
-) -> callbacks.RichProgressBar:
-    """
-    Creates a Rich-formatted progress bar callback instance
-    
-    Args:
-        refresh_rate: Progress bar update frequency (batch count).
-        leave: Whether to keep the progress bar in the terminal after training ends.
-        theme: Contains styles used to stylize the progress bar.
-        console_kwargs: Args for constructing a Console. Please refer to rich.console.Console.
-    
-    Returns:
-        callbacks.RichProgressBar: Configured Rich progress bar callback instance.
-    """
-    return callbacks.RichProgressBar(
-        refresh_rate=refresh_rate,
-        leave=leave,
-        theme=theme,
-        console_kwargs=console_kwargs
-    )
+    @override
+    def init_essentials(self) -> 'ConfigCallbackRichProgressBar':
+        self.callback: callbacks.RichProgressBar = callbacks.RichProgressBar(
+            refresh_rate=self.refresh_rate,
+            leave=self.leave,
+            theme=self.theme,
+            console_kwargs=self.console_kwargs
+        )
+        return self
 
 
-@dataclass(frozen=True)
-class TQDMProgressBarInitArgs:
+@dataclass
+class ConfigCallbackTQDMProgressBar(ConfigCallbackBase):
     """
     Initialization arguments for TQDMProgressBar
     Attributes:
@@ -291,29 +223,14 @@ class TQDMProgressBarInitArgs:
     process_position: int = 0
     leave: bool = False
 
-
-def TQDMProgressBar(
-        refresh_rate: int = 1,
-        process_position: int = 0,
-        leave: bool = False
-) -> callbacks.TQDMProgressBar:
-    """
-    Creates a TQDM progress bar callback instance
-    
-    Args:
-        refresh_rate: Progress bar update frequency (batch count).
-        process_position: Position offset of the progress bar in the terminal.
-        leave: Whether to keep the progress bar in the terminal after training ends.
-    
-    Returns:
-        callbacks.TQDMProgressBar: Configured TQDM progress bar callback instance.
-    """
-
-    return callbacks.TQDMProgressBar(
-        refresh_rate=refresh_rate,
-        process_position=process_position,
-        leave=leave
-    )
+    @override
+    def init_essentials(self) -> 'ConfigCallbackTQDMProgressBar':
+        self.callback: callbacks.TQDMProgressBar = callbacks.TQDMProgressBar(
+            refresh_rate=self.refresh_rate,
+            process_position=self.process_position,
+            leave=self.leave
+        )
+        return self
 
 
 if __name__ == '__main__':
@@ -403,23 +320,23 @@ if __name__ == '__main__':
         return train_loader, val_loader
 
 
-    def create_callback(callback_type: str) -> Optional[pl.Callback]:
+    def create_callback(callback_type: str) -> Optional[ConfigCallbackBase]:
         """Creates a callback instance based on the specified type"""
         if callback_type == 'DeviceStatsMonitor':
             print("Creating DeviceStatsMonitor callback")
-            return DeviceStatsMonitor(cpu_stats=True)
+            return ConfigCallbackDeviceStatsMonitor(cpu_stats=True)
 
         elif callback_type == 'EarlyStopping':
             print("Creating EarlyStopping callback")
-            return EarlyStopping(monitor='val_loss', mode='min', patience=3, verbose=True)
+            return ConfigCallbackEarlyStopping(monitor='val_loss', mode='min', patience=3, verbose=True)
 
         elif callback_type == 'LearningRateMonitor':
             print("Creating LearningRateMonitor callback")
-            return LearningRateMonitor(logging_interval='step', log_weight_decay=True)
+            return ConfigCallbackLearningRateMonitor(logging_interval='step', log_weight_decay=True)
 
         elif callback_type == 'ModelCheckpoint':
             print("Creating ModelCheckpoint callback")
-            return ModelCheckpoint(
+            return ConfigCallbackModelCheckpoint(
                 dirpath='./Samples/callback_test/ckpt',
                 filename='epoch={epoch}-val_loss={val_loss:.2f}-val_acc={val_acc:.2f}',
                 monitor='val_acc',
@@ -430,12 +347,12 @@ if __name__ == '__main__':
 
         elif callback_type == 'ModelSummary':
             print("Creating ModelSummary callback")
-            return ModelSummary(max_depth=2)
+            return ConfigCallbackModelSummary(max_depth=2)
 
         elif callback_type == 'RichModelSummary':
             print("Creating RichModelSummary callback")
             try:
-                return RichModelSummary(max_depth=2)
+                return ConfigCallbackRichModelSummary(max_depth=2)
             except ModuleNotFoundError:
                 print("Warning: 'rich' package is not installed, please install it using 'pip install rich'")
                 return None
@@ -443,14 +360,14 @@ if __name__ == '__main__':
         elif callback_type == 'RichProgressBar':
             print("Creating RichProgressBar callback")
             try:
-                return RichProgressBar(refresh_rate=2, leave=True)
+                return ConfigCallbackRichProgressBar(refresh_rate=2, leave=True)
             except ModuleNotFoundError:
                 print("Warning: 'rich' package is not installed, please install it using 'pip install rich'")
                 return None
 
         elif callback_type == 'TQDMProgressBar':
             print("Creating TQDMProgressBar callback")
-            return TQDMProgressBar(refresh_rate=2, leave=True)
+            return ConfigCallbackTQDMProgressBar(refresh_rate=2, leave=True)
 
         else:
             print(f"Unknown callback type: {callback_type}")
@@ -475,12 +392,12 @@ if __name__ == '__main__':
         # Create Trainer with the specified callback
         trainer = pl.Trainer(
             max_epochs=100,
-            callbacks=[callback],
+            callbacks=[callback.get_callback_hooker()],
             accelerator='auto',
             devices=1,
             log_every_n_steps=5,
             check_val_every_n_epoch=2,
-            logger=CSVLogger(save_dir='./Samples/callback_test', name=callback_type)
+            logger=ConfigLoggerCSV(save_dir='./Samples/callback_test', name=callback_type)
         )
 
         # Train model

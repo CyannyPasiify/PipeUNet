@@ -13,7 +13,7 @@ TLSeq = Union[List[T], Tuple[T, ...]]
 
 
 @dataclass
-class OperatorBase(ABC):
+class ConfigOperatorBase(ABC):
     def is_ready(self) -> bool:
         return hasattr(self, "_is_ready")
 
@@ -30,7 +30,7 @@ class OperatorBase(ABC):
             self,
             *args,
             **kwargs
-    ) -> 'OperatorBase':
+    ) -> 'ConfigOperatorBase':
         # Do anything
         return self
 
@@ -38,16 +38,20 @@ class OperatorBase(ABC):
     def __call__(self, *args, **kwargs) -> Any:
         pass
 
+    def get_operator(self, *args, **kwargs) -> Any:
+        self._assert_init_essentials()
+        return self
+
 
 @dataclass
-class OperatorIdentity(OperatorBase):
+class ConfigOperatorIdentity(ConfigOperatorBase):
     @override
     def is_ready(self) -> bool:
         # Always ok
         return True
 
     @override
-    def init_essentials(self) -> 'OperatorIdentity':
+    def init_essentials(self) -> 'ConfigOperatorIdentity':
         return self
 
     @override
@@ -56,7 +60,7 @@ class OperatorIdentity(OperatorBase):
 
 
 @dataclass
-class OperatorDisplayDictKeys(OperatorBase):
+class ConfigOperatorDisplayDictKeys(ConfigOperatorBase):
     tags: TLSeq[str] = ()
 
     @override
@@ -65,7 +69,7 @@ class OperatorDisplayDictKeys(OperatorBase):
         return True
 
     @override
-    def init_essentials(self) -> 'OperatorDisplayDictKeys':
+    def init_essentials(self) -> 'ConfigOperatorDisplayDictKeys':
         return self
 
     @override
@@ -78,13 +82,13 @@ class OperatorDisplayDictKeys(OperatorBase):
 
 
 @dataclass
-class OperatorDisplayConfMat(OperatorBase):
+class ConfigOperatorDisplayConfMat(ConfigOperatorBase):
     phase: str  # Such as train, val, test, predict
     conf_mat_desc: str  # Such as ConfMat
     dim_desc: Tuple[Tuple[int, str], Tuple[int, str]]  # Length must be 2, Such as ((dim=0, gt), (dim=1, pred))
 
     @override
-    def init_essentials(self) -> 'OperatorDisplayConfMat':
+    def init_essentials(self) -> 'ConfigOperatorDisplayConfMat':
         assert len(self.dim_desc) == 2, \
             f'You shall specify dim_desc in format such as ((0, gt), (1, pred)), elem:=(dim, dim_name)'
         self._is_ready = True
@@ -103,7 +107,7 @@ class OperatorDisplayConfMat(OperatorBase):
 
 
 @dataclass
-class OperatorMonaiAsDiscrete(OperatorBase):
+class ConfigOperatorMonaiAsDiscrete(ConfigOperatorBase):
     argmax: bool = False
     to_onehot: Optional[int] = None
     threshold: Optional[float] = None
@@ -118,7 +122,7 @@ class OperatorMonaiAsDiscrete(OperatorBase):
         return hasattr(self, "transform")
 
     @override
-    def init_essentials(self) -> 'OperatorMonaiAsDiscrete':
+    def init_essentials(self) -> 'ConfigOperatorMonaiAsDiscrete':
         self.transform: mT.AsDiscrete = mT.AsDiscrete(
             self.argmax,
             self.to_onehot,
@@ -148,9 +152,14 @@ class OperatorMonaiAsDiscrete(OperatorBase):
             rounding
         )
 
+    @override
+    def get_operator(self) -> Any:
+        self._assert_init_essentials()
+        return self.transform
+
 
 @dataclass
-class OperatorTorchSoftmax(OperatorBase):
+class ConfigOperatorTorchSoftmax(ConfigOperatorBase):
     dim: Optional[int] = None
 
     @override
@@ -159,7 +168,7 @@ class OperatorTorchSoftmax(OperatorBase):
         return hasattr(self, "operator")
 
     @override
-    def init_essentials(self) -> 'OperatorTorchSoftmax':
+    def init_essentials(self) -> 'ConfigOperatorTorchSoftmax':
         self.operator: torch.nn.Softmax = torch.nn.Softmax(dim=self.dim)
         return self
 
@@ -167,3 +176,8 @@ class OperatorTorchSoftmax(OperatorBase):
     def __call__(self, input: Tensor) -> Tensor:
         self._assert_init_essentials()
         return self.operator(input)
+
+    @override
+    def get_operator(self) -> Any:
+        self._assert_init_essentials()
+        return self.operator

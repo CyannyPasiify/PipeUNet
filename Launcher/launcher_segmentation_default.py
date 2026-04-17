@@ -3,22 +3,44 @@ import os
 from pathlib import Path
 from lightning.fabric.utilities.types import _MAP_LOCATION_TYPE
 from typing import Optional, Dict, Any, Union, Type
-from DataModule.dm_default_seg import DataModuleSegmentationDefault, DataModuleSegmentationDefaultInitArgs
-from Module.module_segmentation_default import NamedNetworkInitArgs, ModuleTrainingStepAdditionArgs, \
+from DataModule.data_module_segmentation_default import DataModuleSegmentationDefault, DataModuleSegmentationDefaultInitArgs
+from Module.ltn_module_segmentation_default import NamedNetworkInitArgs, ModuleTrainingStepAdditionArgs, \
     NamedMetricInitArgs, NamedLossInitArgs, NamedOptimizerInitArgs, NamedLRSchedulerInitArgs, \
     ModuleTestStepAdditionArgs, ModuleValidationStepAdditionArgs, ModulePredictStepAdditionArgs, \
     ModuleSegmentationDefault
-from Trainer.trainer_default_seg import TrainerInitArgs, CallbackInitArgs, LoggerInitArgs, TrainerSegmentationDefault
+from Trainer.trainer_configurer import TrainerInitArgs, CallbackInitArgs, LoggerInitArgs, ConfigTrainerSegmentationDefault, \
+    ConfigTrainerBase
 from Launcher.Parser.parser_segmentation_default import ParserSegmentationDefault
 from Launcher.launcher_ABC import LauncherABC
+from dataclasses import dataclass
 
+
+@dataclass
 class LauncherSegmentationDefault(LauncherABC):
+    experiment_root_dir: Union[str, os.PathLike, Path]
+    experiment_name: str
+    experiment_version: str
+    trainer_wrapper: ConfigTrainerBase
+    callback_init_args: CallbackInitArgs
+    logger_init_args: LoggerInitArgs
+    data_module_wrapper: DataModule
+    module_class: Type[ModuleSegmentationDefault]  # Main Module shall be subtype of ModuleSegmentationDefault
+    network_init_args: NamedNetworkInitArgs
+    # Optional args
+    datamodule_training_init_args: Optional[DataModuleSegmentationDefaultInitArgs] = None
+    datamodule_validation_init_args: Optional[DataModuleSegmentationDefaultInitArgs] = None
+    datamodule_test_init_args: Optional[DataModuleSegmentationDefaultInitArgs] = None
+    datamodule_predict_init_args: Optional[DataModuleSegmentationDefaultInitArgs] = None
+    module_training_step_addition_args: Optional[ModuleTrainingStepAdditionArgs] = None
+    module_validation_step_addition_args: Optional[ModuleValidationStepAdditionArgs] = None
+    module_test_step_addition_args: Optional[ModuleTestStepAdditionArgs] = None
+    module_predict_step_addition_args: Optional[ModulePredictStepAdditionArgs] = None
     def __init__(
             self,
             experiment_root_dir: Union[str, os.PathLike, Path],
             experiment_name: str,
             experiment_version: str,
-            trainer_class: Type[TrainerSegmentationDefault],  # Trainer shall be subtype of TrainerSegmentationDefault
+            trainer_class: Type[ConfigTrainerSegmentationDefault],  # Trainer shall be subtype of TrainerSegmentationDefault
             trainer_init_args: TrainerInitArgs,
             callback_init_args: CallbackInitArgs,
             logger_init_args: LoggerInitArgs,
@@ -92,7 +114,7 @@ class LauncherSegmentationDefault(LauncherABC):
         self.experiment_name: str = experiment_name
         self.experiment_version: str = experiment_version
 
-        self.trainer_class: Type[TrainerSegmentationDefault] = trainer_class
+        self.trainer_class: Type[ConfigTrainerSegmentationDefault] = trainer_class
         self.trainer_init_args: TrainerInitArgs = trainer_init_args
         self.callback_init_args: CallbackInitArgs = callback_init_args
         self.logger_init_args: LoggerInitArgs = logger_init_args
@@ -110,7 +132,7 @@ class LauncherSegmentationDefault(LauncherABC):
         self.module_test_step_addition_args: ModuleTestStepAdditionArgs = module_test_step_addition_args
         self.module_predict_step_addition_args: ModulePredictStepAdditionArgs = module_predict_step_addition_args
 
-        self.trainer: TrainerSegmentationDefault = trainer_class(
+        self.trainer: ConfigTrainerSegmentationDefault = trainer_class(
             experiment_root_dir=experiment_root_dir,
             experiment_name=experiment_name,
             experiment_version=experiment_version,
@@ -322,7 +344,7 @@ if __name__ == "__main__":
     experiment_version: str = args.experiment_version
 
     # Common: Load defaults
-    trainer_class: Type[TrainerSegmentationDefault] = ParserSegmentationDefault.default_trainer_class()
+    trainer_class: Type[ConfigTrainerSegmentationDefault] = ParserSegmentationDefault.default_trainer_class()
     trainer_init_args: TrainerInitArgs = ParserSegmentationDefault.default_trainer_init_args()
     logger_init_args: LoggerInitArgs = ParserSegmentationDefault.default_logger_init_args()
     datamodule_class: Type[DataModuleSegmentationDefault] = ParserSegmentationDefault.default_datamodule_class()
@@ -365,9 +387,9 @@ if __name__ == "__main__":
         callback_init_args: CallbackInitArgs = ParserSegmentationDefault.default_callback_init_args()
         if args.early_stopping is None:
             callback_init_args.enable_early_stopping = False
-            callback_init_args.early_stopping_init_args = None
+            callback_init_args.callback_early_stopping = None
         else:
-            callback_init_args.early_stopping_init_args.patience = args.early_stopping
+            callback_init_args.callback_early_stopping.patience = args.early_stopping
 
         # Fit/Finetune: DataModule (train phase)
         datamodule_training_init_args: DataModuleSegmentationDefaultInitArgs = \

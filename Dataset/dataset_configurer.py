@@ -1,23 +1,23 @@
 # -*- coding: utf-8 -*-
 import pathlib as pl
 import sys
-from abc import ABC, abstractmethod
 import monai.data.dataset as mD
 from typing import Dict, Any, Optional, Union, Callable, Sequence, List
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing_extensions import override
-from Operator.operator_misc import OperatorIdentity
+from Operator.operator_configurer import ConfigOperatorIdentity
 
 
 @dataclass
-class DatasetBase(ABC):
+class ConfigDatasetBase(ABC):
     def is_ready(self) -> bool:
         return hasattr(self, 'dataset')
 
     def _assert_init_essentials(
             self,
             data: Sequence,
-            transform: Union[Sequence[Callable], Callable] = OperatorIdentity()
+            transform: Union[Sequence[Callable], Callable] = ConfigOperatorIdentity()
     ) -> None:
         if self.is_ready(): return
         self.init_essentials(data, transform)
@@ -26,8 +26,8 @@ class DatasetBase(ABC):
     def init_essentials(
             self,
             data: Sequence,
-            transform: Union[Sequence[Callable], Callable] = OperatorIdentity()
-    ) -> 'DatasetBase':
+            transform: Union[Sequence[Callable], Callable] = ConfigOperatorIdentity()
+    ) -> 'ConfigDatasetBase':
         self.dataset: mD.Dataset = mD.Dataset(
             data=data,
             transform=transform
@@ -37,7 +37,7 @@ class DatasetBase(ABC):
     def get_dataset(
             self,
             data: Optional[Sequence] = None,
-            transform: Union[Sequence[Callable], Callable] = OperatorIdentity()
+            transform: Union[Sequence[Callable], Callable] = ConfigOperatorIdentity()
     ) -> Optional[mD.Dataset]:
         if data is None:
             if self.is_ready():
@@ -49,15 +49,15 @@ class DatasetBase(ABC):
 
 
 @dataclass
-class DatasetPersistent(DatasetBase):
+class ConfigDatasetPersistent(ConfigDatasetBase):
     cache_dir: Union[pl.Path, str, None] = None
 
     @override
     def init_essentials(
             self,
             data: Sequence,
-            transform: Union[Sequence[Callable], Callable] = OperatorIdentity()
-    ) -> 'DatasetPersistent':
+            transform: Union[Sequence[Callable], Callable] = ConfigOperatorIdentity()
+    ) -> 'ConfigDatasetPersistent':
         self.dataset: mD.PersistentDataset = mD.PersistentDataset(
             data=data,
             transform=transform,
@@ -67,7 +67,7 @@ class DatasetPersistent(DatasetBase):
 
 
 @dataclass
-class DatasetCache(DatasetBase):
+class ConfigDatasetCache(ConfigDatasetBase):
     cache_num: int = sys.maxsize
     cache_rate: float = 1.0
     num_workers: Optional[int] = 1
@@ -76,8 +76,8 @@ class DatasetCache(DatasetBase):
     def init_essentials(
             self,
             data: Sequence,
-            transform: Union[Sequence[Callable], Callable] = OperatorIdentity()
-    ) -> 'DatasetCache':
+            transform: Union[Sequence[Callable], Callable] = ConfigOperatorIdentity()
+    ) -> 'ConfigDatasetCache':
         self.dataset: mD.CacheDataset = mD.CacheDataset(
             data=data,
             transform=transform,
@@ -89,7 +89,7 @@ class DatasetCache(DatasetBase):
 
 
 @dataclass
-class DatasetLMDB(DatasetBase):
+class ConfigDatasetLMDB(ConfigDatasetBase):
     cache_dir: Union[pl.Path, str] = "cache"
     db_name: str = "monai_cache"
     lmdb_kwargs: Optional[Dict[str, Any]] = None
@@ -98,8 +98,8 @@ class DatasetLMDB(DatasetBase):
     def init_essentials(
             self,
             data: Sequence,
-            transform: Union[Sequence[Callable], Callable] = OperatorIdentity()
-    ) -> 'DatasetLMDB':
+            transform: Union[Sequence[Callable], Callable] = ConfigOperatorIdentity()
+    ) -> 'ConfigDatasetLMDB':
         self.dataset: mD.LMDBDataset = mD.LMDBDataset(
             data=data,
             transform=transform,

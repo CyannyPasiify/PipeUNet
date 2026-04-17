@@ -1,15 +1,67 @@
 # -*- coding: utf-8 -*-
 from functools import partial
-
 import torch
 from torch import Tensor
 import monai.inferers as mI
 from monai.utils.enums import BlendMode, PytorchPadMode
-from typing import Optional, Union, Sequence, List, Callable, Any, Tuple, Dict
+from typing import TypeVar, Optional, Union, Sequence, List, Callable, Any, Tuple, Dict
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing_extensions import override
+
+T = TypeVar("T")
+TLSeq = Union[List[T], Tuple[T, ...]]
 
 
-class SlidingWindowInferer(mI.SlidingWindowInfererAdapt):
+@dataclass
+class ConfigInfererBase(ABC):
+    def is_ready(self) -> bool:
+        return hasattr(self, "inferer")
+
+    def _assert_init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> None:
+        if self.is_ready(): return
+        self.init_essentials(*args, **kwargs)
+
+    @abstractmethod
+    def init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> 'ConfigInfererBase':
+        self.inferer: mI.Inferer = mI.SimpleInferer()  # Just placeholder
+        return self
+
+    def __call__(
+            self,
+            inputs: torch.Tensor,
+            network: Callable[..., Union[torch.Tensor, TLSeq[torch.Tensor], Dict[Any, torch.Tensor]]],
+            *args: Any,
+            **kwargs: Any,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, ...], Dict[Any, torch.Tensor]]:
+        return self.inferer(inputs, network, *args, **kwargs)
+
+    def get_inferer_operator(self, *args, **kwargs) -> mI.Inferer:
+        self._assert_init_essentials(*args, **kwargs)
+        return self.inferer
+
+
+@dataclass
+class ConfigInfererSimple(ConfigInfererBase):
+    """
+        SimpleInferer is the normal inference method that run model forward() directly.
+    """
+    @override
+    def init_essentials(self) -> 'ConfigInfererSimple':
+        self.inferer: mI.Inferer = mI.SimpleInferer()
+        return self
+
+
+@dataclass
+class ConfigInfererSlidingWindow(ConfigInfererBase):
     """
     Sliding window method for model inference,
     with `sw_batch_size` windows for every model.forward().
@@ -64,47 +116,11 @@ class SlidingWindowInferer(mI.SlidingWindowInfererAdapt):
         ``sw_batch_size`` denotes the max number of windows per network inference iteration,
         not the batch size of inputs.
     """
-
-    def __init__(
-            self,
-            roi_size: Union[Sequence[int], int],
-            sw_batch_size: int = 1,
-            overlap: Union[Sequence[float], float] = 0.25,
-            mode: Union[BlendMode, str] = BlendMode.GAUSSIAN,
-            sigma_scale: Union[Sequence[float], float] = 0.125,
-            padding_mode: Union[PytorchPadMode, str] = PytorchPadMode.CONSTANT,
-            cval: float = 0.0,
-            sw_device: Optional[Union[torch.device, str]] = None,
-            device: Optional[Union[torch.device, str]] = None,
-            progress: bool = False,
-            cpu_thresh: Optional[int] = None,
-            buffer_steps: Optional[int] = None,
-            buffer_dim: int = -1,
-    ) -> None:
-        super().__init__(
-            roi_size=roi_size,
-            sw_batch_size=sw_batch_size,
-            overlap=overlap,
-            mode=mode,
-            sigma_scale=sigma_scale,
-            padding_mode=padding_mode,
-            cval=cval,
-            sw_device=sw_device,
-            device=device,
-            progress=progress,
-            cpu_thresh=cpu_thresh,
-            buffer_steps=buffer_steps,
-            buffer_dim=buffer_dim
-        )
-
-
-@dataclass
-class SlidingWindowInfererInitArgs:
-    roi_size: Union[Sequence[int], int]
+    roi_size: Union[TLSeq[int], int] = (128, 128, 128)
     sw_batch_size: int = 1
-    overlap: Union[Sequence[float], float] = 0.25
+    overlap: Union[TLSeq[float], float] = 0.25
     mode: Union[BlendMode, str] = BlendMode.GAUSSIAN
-    sigma_scale: Union[Sequence[float], float] = 0.125
+    sigma_scale: Union[TLSeq[float], float] = 0.125
     padding_mode: Union[PytorchPadMode, str] = PytorchPadMode.CONSTANT
     cval: float = 0.0
     sw_device: Optional[Union[torch.device, str]] = None
@@ -114,8 +130,27 @@ class SlidingWindowInfererInitArgs:
     buffer_steps: Optional[int] = None
     buffer_dim: int = -1
 
+    @override
+    def init_essentials(self) -> 'ConfigInfererSlidingWindow':
+        self.inferer: mI.SlidingWindowInfererAdapt = mI.SlidingWindowInfererAdapt(
+            roi_size=self.roi_size,
+            sw_batch_size=self.sw_batch_size,
+            overlap=self.overlap,
+            mode=self.mode,
+            sigma_scale=self.sigma_scale,
+            padding_mode=self.padding_mode,
+            cval=self.cval,
+            sw_device=self.sw_device,
+            device=self.device,
+            progress=self.progress,
+            cpu_thresh=self.cpu_thresh,
+            buffer_steps=self.buffer_steps,
+            buffer_dim=self.buffer_dim
+        )
+        return self
 
-class MainWithAuxSlidingWindowInferer(SlidingWindowInferer):
+
+class _MainWithAuxSlidingWindowInferer(mI.SlidingWindowInfererAdapt):
     def _wrapped_network_io(
             self,
             input: Tensor,
@@ -152,3 +187,39 @@ class MainWithAuxSlidingWindowInferer(SlidingWindowInferer):
             args, kwargs
         )
         return full_logits[0], list(reversed(full_logits[1:]))
+
+
+@dataclass
+class ConfigInfererMainWithAuxSlidingWindow(ConfigInfererBase):
+    roi_size: Union[Sequence[int], int]
+    sw_batch_size: int = 1
+    overlap: Union[Sequence[float], float] = 0.25
+    mode: Union[BlendMode, str] = BlendMode.GAUSSIAN
+    sigma_scale: Union[Sequence[float], float] = 0.125
+    padding_mode: Union[PytorchPadMode, str] = PytorchPadMode.CONSTANT
+    cval: float = 0.0
+    sw_device: Optional[Union[torch.device, str]] = None
+    device: Optional[Union[torch.device, str]] = None
+    progress: bool = False
+    cpu_thresh: Optional[int] = None
+    buffer_steps: Optional[int] = None
+    buffer_dim: int = -1
+
+    @override
+    def init_essentials(self) -> 'ConfigInfererMainWithAuxSlidingWindow':
+        self.inferer: _MainWithAuxSlidingWindowInferer = _MainWithAuxSlidingWindowInferer(
+            roi_size=self.roi_size,
+            sw_batch_size=self.sw_batch_size,
+            overlap=self.overlap,
+            mode=self.mode,
+            sigma_scale=self.sigma_scale,
+            padding_mode=self.padding_mode,
+            cval=self.cval,
+            sw_device=self.sw_device,
+            device=self.device,
+            progress=self.progress,
+            cpu_thresh=self.cpu_thresh,
+            buffer_steps=self.buffer_steps,
+            buffer_dim=self.buffer_dim
+        )
+        return self

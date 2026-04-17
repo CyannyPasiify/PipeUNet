@@ -38,7 +38,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from typing import TypeVar, Optional, Tuple, List, Collection, Sequence, Union, Dict, Any, Type, Iterable, cast
-from Network.net_block import IODescriptive, ConvNormAct, ConvBNReLU, Concat
+from Network.module_block import IODescriptive, ConvNormAct, ConvBNReLU, Concat
 
 T = TypeVar("T")
 TLSeq = Union[List[T], Tuple[T, ...]]

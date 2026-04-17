@@ -1,87 +1,69 @@
 # -*- coding: utf-8 -*-
 
 import torch
-from torch import nn, Tensor
-from typing import Optional, Dict, Any, Union, List, Literal, Type, Set, Collection, Tuple, Callable
+from torch import nn, Tensor, optim
+from typing import TypeVar, Optional, Dict, Any, Union, List, Literal, Type, Set, Collection, Tuple, Callable
 import lightning as L
 from dataclasses import dataclass
 from monai.inferers import Inferer, SimpleInferer
-from Inferer.inferer_configurer import SlidingWindowInferer, MainWithAuxSlidingWindowInferer
+from Inferer.inferer_configurer import ConfigInfererSlidingWindow, ConfigInfererMainWithAuxSlidingWindow, ConfigInfererBase, ConfigInfererSimple
 from monai.utils import MetricReduction, BlendMode, PytorchPadMode
 from torchmetrics import Metric
 
-from Network.net_unet import UNet
+T = TypeVar("T")
+TLSeq = Union[List[T], Tuple[T, ...]]
+
+from Network.network_configurer import ConfigNetworkUNet, ConfigNetworkBase, ConfigNetworkUNet
 from Loss.loss_configurer import (
-    LossDice, DeepSupervisionDiceLoss,
-    LossDiceCE, LossDeepSupervisionDiceCE,
-    LossDiceFocal, LossDeepSupervisionDiceFocal,
-    LossHausdorffDT
+    ConfigLossDice, ConfigLossDeepSupervisionDice,
+    ConfigLossDiceCE, ConfigLossDeepSupervisionDiceCE,
+    ConfigLossDiceFocal, ConfigLossDeepSupervisionDiceFocal,
+    ConfigLossHausdorffDT, ConfigLossBase
 )
-from Operator.operator_misc import OperatorIdentity, OperatorDisplayConfMat, OperatorDisplayDictKeys, \
-    OperatorMonaiAsDiscrete
-from Optimizer.optimizer_configurer import SGD, AdamW
+from Operator.operator_configurer import ConfigOperatorIdentity, ConfigOperatorDisplayConfMat, ConfigOperatorDisplayDictKeys, \
+    ConfigOperatorMonaiAsDiscrete, ConfigOperatorTorchSoftmax
+from Optimizer.optimizer_configurer import ConfigOptimizerSGD, ConfigOptimizerAdamW
 from LRScheduler.lrscheduler_configurer import (
-    LRSchedulerLinear,
-    LRSchedulerCosineAnnealing,
-    LRSchedulerCosineAnnealingWarmRestarts,
-    OneCycleLR,
-    LRSchedulerReduceLROnPlateau
+    ConfigLRSchedulerLinear,
+    ConfigLRSchedulerCosineAnnealing,
+    ConfigLRSchedulerCosineAnnealingWarmRestarts,
+    ConfigLRSchedulerOneCycleConfigLR,
+    ConfigLRSchedulerReduceConfigLROnPlateau, ConfigLRSchedulerBase
 )
 from Metric.metric_configurer import (
     BACC, BPREC, BREC, BF1, BAUROC, BCM, BSPE, BROC, BPRC,
     MCACC, MCPREC, MCRECALL, MCF1, MCAUROC, MCCM, MCSPEC, MCROC, MCPRC,
     MLACC, MLPREC, MLREC, MLF1, MLAUROC, MLCM, MLSPE, MLROC, MLPRC,
     Dice, IoU, HD, SD, NSD,
-    BaseEfficiencyMetric, VPS
+    ConfigMetricEfficiency, VPS, ConfigMetricBase, ConfigMetricDiceScore, SupportedMetric
 )
 
 PhaseLike = Literal['train', 'val', 'test', 'predict']
 
-SupportedNetwork = Union[UNet]
+SupportedNetwork = Union[ConfigNetworkUNet]
 SupportedLoss = Union[
-    LossDice, DeepSupervisionDiceLoss,
-    LossDiceCE, LossDeepSupervisionDiceCE,
-    LossDiceFocal, LossDeepSupervisionDiceFocal,
-    LossHausdorffDT
+    ConfigLossDice, ConfigLossDeepSupervisionDiceCE,
+    ConfigLossDiceCE, ConfigLossDeepSupervisionDiceCE,
+    ConfigLossDiceFocal, ConfigLossDeepSupervisionDiceFocal,
+    ConfigLossHausdorffDT
 ]
-SupportedOptimizer = Union[SGD, AdamW]
+SupportedOptimizer = Union[ConfigOptimizerSGD, ConfigOptimizerAdamW]
 SupportedLRScheduler = Union[
-    LRSchedulerLinear,
-    LRSchedulerCosineAnnealing,
-    LRSchedulerCosineAnnealingWarmRestarts,
-    OneCycleLR,
-    LRSchedulerReduceLROnPlateau
-]
-SupportedMetric = Union[
-    BACC, BPREC, BREC, BF1, BAUROC, BCM, BSPE, BROC, BPRC,
-    MCACC, MCPREC, MCRECALL, MCF1, MCAUROC, MCCM, MCSPEC, MCROC, MCPRC,
-    MLACC, MLPREC, MLREC, MLF1, MLAUROC, MLCM, MLSPE, MLROC, MLPRC,
-    Dice, IoU, HD, SD, NSD,
-    VPS
+    ConfigLRSchedulerLinear,
+    ConfigLRSchedulerCosineAnnealing,
+    ConfigLRSchedulerCosineAnnealingWarmRestarts,
+    ConfigLRSchedulerOneCycleConfigLR,
+    ConfigLRSchedulerReduceConfigLROnPlateau
 ]
 
 
 @dataclass
-class AssertTypeInitArgs:
-    class_type: Any
-    init_args: Dict[str, Any]  # shall match type __init__ params
-
-    def __post_init__(self):
-        try:
-            self.class_type(**self.init_args)
-        except Exception as e:
-            print(e)  # Soft exception report
-
-
-@dataclass
-class NamedInitArgs(AssertTypeInitArgs):
-    name: str
-    description_info: Union[str, Any]
+class NamedInitArgs:
+    name: str = "<Name ID>"
+    description_info: Union[str, Any] = "<Description>"
 
     def __repr__(self):
-        desc: str = (f'{self.name}:\n'
-                     f'  {self.class_type}\n'
-                     f'  {self.init_args}\n')
+        desc: str = f'{self.name}:\n'
         if self.description_info is not None:
             desc += f'  {self.description_info}'
         return desc
@@ -89,12 +71,12 @@ class NamedInitArgs(AssertTypeInitArgs):
 
 @dataclass
 class NamedNetworkInitArgs(NamedInitArgs):
-    class_type: Type[SupportedNetwork]
+    network_wrapper: ConfigNetworkBase = ConfigNetworkUNet()
 
 
 @dataclass
 class NamedLossInitArgs(NamedInitArgs):
-    class_type: Type[SupportedLoss]
+    loss_wrapper: ConfigLossBase = ConfigLossDice()
     postprocess_func: Optional[Union[Callable[[Tensor], Tensor], Callable[[Tensor], Dict[str, Tensor]]]] = None
     logger: Optional[bool] = True
     on_step: Optional[bool] = True
@@ -105,7 +87,7 @@ class NamedLossInitArgs(NamedInitArgs):
 
     def __post_init__(self):
         if self.postprocess_func is None:
-            self.postprocess_func = OperatorIdentity()
+            self.postprocess_func = ConfigOperatorIdentity()
 
     def get_logging_args(self, dict_logging: bool = False) -> Dict[str, Any]:
         logging_args: Dict[str, Any] = {}
@@ -125,17 +107,14 @@ class NamedLossInitArgs(NamedInitArgs):
 
 @dataclass
 class NamedOptimizerInitArgs(NamedInitArgs):
-    class_type: Type[SupportedOptimizer]
-
-    def __post_init__(self):
-        pass
+    optimizer_wrapper: SupportedOptimizer = ConfigOptimizerAdamW()
 
 
 @dataclass
 class LRSchedulerConfig:
     # The unit of the scheduler's step size, could also be 'step'.
     # 'epoch' updates the scheduler on epoch end whereas 'step'
-    # updates it after a optimizer update.
+    # updates it after an optimizer update.
     interval: Literal["epoch", "step"] = 'epoch'
     # How many epochs/steps should pass between calls to
     # `scheduler.step()`. 1 corresponds to updating the learning
@@ -155,7 +134,7 @@ class LRSchedulerConfig:
 
 @dataclass
 class NamedLRSchedulerInitArgs(NamedInitArgs):
-    class_type: Type[SupportedLRScheduler]
+    lr_scheduler_wrapper: ConfigLRSchedulerBase = ConfigLRSchedulerCosineAnnealing()
     config_args: LRSchedulerConfig = LRSchedulerConfig()
 
     def __post_init__(self):
@@ -164,7 +143,7 @@ class NamedLRSchedulerInitArgs(NamedInitArgs):
 
 @dataclass
 class NamedMetricInitArgs(NamedInitArgs):
-    class_type: Type[SupportedMetric]
+    metric_wrapper: ConfigMetricBase = Dice()
     # The preprocess function to apply to logits/gt-mask to generate valid prediction input,
     # may be identity, sigmoid, softmax, argmax or any other functions
     preprocess_pred_func: Optional[Callable[[Tensor], Tensor]] = None
@@ -179,11 +158,11 @@ class NamedMetricInitArgs(NamedInitArgs):
 
     def __post_init__(self):
         if self.preprocess_pred_func is None:
-            self.preprocess_pred_func = OperatorIdentity()
+            self.preprocess_pred_func = ConfigOperatorIdentity()
         if self.preprocess_gt_func is None:
-            self.preprocess_gt_func = OperatorIdentity()
+            self.preprocess_gt_func = ConfigOperatorIdentity()
         if self.postprocess_metric_func is None:
-            self.postprocess_metric_func = OperatorIdentity()
+            self.postprocess_metric_func = ConfigOperatorIdentity()
         assert self.name is not None, f'You must specify a name for the metric.'
 
     def get_logging_args(self, dict_logging: bool = False) -> Dict[str, Any]:
@@ -204,22 +183,21 @@ class NamedMetricInitArgs(NamedInitArgs):
 
 @dataclass
 class ModuleStepAdditionArgs:
-    inferer: Type[Union[SimpleInferer, SlidingWindowInferer, MainWithAuxSlidingWindowInferer]]
-    inferer_init_args: Dict[str, Any]
-    metric_init_args_collection: Collection[NamedMetricInitArgs]
+    inferer_wrapper: ConfigInfererBase = SimpleInferer()
+    metric_init_args_collection: TLSeq[NamedMetricInitArgs] = ()
     # Hook functions will leverage return dict in module steps for custom purposes
-    hook_functions: Optional[Collection[Callable[[Dict[str, Any]], Any]]]
+    hook_functions: Optional[Collection[Callable[[Dict[str, Any]], Any]]] = None
 
 
 @dataclass
 class ModuleStepWithLossAdditionArgs(ModuleStepAdditionArgs):
-    loss_init_args: NamedLossInitArgs
+    loss_init_args: NamedLossInitArgs = NamedLossInitArgs()
 
 
 @dataclass
 class ModuleTrainingStepAdditionArgs(ModuleStepWithLossAdditionArgs):
-    optimizer_init_args: NamedOptimizerInitArgs
-    lrscheduler_init_args: NamedLRSchedulerInitArgs
+    optimizer_init_args: NamedOptimizerInitArgs = NamedOptimizerInitArgs()
+    lrscheduler_init_args: NamedLRSchedulerInitArgs = NamedLRSchedulerInitArgs()
     volume_key: str = 'volume'
     mask_key: str = 'mask'
 
@@ -244,38 +222,33 @@ class ModulePredictStepAdditionArgs(ModuleStepAdditionArgs):
 class ModuleSegmentationDefault(L.LightningModule):
     def __init__(
             self,
-            network_init_args: NamedNetworkInitArgs,
+            network_init_args: NamedNetworkInitArgs = NamedNetworkInitArgs(),
             module_training_step_addition_args: Optional[ModuleTrainingStepAdditionArgs] = None,
             module_validation_step_addition_args: Optional[ModuleValidationStepAdditionArgs] = None,
             module_test_step_addition_args: Optional[ModuleTestStepAdditionArgs] = None,
-            module_predict_step_addition_args: Optional[ModulePredictStepAdditionArgs] = None,
+            module_predict_step_addition_args: Optional[ModulePredictStepAdditionArgs] = None
     ):
         super().__init__()
+        self.network_init_args: NamedNetworkInitArgs = network_init_args
+        self.module_training_step_addition_args = module_training_step_addition_args
+        self.module_validation_step_addition_args = module_validation_step_addition_args
+        self.module_test_step_addition_args = module_test_step_addition_args
+        self.module_predict_step_addition_args = module_predict_step_addition_args
         self.save_hyperparameters()
-        self.module_training_step_addition_args: Optional[ModuleTrainingStepAdditionArgs] = \
-            module_training_step_addition_args
-        self.module_validation_step_addition_args: Optional[ModuleValidationStepAdditionArgs] = \
-            module_validation_step_addition_args
-        self.module_test_step_addition_args: Optional[ModuleTestStepAdditionArgs] = \
-            module_test_step_addition_args
-        self.module_predict_step_addition_args: Optional[ModulePredictStepAdditionArgs] = \
-            module_predict_step_addition_args
 
         self.available_phases: Set[PhaseLike] = set()
 
         # Initialization
-        self.network: SupportedNetwork = network_init_args.class_type(**network_init_args.init_args)
+        self.network: nn.Module = self.network_init_args.network_wrapper.get_network_module()
 
-        if module_training_step_addition_args is not None:
+        if self.module_training_step_addition_args is not None:
             try:
-                step_args: ModuleTrainingStepAdditionArgs = module_training_step_addition_args
-                self.training_inferer: Inferer = step_args.inferer(**step_args.inferer_init_args)
-                self.training_loss: SupportedLoss = step_args.loss_init_args.class_type(
-                    **step_args.loss_init_args.init_args
-                )
+                step_args: ModuleTrainingStepAdditionArgs = self.module_training_step_addition_args
+                self.training_inferer: Inferer = step_args.inferer_wrapper.get_inferer_operator()
+                self.training_loss: nn.Module = step_args.loss_init_args.loss_wrapper.get_loss_operator()
                 self.training_metrics: Dict[str, SupportedMetric] = {
-                    args.name: args.class_type(**args.init_args) for args in
-                    step_args.metric_init_args_collection
+                    args.name: args.metric_wrapper.get_metric_operator()
+                    for args in step_args.metric_init_args_collection
                 }
                 self.training_metrics_desc: Dict[str, NamedMetricInitArgs] = {
                     args.name: args for args in step_args.metric_init_args_collection
@@ -289,13 +262,11 @@ class ModuleSegmentationDefault(L.LightningModule):
         if module_validation_step_addition_args is not None:
             try:
                 step_args: ModuleValidationStepAdditionArgs = module_validation_step_addition_args
-                self.validation_inferer: Inferer = step_args.inferer(**step_args.inferer_init_args)
-                self.validation_loss: SupportedLoss = step_args.loss_init_args.class_type(
-                    **step_args.loss_init_args.init_args
-                )
+                self.validation_inferer: Inferer = step_args.inferer_wrapper.get_inferer_operator()
+                self.validation_loss: nn.Module = step_args.loss_init_args.loss_wrapper.get_loss_operator()
                 self.validation_metrics: Dict[str, SupportedMetric] = {
-                    args.name: args.class_type(**args.init_args) for args in
-                    step_args.metric_init_args_collection
+                    args.name: args.metric_wrapper.get_metric_operator()
+                    for args in step_args.metric_init_args_collection
                 }
                 self.validation_metrics_desc: Dict[str, NamedMetricInitArgs] = {
                     args.name: args for args in step_args.metric_init_args_collection
@@ -309,13 +280,11 @@ class ModuleSegmentationDefault(L.LightningModule):
         if module_test_step_addition_args is not None:
             try:
                 step_args: ModuleTestStepAdditionArgs = module_test_step_addition_args
-                self.test_inferer: Inferer = step_args.inferer(**step_args.inferer_init_args)
-                self.test_loss: SupportedLoss = step_args.loss_init_args.class_type(
-                    **step_args.loss_init_args.init_args
-                )
+                self.test_inferer: Inferer = step_args.inferer_wrapper.get_inferer_operator()
+                self.test_loss: nn.Module = step_args.loss_init_args.loss_wrapper.get_loss_operator()
                 self.test_metrics: Dict[str, SupportedMetric] = {
-                    args.name: args.class_type(**args.init_args) for args in
-                    step_args.metric_init_args_collection
+                    args.name: args.metric_wrapper.get_metric_operator()
+                    for args in step_args.metric_init_args_collection
                 }
                 self.test_metrics_desc: Dict[str, NamedMetricInitArgs] = {
                     args.name: args for args in step_args.metric_init_args_collection
@@ -329,10 +298,10 @@ class ModuleSegmentationDefault(L.LightningModule):
         if module_predict_step_addition_args is not None:
             try:
                 step_args: ModulePredictStepAdditionArgs = module_predict_step_addition_args
-                self.predict_inferer: Inferer = step_args.inferer(**step_args.inferer_init_args)
+                self.predict_inferer: Inferer = step_args.inferer_wrapper.get_inferer_operator()
                 self.predict_metrics: Dict[str, SupportedMetric] = {
-                    args.name: args.class_type(**args.init_args) for args in
-                    step_args.metric_init_args_collection
+                    args.name: args.metric_wrapper.get_metric_operator()
+                    for args in step_args.metric_init_args_collection
                 }
                 self.predict_metrics_desc: Dict[str, NamedMetricInitArgs] = {
                     args.name: args for args in step_args.metric_init_args_collection
@@ -344,6 +313,7 @@ class ModuleSegmentationDefault(L.LightningModule):
                 print(e)
 
     def get_available_phases(self) -> Set[PhaseLike]:
+        self._assert_init_essentials()
         if not hasattr(self, 'available_phases'):
             return set()
         return self.available_phases
@@ -360,9 +330,11 @@ class ModuleSegmentationDefault(L.LightningModule):
             - main_logits: Final segmentation output (B, num_classes, X, Y, Z)
             - auxiliary_logits_list: List of auxiliary outputs for deep supervision
         """
+        self._assert_init_essentials()
         return self.network(input_source)
 
     def training_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Tensor]:
+        self._assert_init_essentials()
         assert 'train' in self.get_available_phases(), f'train phase is not available in {self.get_available_phases()}'
         step_args: ModuleTrainingStepAdditionArgs = self.module_training_step_addition_args
         ret: Dict[str, Tensor] = {}
@@ -378,8 +350,8 @@ class ModuleSegmentationDefault(L.LightningModule):
 
         metrics: Dict[str, Any] = {}
         # For performance metric
-        for name, metric_func in self.predict_metrics.items():
-            if not isinstance(metric_func, BaseEfficiencyMetric):
+        for name, metric_func in self.training_metrics.items():
+            if not isinstance(metric_func, ConfigMetricEfficiency):
                 continue
             metric_func()  # First call
 
@@ -436,6 +408,7 @@ class ModuleSegmentationDefault(L.LightningModule):
         return ret
 
     def validation_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Tensor]:
+        self._assert_init_essentials()
         assert 'val' in self.get_available_phases(), \
             f'val phase is not available in {self.get_available_phases()}'
         step_args: ModuleValidationStepAdditionArgs = self.module_validation_step_addition_args
@@ -454,8 +427,8 @@ class ModuleSegmentationDefault(L.LightningModule):
 
         metrics: Dict[str, Any] = {}
         # For performance metric
-        for name, metric_func in self.predict_metrics.items():
-            if not isinstance(metric_func, BaseEfficiencyMetric):
+        for name, metric_func in self.validation_metrics.items():
+            if not isinstance(metric_func, ConfigMetricEfficiency):
                 continue
             metric_func()  # First call
 
@@ -511,6 +484,7 @@ class ModuleSegmentationDefault(L.LightningModule):
         return ret
 
     def test_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Tensor]:
+        self._assert_init_essentials()
         assert 'test' in self.get_available_phases(), f'test phase is not available in {self.get_available_phases()}'
         step_args: ModuleTestStepAdditionArgs = self.module_test_step_addition_args
         ret: Dict[str, Tensor] = {}
@@ -528,8 +502,8 @@ class ModuleSegmentationDefault(L.LightningModule):
 
         metrics: Dict[str, Any] = {}
         # For performance metric
-        for name, metric_func in self.predict_metrics.items():
-            if not isinstance(metric_func, BaseEfficiencyMetric):
+        for name, metric_func in self.test_metrics.items():
+            if not isinstance(metric_func, ConfigMetricEfficiency):
                 continue
             metric_func()  # First call
 
@@ -586,6 +560,7 @@ class ModuleSegmentationDefault(L.LightningModule):
         return ret
 
     def predict_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Tensor]:
+        self._assert_init_essentials()
         assert 'predict' in self.get_available_phases(), \
             f'predict phase is not available in {self.get_available_phases()}'
         step_args: ModulePredictStepAdditionArgs = self.module_predict_step_addition_args
@@ -599,7 +574,7 @@ class ModuleSegmentationDefault(L.LightningModule):
         metrics: Dict[str, Any] = {}
         # For performance metric
         for name, metric_func in self.predict_metrics.items():
-            if not isinstance(metric_func, BaseEfficiencyMetric):
+            if not isinstance(metric_func, ConfigMetricEfficiency):
                 continue
             metric_func()  # First call
 
@@ -642,18 +617,15 @@ class ModuleSegmentationDefault(L.LightningModule):
         return ret
 
     def configure_optimizers(self) -> Dict[str, Any]:
+        self._assert_init_essentials()
         # Optimizer
         opt_init_args: NamedOptimizerInitArgs = self.module_training_step_addition_args.optimizer_init_args
-        optimizer: SupportedOptimizer = opt_init_args.class_type(
-            params=self.parameters(),
-            **opt_init_args.init_args
-        )
+        optimizer: optim.Optimizer = opt_init_args.optimizer_wrapper.get_optimizer(params=self.parameters())
 
         # Scheduler (generate lr_scheduler_config)
         lrsch_init_args: NamedLRSchedulerInitArgs = self.module_training_step_addition_args.lrscheduler_init_args
-        scheduler: SupportedLRScheduler = lrsch_init_args.class_type(
-            optimizer=optimizer,
-            **lrsch_init_args.init_args
+        scheduler: optim.lr_scheduler.LRScheduler = lrsch_init_args.lr_scheduler_wrapper.get_lr_scheduler(
+            optimizer=optimizer
         )
         lr_scheduler_config: Dict[str, Any] = {'scheduler': scheduler}
         lr_scheduler_config.update(vars(lrsch_init_args.config_args))
@@ -667,59 +639,57 @@ class ModuleSegmentationDefault(L.LightningModule):
 def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str, Any]:
     network_init_args = NamedNetworkInitArgs(
         name='UNet',
-        class_type=UNet,
-        init_args={
-            'focuser_in_channels': num_sequence,  # Assume (num_sequence) sequence input
-            'focuser_out_channels': 16,
-            'encoder_primary_in_channels': (16, 32),
-            'encoder_primary_out_channels': (32, 64),
-            'encoder_primary_depth': 2,
-            'encoder_advanced_in_channels': (64, 128),
-            'encoder_advanced_out_channels': (128, 256),
-            'encoder_advanced_depth': 2,
-            'bottleneck_in_channels': 256,
-            'bottleneck_out_channels': 512,
-            'bottleneck_depth': 2,
-            'decoder_advanced_in_channels': (512, 256),
-            'decoder_advanced_upsample_channels': (256, 128),
-            'decoder_advanced_bridge_channels': (256, 128),
-            'decoder_advanced_out_channels': (256, 128),
-            'decoder_advanced_depth': 2,
-            'decoder_primary_in_channels': (128, 64),
-            'decoder_primary_upsample_channels': (64, 32),
-            'decoder_primary_bridge_channels': (64, 32),
-            'decoder_primary_out_channels': (64, 32),
-            'decoder_primary_depth': 2,
-            'auxiliary_classifier_in_channels': (256, 128, 64, 32),
-            'auxiliary_classifier_out_channels': (num_classes, num_classes, num_classes, num_classes),
-            'distributor_in_channels': 32,
-            'distributor_out_channels': 16,
-            'classifier_in_channels': 16,
-            'classifier_out_channels': num_classes,  # Assume N classes (background & N-1 foregrounds)
-            'reserve_io': True
-        },
+        network_wrapper=ConfigNetworkUNet(
+            focuser_in_channels=num_sequence,  # Assume (num_sequence) sequence input
+            focuser_out_channels=16,
+            encoder_primary_in_channels=(16, 32),
+            encoder_primary_out_channels=(32, 64),
+            encoder_primary_depth=2,
+            encoder_advanced_in_channels=(64, 128),
+            encoder_advanced_out_channels=(128, 256),
+            encoder_advanced_depth=2,
+            bottleneck_in_channels=256,
+            bottleneck_out_channels=512,
+            bottleneck_depth=2,
+            decoder_advanced_in_channels=(512, 256),
+            decoder_advanced_upsample_channels=(256, 128),
+            decoder_advanced_bridge_channels=(256, 128),
+            decoder_advanced_out_channels=(256, 128),
+            decoder_advanced_depth=2,
+            decoder_primary_in_channels=(128, 64),
+            decoder_primary_upsample_channels=(64, 32),
+            decoder_primary_bridge_channels=(64, 32),
+            decoder_primary_out_channels=(64, 32),
+            decoder_primary_depth=2,
+            auxiliary_classifier_in_channels=(256, 128, 64, 32),
+            auxiliary_classifier_out_channels=(num_classes, num_classes, num_classes, num_classes),
+            distributor_in_channels=32,
+            distributor_out_channels=16,
+            classifier_in_channels=16,
+            classifier_out_channels=num_classes,  # Assume N classes (background & N-1 foregrounds)
+            reserve_io=True
+        ),
         description_info='Basic multi-organ segmentation UNet'
     )
     module_training_step_addition_args = ModuleTrainingStepAdditionArgs(
-        inferer=SimpleInferer,
-        inferer_init_args={},
+        inferer_wrapper=ConfigInfererSimple(),
         metric_init_args_collection=[
             # Dice Similarity Coefficient
             NamedMetricInitArgs(
                 name='train/DSC',
-                class_type=Dice,
-                init_args={
-                    'include_background': False,
-                    'reduction': MetricReduction.MEAN,
-                    'get_not_nans': False,
-                    'ignore_empty': True,
-                    'num_classes': None,
-                    'return_with_label': False
-                },
+                metric_wrapper=Dice(
+                    include_background=False,
+                    reduction=MetricReduction.MEAN,
+                    get_not_nans=False,
+                    ignore_empty=True,
+                    num_classes=None,
+                    return_with_label=False
+                ),
                 description_info='Dice similarity coefficient (also known as DSC) metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1,
+                                                                   dtype=torch.int),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
@@ -728,21 +698,21 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # Normalized Surface Dice
             NamedMetricInitArgs(
                 name='train/NSD',
-                class_type=NSD,
-                init_args={
+                metric_wrapper=NSD(
                     # Tolerance of at most 3.0 distance error in index space
                     # First threshold is for background, this is nonsense in case background is excluded
-                    'class_thresholds': [0., 3.],
-                    'include_background': False,
-                    'distance_metric': 'euclidean',
-                    'reduction': MetricReduction.MEAN,
-                    'get_not_nans': False,
-                    'use_subvoxels': False
-                },
+                    class_thresholds=[0., 3.],
+                    include_background=False,
+                    distance_metric='euclidean',
+                    reduction=MetricReduction.MEAN,
+                    get_not_nans=False,
+                    use_subvoxels=False
+                ),
                 description_info='Normalized surface dice metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1,
+                                                                   dtype=torch.int),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
@@ -751,19 +721,19 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # 95% percentile Hausdorff Distance
             NamedMetricInitArgs(
                 name='train/HD95',
-                class_type=HD,
-                init_args={
-                    'include_background': False,
-                    'distance_metric': 'euclidean',
-                    'percentile': 95.0,
-                    'directed': False,
-                    'reduction': MetricReduction.MEAN,
-                    'get_not_nans': False
-                },
+                metric_wrapper=HD(
+                    include_background=False,
+                    distance_metric='euclidean',
+                    percentile=95.0,
+                    directed=False,
+                    reduction=MetricReduction.MEAN,
+                    get_not_nans=False
+                ),
                 description_info='95% percentile Hausdorff distance metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1,
+                                                                   dtype=torch.int),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
@@ -774,15 +744,14 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # For Multi-class, CM is M(num_classes*num_classes): E[i,j] denotes the i-th gt class is predicted as j-th class
             NamedMetricInitArgs(
                 name='train/ConfMat',  # Nonsense, handled by postprocess_metric_func, which will return a dict
-                class_type=MCCM,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'normalize': 'none'
-                },
+                metric_wrapper=MCCM(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    normalize='none'
+                ),
                 description_info='Confusion Matrix for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                postprocess_metric_func=OperatorDisplayConfMat(
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                postprocess_metric_func=ConfigOperatorDisplayConfMat(
                     'train',
                     'ConfMat',
                     ((0, 'gt'), (1, 'pred'))
@@ -797,15 +766,14 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # Prec Recall Spec F1 AUROC: Shall keep metrics per class, and do post reduce as per class metrics
             NamedMetricInitArgs(
                 name='train/Acc',
-                class_type=MCACC,  # Accuracy shall calculate across all classes
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'micro',
-                    'multidim_average': 'global'
-                },
+                metric_wrapper=MCACC(  # Accuracy shall calculate across all classes
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='micro',
+                    multidim_average='global'
+                ),
                 description_info='Accuracy metric for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -813,17 +781,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='train/Prec',
-                class_type=MCPREC,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCPREC(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='Precision metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -831,17 +798,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='train/Recall',
-                class_type=MCRECALL,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCRECALL(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='Recall metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -849,17 +815,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='train/Spec',
-                class_type=MCSPEC,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCSPEC(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='Specificity metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -867,17 +832,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='train/F1',
-                class_type=MCF1,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCF1(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='F1-Score metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -885,16 +849,15 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='train/AUROC',
-                class_type=MCAUROC,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCAUROC(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='AUROC metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=nn.Softmax(dim=1),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorTorchSoftmax(dim=1),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -902,8 +865,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='train/VPS',
-                class_type=VPS,
-                init_args={},
+                metric_wrapper=VPS(),
                 description_info='Voxel Processing Per Second metric',
                 on_step=True,
                 on_epoch=True,
@@ -913,22 +875,21 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
         ],
         loss_init_args=NamedLossInitArgs(
             name='train/loss',
-            class_type=LossDeepSupervisionDiceCE,
-            init_args={
-                'include_background': False,  # Foregrounds are small
-                'to_onehot_y': False,  # We use (B, C, X, Y, Z) C-binary map as mask
-                'sigmoid': False,
-                'softmax': True,  # Assume multi-class (organs not overlapped) segmentation
-                'jaccard': False,
-                'reduction': "mean",
-                'batch': False,
-                'weight': None,
-                'lambda_dice': 1.0,
-                'lambda_ce': 1.0,
-                'label_smoothing': 0.0,
-                'ds_weight_mode': 'exp',
-                'ds_weights': None
-            },
+            loss_wrapper=ConfigLossDeepSupervisionDiceCE(
+                include_background=False,  # Foregrounds are small
+                to_onehot_y=False,  # We use (B, C, X, Y, Z) C-binary map as mask
+                sigmoid=False,
+                softmax=True,  # Assume multi-class (organs not overlapped) segmentation
+                jaccard=False,
+                reduction="mean",
+                batch=False,
+                weight=None,
+                lambda_dice=1.0,
+                lambda_ce=1.0,
+                label_smoothing=0.0,
+                ds_weight_mode='exp',
+                ds_weights=None
+            ),
             description_info='Dice + Cross Entropy compounded loss for deep supervision',
             logger=True,
             on_step=True,
@@ -938,61 +899,58 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
         ),
         optimizer_init_args=NamedOptimizerInitArgs(
             name='AdamW',
-            class_type=AdamW,
-            init_args={
+            optimizer_wrapper=ConfigOptimizerAdamW(
                 # 'params': module.parameters()  # Shall ignore this argument, will be set at configure_optimizers()
-                'lr': 1e-4,  # May be overwritten by LRScheduler
-                'amsgrad': False
-            },
+                lr=1e-4,  # May be overwritten by LRScheduler
+                amsgrad=False
+            ),
             description_info='AdamW optimizer'
         ),
         lrscheduler_init_args=NamedLRSchedulerInitArgs(
             name='OneCycleLR',
-            class_type=OneCycleLR,  # Shall step() per batch
-            init_args={
+            lr_scheduler_wrapper=ConfigLRSchedulerOneCycleConfigLR(  # Shall step() per batch
                 # 'optimizer': optimizer  # Shall ignore this argument, will be set at configure_optimizers()
-                'max_lr': 0.01,
-                'total_steps': None,  # Infer from epochs * steps_per_epoch
-                'epochs': 100,
-                'steps_per_epoch': 5,  # Practically, shall infer from len(dataloader)
-                'pct_start': 0.3,  # Increasing part occupies the first 30% steps
-                'div_factor': 25,
-                'final_div_factor': 1e4
-            },
+                max_lr=0.01,
+                total_steps=None,  # Infer from epochs * steps_per_epoch
+                epochs=100,
+                steps_per_epoch=5,  # Practically, shall infer from len(dataloader)
+                pct_start=0.3,  # Increasing part occupies the first 30% steps
+                div_factor=25,
+                final_div_factor=1e4
+            ),
             description_info='OneCycleLR scheduler'
         ),
         volume_key='volume',
         mask_key='mask',
-        hook_functions=[OperatorDisplayDictKeys(('Train', 'Step returns'))]
+        hook_functions=[ConfigOperatorDisplayDictKeys(('Train', 'Step returns'))]
     )
     module_validation_step_addition_args = ModuleValidationStepAdditionArgs(
-        inferer=MainWithAuxSlidingWindowInferer,
-        inferer_init_args={
-            'roi_size': (128, 128, 128),
-            'sw_batch_size': 1,
-            'overlap': 0.5,
-            'mode': BlendMode.GAUSSIAN,
-            'sigma_scale': 0.125,
-            'padding_mode': PytorchPadMode.REPLICATE,
-            'progress': True
-        },
+        inferer_wrapper=ConfigInfererMainWithAuxSlidingWindow(
+            roi_size=(128, 128, 128),
+            sw_batch_size=1,
+            overlap=0.5,
+            mode=BlendMode.GAUSSIAN,
+            sigma_scale=0.125,
+            padding_mode=PytorchPadMode.REPLICATE,
+            progress=True
+        ),
         metric_init_args_collection=[
             # Dice Similarity Coefficient
             NamedMetricInitArgs(
                 name='val/DSC',
-                class_type=Dice,
-                init_args={
-                    'include_background': False,
-                    'reduction': MetricReduction.MEAN,
-                    'get_not_nans': False,
-                    'ignore_empty': True,
-                    'num_classes': None,
-                    'return_with_label': False
-                },
+                metric_wrapper=Dice(
+                    include_background=False,
+                    reduction=MetricReduction.MEAN,
+                    get_not_nans=False,
+                    ignore_empty=True,
+                    num_classes=None,
+                    return_with_label=False
+                ),
                 description_info='Dice similarity coefficient (also known as DSC) metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1,
+                                                                   dtype=torch.int),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
@@ -1001,21 +959,21 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # Normalized Surface Dice
             NamedMetricInitArgs(
                 name='val/NSD',
-                class_type=NSD,
-                init_args={
+                metric_wrapper=NSD(
                     # Tolerance of at most 3.0 distance error in index space
                     # First threshold is for background, this is nonsense in case background is excluded
-                    'class_thresholds': [0., 3.],
-                    'include_background': False,
-                    'distance_metric': 'euclidean',
-                    'reduction': MetricReduction.MEAN,
-                    'get_not_nans': False,
-                    'use_subvoxels': False
-                },
+                    class_thresholds=[0., 3.],
+                    include_background=False,
+                    distance_metric='euclidean',
+                    reduction=MetricReduction.MEAN,
+                    get_not_nans=False,
+                    use_subvoxels=False
+                ),
                 description_info='Normalized surface dice metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1,
+                                                                   dtype=torch.int),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
@@ -1024,19 +982,19 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # 95% percentile Hausdorff Distance
             NamedMetricInitArgs(
                 name='val/HD95',
-                class_type=HD,
-                init_args={
-                    'include_background': False,
-                    'distance_metric': 'euclidean',
-                    'percentile': 95.0,
-                    'directed': False,
-                    'reduction': MetricReduction.MEAN,
-                    'get_not_nans': False
-                },
+                metric_wrapper=HD(
+                    include_background=False,
+                    distance_metric='euclidean',
+                    percentile=95.0,
+                    directed=False,
+                    reduction=MetricReduction.MEAN,
+                    get_not_nans=False
+                ),
                 description_info='95% percentile Hausdorff distance metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1,
+                                                                   dtype=torch.int),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
@@ -1047,15 +1005,14 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # For Multi-class, CM is M(num_classes*num_classes): E[i,j] denotes the i-th gt class is predicted as j-th class
             NamedMetricInitArgs(
                 name='val/ConfMat',  # Nonsense, handled by postprocess_metric_func, which will return a dict
-                class_type=MCCM,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'normalize': 'none'
-                },
+                metric_wrapper=MCCM(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    normalize='none'
+                ),
                 description_info='Confusion Matrix for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                postprocess_metric_func=OperatorDisplayConfMat(
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                postprocess_metric_func=ConfigOperatorDisplayConfMat(
                     'val',
                     'ConfMat',
                     ((0, 'gt'), (1, 'pred'))
@@ -1070,15 +1027,14 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # Prec Recall Spec F1 AUROC: Shall keep metrics per class, and do post reduce as per class metrics
             NamedMetricInitArgs(
                 name='val/Acc',
-                class_type=MCACC,  # Accuracy shall calculate across all classes
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'micro',
-                    'multidim_average': 'global'
-                },
+                metric_wrapper=MCACC(  # Accuracy shall calculate across all classes
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='micro',
+                    multidim_average='global'
+                ),
                 description_info='Accuracy metric for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1086,17 +1042,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='val/Prec',
-                class_type=MCPREC,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCPREC(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='Precision metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1104,17 +1059,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='val/Recall',
-                class_type=MCRECALL,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCRECALL(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='Recall metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1122,17 +1076,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='val/Spec',
-                class_type=MCSPEC,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCSPEC(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='Specificity metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1140,17 +1093,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='val/F1',
-                class_type=MCF1,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCF1(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='F1-Score metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1158,16 +1110,15 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='val/AUROC',
-                class_type=MCAUROC,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCAUROC(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='AUROC metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=nn.Softmax(dim=1),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorTorchSoftmax(dim=1),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1175,8 +1126,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='val/VPS',
-                class_type=VPS,
-                init_args={},
+                metric_wrapper=VPS(),
                 description_info='Voxel Processing Per Second metric',
                 on_step=True,
                 on_epoch=True,
@@ -1186,22 +1136,21 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
         ],
         loss_init_args=NamedLossInitArgs(
             name='val/loss',
-            class_type=LossDeepSupervisionDiceCE,
-            init_args={
-                'include_background': False,  # Foregrounds are small
-                'to_onehot_y': False,  # We use (B, C, X, Y, Z) C-binary map as mask
-                'sigmoid': False,
-                'softmax': True,  # Assume multi-class (organs not overlapped) segmentation
-                'jaccard': False,
-                'reduction': "mean",
-                'batch': False,
-                'weight': None,
-                'lambda_dice': 1.0,
-                'lambda_ce': 1.0,
-                'label_smoothing': 0.0,
-                'ds_weight_mode': 'exp',
-                'ds_weights': None
-            },
+            loss_wrapper=ConfigLossDeepSupervisionDiceCE(
+                include_background=False,  # Foregrounds are small
+                to_onehot_y=False,  # We use (B, C, X, Y, Z) C-binary map as mask
+                sigmoid=False,
+                softmax=True,  # Assume multi-class (organs not overlapped) segmentation
+                jaccard=False,
+                reduction="mean",
+                batch=False,
+                weight=None,
+                lambda_dice=1.0,
+                lambda_ce=1.0,
+                label_smoothing=0.0,
+                ds_weight_mode='exp',
+                ds_weights=None
+            ),
             description_info='Dice + Cross Entropy compounded loss for deep supervision',
             logger=True,
             on_step=True,
@@ -1211,36 +1160,35 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
         ),
         volume_key='volume',
         mask_key='mask',
-        hook_functions=[OperatorDisplayDictKeys(('Val', 'Step returns'))]
+        hook_functions=[ConfigOperatorDisplayDictKeys(('Val', 'Step returns'))]
     )
     module_test_step_addition_args = ModuleTestStepAdditionArgs(
-        inferer=MainWithAuxSlidingWindowInferer,
-        inferer_init_args={
-            'roi_size': (128, 128, 128),
-            'sw_batch_size': 1,
-            'overlap': 0.5,
-            'mode': BlendMode.GAUSSIAN,
-            'sigma_scale': 0.125,
-            'padding_mode': PytorchPadMode.REPLICATE,
-            'progress': True
-        },
+        inferer_wrapper=ConfigInfererMainWithAuxSlidingWindow(
+            roi_size=(128, 128, 128),
+            sw_batch_size=1,
+            overlap=0.5,
+            mode=BlendMode.GAUSSIAN,
+            sigma_scale=0.125,
+            padding_mode=PytorchPadMode.REPLICATE,
+            progress=True
+        ),
         metric_init_args_collection=[
             # Dice Similarity Coefficient
             NamedMetricInitArgs(
                 name='test/DSC',
-                class_type=Dice,
-                init_args={
-                    'include_background': False,
-                    'reduction': MetricReduction.MEAN,
-                    'get_not_nans': False,
-                    'ignore_empty': True,
-                    'num_classes': None,
-                    'return_with_label': False
-                },
+                metric_wrapper=Dice(
+                    include_background=False,
+                    reduction=MetricReduction.MEAN,
+                    get_not_nans=False,
+                    ignore_empty=True,
+                    num_classes=None,
+                    return_with_label=False
+                ),
                 description_info='Dice similarity coefficient (also known as DSC) metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1,
+                                                                   dtype=torch.int),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
@@ -1249,21 +1197,21 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # Normalized Surface Dice
             NamedMetricInitArgs(
                 name='test/NSD',
-                class_type=NSD,
-                init_args={
+                metric_wrapper=NSD(
                     # Tolerance of at most 3.0 distance error in index space
                     # First threshold is for background, this is nonsense in case background is excluded
-                    'class_thresholds': [0., 3.],
-                    'include_background': False,
-                    'distance_metric': 'euclidean',
-                    'reduction': MetricReduction.MEAN,
-                    'get_not_nans': False,
-                    'use_subvoxels': False
-                },
+                    class_thresholds=[0., 3.],
+                    include_background=False,
+                    distance_metric='euclidean',
+                    reduction=MetricReduction.MEAN,
+                    get_not_nans=False,
+                    use_subvoxels=False
+                ),
                 description_info='Normalized surface dice metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1,
+                                                                   dtype=torch.int),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
@@ -1272,19 +1220,19 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # 95% percentile Hausdorff Distance
             NamedMetricInitArgs(
                 name='test/HD95',
-                class_type=HD,
-                init_args={
-                    'include_background': False,
-                    'distance_metric': 'euclidean',
-                    'percentile': 95.0,
-                    'directed': False,
-                    'reduction': MetricReduction.MEAN,
-                    'get_not_nans': False
-                },
+                metric_wrapper=HD(
+                    include_background=False,
+                    distance_metric='euclidean',
+                    percentile=95.0,
+                    directed=False,
+                    reduction=MetricReduction.MEAN,
+                    get_not_nans=False
+                ),
                 description_info='95% percentile Hausdorff distance metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1,
+                                                                   dtype=torch.int),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, to_onehot=num_classes, dim=1, dtype=torch.int),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=True,
@@ -1295,15 +1243,14 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # For Multi-class, CM is M(num_classes*num_classes): E[i,j] denotes the i-th gt class is predicted as j-th class
             NamedMetricInitArgs(
                 name='test/ConfMat',  # Nonsense, handled by postprocess_metric_func, which will return a dict
-                class_type=MCCM,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'normalize': 'none'
-                },
+                metric_wrapper=MCCM(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    normalize='none'
+                ),
                 description_info='Confusion Matrix for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                postprocess_metric_func=OperatorDisplayConfMat(
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                postprocess_metric_func=ConfigOperatorDisplayConfMat(
                     'test',
                     'ConfMat',
                     ((0, 'gt'), (1, 'pred'))
@@ -1318,15 +1265,14 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             # Prec Recall Spec F1 AUROC: Shall keep metrics per class, and do post reduce as per class metrics
             NamedMetricInitArgs(
                 name='test/Acc',
-                class_type=MCACC,  # Accuracy shall calculate across all classes
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'micro',
-                    'multidim_average': 'global'
-                },
+                metric_wrapper=MCACC(  # Accuracy shall calculate across all classes
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='micro',
+                    multidim_average='global'
+                ),
                 description_info='Accuracy metric for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1334,17 +1280,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='test/Prec',
-                class_type=MCPREC,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCPREC(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='Precision metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1352,17 +1297,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='test/Recall',
-                class_type=MCRECALL,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCRECALL(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='Recall metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1370,17 +1314,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='test/Spec',
-                class_type=MCSPEC,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCSPEC(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='Specificity metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1388,17 +1331,16 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='test/F1',
-                class_type=MCF1,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'multidim_average': 'global',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCF1(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    multidim_average='global',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='F1-Score metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1406,16 +1348,15 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='test/AUROC',
-                class_type=MCAUROC,
-                init_args={
-                    'num_classes': num_classes,  # Assume N classes (background & N-1 foregrounds)
-                    'average': 'macro',
-                    'ignore_index': 0  # Ignoring background
-                },
+                metric_wrapper=MCAUROC(
+                    num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
+                    average='macro',
+                    ignore_index=0  # Ignoring background
+                ),
                 description_info='AUROC metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
-                preprocess_pred_func=nn.Softmax(dim=1),
-                preprocess_gt_func=OperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
+                preprocess_pred_func=ConfigOperatorTorchSoftmax(dim=1),
+                preprocess_gt_func=ConfigOperatorMonaiAsDiscrete(argmax=True, dim=1, dtype=torch.int, keepdim=False),
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1423,8 +1364,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             ),
             NamedMetricInitArgs(
                 name='test/VPS',
-                class_type=VPS,
-                init_args={},
+                metric_wrapper=VPS(),
                 description_info='Voxel Processing Per Second metric',
                 on_step=True,
                 on_epoch=True,
@@ -1434,22 +1374,21 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
         ],
         loss_init_args=NamedLossInitArgs(
             name='test/loss',
-            class_type=LossDeepSupervisionDiceCE,
-            init_args={
-                'include_background': False,  # Foregrounds are small
-                'to_onehot_y': False,  # We use (B, C, X, Y, Z) C-binary map as mask
-                'sigmoid': False,
-                'softmax': True,  # Assume multi-class (organs not overlapped) segmentation
-                'jaccard': False,
-                'reduction': "mean",
-                'batch': False,
-                'weight': None,
-                'lambda_dice': 1.0,
-                'lambda_ce': 1.0,
-                'label_smoothing': 0.0,
-                'ds_weight_mode': 'exp',
-                'ds_weights': None
-            },
+            loss_wrapper=ConfigLossDeepSupervisionDiceCE(
+                include_background=False,  # Foregrounds are small
+                to_onehot_y=False,  # We use (B, C, X, Y, Z) C-binary map as mask
+                sigmoid=False,
+                softmax=True,  # Assume multi-class (organs not overlapped) segmentation
+                jaccard=False,
+                reduction="mean",
+                batch=False,
+                weight=None,
+                lambda_dice=1.0,
+                lambda_ce=1.0,
+                label_smoothing=0.0,
+                ds_weight_mode='exp',
+                ds_weights=None
+            ),
             description_info='Dice + Cross Entropy compounded loss for deep supervision',
             logger=True,
             on_step=True,
@@ -1459,24 +1398,22 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
         ),
         volume_key='volume',
         mask_key='mask',
-        hook_functions=[OperatorDisplayDictKeys(('Test', 'Step returns'))]
+        hook_functions=[ConfigOperatorDisplayDictKeys(('Test', 'Step returns'))]
     )
     module_predict_step_addition_args = ModulePredictStepAdditionArgs(
-        inferer=MainWithAuxSlidingWindowInferer,
-        inferer_init_args={
-            'roi_size': (128, 128, 128),
-            'sw_batch_size': 1,
-            'overlap': 0.5,
-            'mode': BlendMode.GAUSSIAN,
-            'sigma_scale': 0.125,
-            'padding_mode': PytorchPadMode.REPLICATE,
-            'progress': True
-        },
+        inferer_wrapper=ConfigInfererMainWithAuxSlidingWindow(
+            roi_size=(128, 128, 128),
+            sw_batch_size=1,
+            overlap=0.5,
+            mode=BlendMode.GAUSSIAN,
+            sigma_scale=0.125,
+            padding_mode=PytorchPadMode.REPLICATE,
+            progress=True
+        ),
         metric_init_args_collection=[
             NamedMetricInitArgs(
                 name='predict/VPS',
-                class_type=VPS,
-                init_args={},
+                metric_wrapper=VPS(),
                 description_info='Voxel Processing Per Second metric',
                 on_step=True,
                 on_epoch=True,
@@ -1485,7 +1422,7 @@ def get_default_config(num_sequence: int = 1, num_classes: int = 2) -> Dict[str,
             )
         ],
         volume_key='volume',
-        hook_functions=[OperatorDisplayDictKeys(('Predict', 'Step returns'))]
+        hook_functions=[ConfigOperatorDisplayDictKeys(('Predict', 'Step returns'))]
     )
 
     config: Dict[str, Any] = {

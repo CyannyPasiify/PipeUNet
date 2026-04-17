@@ -19,7 +19,7 @@ TLSeq = Union[List[T], Tuple[T, ...]]
 
 
 @dataclass
-class LossBase(ABC):
+class ConfigLossBase(ABC):
     def is_ready(self) -> bool:
         return hasattr(self, "loss")
 
@@ -36,7 +36,7 @@ class LossBase(ABC):
             self,
             *args,
             **kwargs
-    ) -> 'LossBase':
+    ) -> 'ConfigLossBase':
         self.loss = None  # Just placeholder
         return self
 
@@ -56,7 +56,7 @@ class LossBase(ABC):
 
 
 @dataclass
-class LossDeepSupervision(LossBase, metaclass=ABCMeta):
+class ConfigLossDeepSupervision(ConfigLossBase, metaclass=ABCMeta):
     @override
     def __call__(
             self,
@@ -80,7 +80,7 @@ class LossDeepSupervision(LossBase, metaclass=ABCMeta):
 
 # region Semantic Segmentation (Point-wise Classification) Loss Category
 @dataclass
-class LossFocal(LossBase):
+class ConfigLossFocal(ConfigLossBase):
     """
     A Wrapped FocalLoss from MONAI (now they are identical).
 
@@ -124,7 +124,7 @@ class LossFocal(LossBase):
     use_softmax: bool = False
 
     @override
-    def init_essentials(self) -> 'LossFocal':
+    def init_essentials(self) -> 'ConfigLossFocal':
         self.loss: mL.FocalLoss = mL.FocalLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -138,7 +138,7 @@ class LossFocal(LossBase):
 
 
 @dataclass
-class LossTversky(LossBase):
+class ConfigLossTversky(ConfigLossBase):
     """
     A Wrapped TverskyLoss from MONAI.
 
@@ -190,7 +190,7 @@ class LossTversky(LossBase):
     soft_label: bool = False
 
     @override
-    def init_essentials(self) -> 'LossTversky':
+    def init_essentials(self) -> 'ConfigLossTversky':
         self.loss: mL.TverskyLoss = mL.TverskyLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -208,7 +208,7 @@ class LossTversky(LossBase):
 
 
 @dataclass
-class LossContrastive(LossBase):
+class ConfigLossContrastive(ConfigLossBase):
     """
     A Wrapped ContrastiveLoss from MONAI.
 
@@ -231,7 +231,7 @@ class LossContrastive(LossBase):
     batch_size: int = -1
 
     @override
-    def init_essentials(self) -> 'LossContrastive':
+    def init_essentials(self) -> 'ConfigLossContrastive':
         self.loss: mL.ContrastiveLoss = mL.ContrastiveLoss(
             temperature=self.temperature,
             batch_size=self.batch_size
@@ -240,7 +240,7 @@ class LossContrastive(LossBase):
 
 
 @dataclass
-class LossDice(LossBase):
+class ConfigLossDice(ConfigLossBase):
     """
     A Wrapped DiceLoss from MONAI.
 
@@ -292,7 +292,7 @@ class LossDice(LossBase):
     soft_label: bool = False
 
     @override
-    def init_essentials(self) -> 'LossDice':
+    def init_essentials(self) -> 'ConfigLossDice':
         self.loss: mL.DiceLoss = mL.DiceLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -308,7 +308,7 @@ class LossDice(LossBase):
 
 
 @dataclass
-class LossMaskedDice(LossBase):
+class ConfigLossMaskedDice(ConfigLossBase):
     """
     A Wrapped MaskedDiceLoss from MONAI.
 
@@ -360,7 +360,7 @@ class LossMaskedDice(LossBase):
     soft_label: bool = False
 
     @override
-    def init_essentials(self) -> 'LossMaskedDice':
+    def init_essentials(self) -> 'ConfigLossMaskedDice':
         self.loss: mL.MaskedDiceLoss = mL.MaskedDiceLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -376,7 +376,7 @@ class LossMaskedDice(LossBase):
 
 
 @dataclass
-class LossDeepSupervisionDice(LossDeepSupervision):
+class ConfigLossDeepSupervisionDice(ConfigLossDeepSupervision):
     """
     A deep supervision compatible DiceLoss from MONAI.
 
@@ -434,7 +434,7 @@ class LossDeepSupervisionDice(LossDeepSupervision):
     ds_weights: Optional[List[float]] = None
 
     @override
-    def init_essentials(self) -> 'LossDeepSupervisionDice':
+    def init_essentials(self) -> 'ConfigLossDeepSupervisionDice':
         self.base_loss: mL.DiceLoss = mL.DiceLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -455,7 +455,7 @@ class LossDeepSupervisionDice(LossDeepSupervision):
 
 
 @dataclass
-class LossGeneralizedDice(LossBase):
+class ConfigLossGeneralizedDice(ConfigLossBase):
     """
     A Wrapped GeneralizedDiceLoss from MONAI.
 
@@ -502,7 +502,7 @@ class LossGeneralizedDice(LossBase):
     soft_label: bool = False
 
     @override
-    def init_essentials(self) -> 'LossGeneralizedDice':
+    def init_essentials(self) -> 'ConfigLossGeneralizedDice':
         self.loss: mL.GeneralizedDiceLoss = mL.GeneralizedDiceLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -517,7 +517,7 @@ class LossGeneralizedDice(LossBase):
 
 
 @dataclass
-class LossDeepSupervisionGeneralizedDice(LossDeepSupervision):
+class ConfigLossDeepSupervisionGeneralizedDice(ConfigLossDeepSupervision):
     """
     A deep supervision compatible GeneralizedDiceLoss from MONAI.
 
@@ -574,7 +574,7 @@ class LossDeepSupervisionGeneralizedDice(LossDeepSupervision):
     ds_weights: Optional[List[float]] = None
 
     @override
-    def init_essentials(self) -> 'LossDeepSupervisionGeneralizedDice':
+    def init_essentials(self) -> 'ConfigLossDeepSupervisionGeneralizedDice':
         self.base_loss: mL.GeneralizedDiceLoss = mL.GeneralizedDiceLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -594,7 +594,7 @@ class LossDeepSupervisionGeneralizedDice(LossDeepSupervision):
 
 
 @dataclass
-class LossDiceCE(LossBase):
+class ConfigLossDiceCE(ConfigLossBase):
     """
     A Wrapped DiceCELoss from MONAI.
 
@@ -652,7 +652,7 @@ class LossDiceCE(LossBase):
     label_smoothing: float = 0.0
 
     @override
-    def init_essentials(self) -> 'LossDiceCE':
+    def init_essentials(self) -> 'ConfigLossDiceCE':
         self.loss: mL.DiceCELoss = mL.DiceCELoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -670,7 +670,7 @@ class LossDiceCE(LossBase):
 
 
 @dataclass
-class LossDeepSupervisionDiceCE(LossDeepSupervision):
+class ConfigLossDeepSupervisionDiceCE(ConfigLossDeepSupervision):
     """
     A deep supervision compatible DiceCELoss from MONAI.
 
@@ -738,7 +738,7 @@ class LossDeepSupervisionDiceCE(LossDeepSupervision):
     ds_weights: Optional[List[float]] = None
 
     @override
-    def init_essentials(self) -> 'LossDeepSupervisionDiceCE':
+    def init_essentials(self) -> 'ConfigLossDeepSupervisionDiceCE':
         self.base_loss: mL.DiceCELoss = mL.DiceCELoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -761,7 +761,7 @@ class LossDeepSupervisionDiceCE(LossDeepSupervision):
 
 
 @dataclass
-class LossDiceFocal(LossBase):
+class ConfigLossDiceFocal(ConfigLossBase):
     """
     A Wrapped DiceFocalLoss from MONAI.
 
@@ -820,7 +820,7 @@ class LossDiceFocal(LossBase):
     alpha: Optional[float] = None
 
     @override
-    def init_essentials(self) -> 'LossDiceFocal':
+    def init_essentials(self) -> 'ConfigLossDiceFocal':
         self.loss: mL.DiceFocalLoss = mL.DiceFocalLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -839,7 +839,7 @@ class LossDiceFocal(LossBase):
 
 
 @dataclass
-class LossDeepSupervisionDiceFocal(LossDeepSupervision):
+class ConfigLossDeepSupervisionDiceFocal(ConfigLossDeepSupervision):
     """
     A deep supervision compatible DiceFocalLoss from MONAI.
 
@@ -908,7 +908,7 @@ class LossDeepSupervisionDiceFocal(LossDeepSupervision):
     ds_weights: Optional[List[float]] = None
 
     @override
-    def init_essentials(self) -> 'LossDeepSupervisionDiceFocal':
+    def init_essentials(self) -> 'ConfigLossDeepSupervisionDiceFocal':
         self.base_loss: mL.DiceFocalLoss = mL.DiceFocalLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -932,7 +932,7 @@ class LossDeepSupervisionDiceFocal(LossDeepSupervision):
 
 
 @dataclass
-class LossGeneralizedDiceFocal(LossBase):
+class ConfigLossGeneralizedDiceFocal(ConfigLossBase):
     """
     A Wrapped GeneralizedDiceFocalLoss from MONAI.
 
@@ -981,7 +981,7 @@ class LossGeneralizedDiceFocal(LossBase):
     lambda_focal: float = 1.0
 
     @override
-    def init_essentials(self) -> 'LossGeneralizedDiceFocal':
+    def init_essentials(self) -> 'ConfigLossGeneralizedDiceFocal':
         self.loss: mL.GeneralizedDiceFocalLoss = mL.GeneralizedDiceFocalLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -999,7 +999,7 @@ class LossGeneralizedDiceFocal(LossBase):
 
 
 @dataclass
-class LossDeepSupervisionGeneralizedDiceFocal(LossDeepSupervision):
+class ConfigLossDeepSupervisionGeneralizedDiceFocal(ConfigLossDeepSupervision):
     """
     A deep supervision compatible GeneralizedDiceFocalLoss from MONAI.
 
@@ -1058,7 +1058,7 @@ class LossDeepSupervisionGeneralizedDiceFocal(LossDeepSupervision):
     ds_weights: Optional[List[float]] = None
 
     @override
-    def init_essentials(self) -> 'LossDeepSupervisionGeneralizedDiceFocal':
+    def init_essentials(self) -> 'ConfigLossDeepSupervisionGeneralizedDiceFocal':
         self.base_loss: mL.GeneralizedDiceFocalLoss = mL.GeneralizedDiceFocalLoss(
             include_background=self.include_background,
             to_onehot_y=self.to_onehot_y,
@@ -1081,7 +1081,7 @@ class LossDeepSupervisionGeneralizedDiceFocal(LossDeepSupervision):
 
 
 @dataclass
-class LossHausdorffDT(LossBase):
+class ConfigLossHausdorffDT(ConfigLossBase):
     """
     A Wrapped HausdorffDTLoss from MONAI.
 
@@ -1129,7 +1129,7 @@ class LossHausdorffDT(LossBase):
     batch: bool = False
 
     @override
-    def init_essentials(self) -> 'LossHausdorffDT':
+    def init_essentials(self) -> 'ConfigLossHausdorffDT':
         self.loss: mL.HausdorffDTLoss = mL.HausdorffDTLoss(
             alpha=self.alpha,
             include_background=self.include_background,
@@ -1146,7 +1146,7 @@ class LossHausdorffDT(LossBase):
 
 # region Reconstruction Loss Category
 @dataclass
-class LossSSIM(LossBase):
+class ConfigLossSSIM(ConfigLossBase):
     """
     A Wrapped SSIMLoss from MONAI (now they are identical).
 
@@ -1183,7 +1183,7 @@ class LossSSIM(LossBase):
     reduction: Union[LossReduction, str] = LossReduction.MEAN
 
     @override
-    def init_essentials(self) -> 'LossSSIM':
+    def init_essentials(self) -> 'ConfigLossSSIM':
         self.loss: mL.SSIMLoss = mL.SSIMLoss(
             spatial_dims=self.spatial_dims,
             data_range=self.data_range,
@@ -1197,7 +1197,7 @@ class LossSSIM(LossBase):
 
 
 @dataclass
-class LossPerceptual(LossBase):
+class ConfigLossPerceptual(ConfigLossBase):
     """
     A Wrapped PerceptualLoss from MONAI (now they are identical).
 
@@ -1243,7 +1243,7 @@ class LossPerceptual(LossBase):
     channel_wise: bool = False
 
     @override
-    def init_essentials(self) -> 'LossPerceptual':
+    def init_essentials(self) -> 'ConfigLossPerceptual':
         self.loss: mL.PerceptualLoss = mL.PerceptualLoss(
             spatial_dims=self.spatial_dims,
             network_type=self.network_type,
@@ -1338,7 +1338,7 @@ class _LossFunctionTester:
 
     @staticmethod
     def _test_basic_loss(
-            loss_fn: LossBase,
+            loss_fn: ConfigLossBase,
             loss_name: str,
             batch_size: int = 2,
             num_classes: int = 3,
@@ -1383,7 +1383,7 @@ class _LossFunctionTester:
 
     @staticmethod
     def _test_deep_supervision_loss(
-            loss_fn: LossDeepSupervision,
+            loss_fn: ConfigLossDeepSupervision,
             loss_name: str,
             batch_size: int = 2,
             num_classes: int = 3,
@@ -1433,7 +1433,7 @@ class _LossFunctionTester:
     def _test_ssim_loss(device: str = 'cpu') -> bool:
         """Test SSIMLoss"""
         try:
-            loss_fn = LossSSIM(spatial_dims=3, data_range=1.0)
+            loss_fn = ConfigLossSSIM(spatial_dims=3, data_range=1.0)
 
             # SSIM expects input and target with same shape (B, C, H, W, D)
             batch_size, channels = 2, 1
@@ -1461,7 +1461,7 @@ class _LossFunctionTester:
         """Test PerceptualLoss"""
         try:
             # Perceptual loss typically expects 1 or 3 channel images
-            loss_fn = LossPerceptual(spatial_dims=3, network_type='resnet50', is_fake_3d=True, pretrained=False)
+            loss_fn = ConfigLossPerceptual(spatial_dims=3, network_type='resnet50', is_fake_3d=True, pretrained=False)
 
             batch_size, channels = 2, 1
             spatial_shape = (32, 32, 32)  # Larger size for perceptual loss
@@ -1486,7 +1486,7 @@ class _LossFunctionTester:
     def _test_contrastive_loss(device: str = 'cpu') -> bool:
         """Test ContrastiveLoss"""
         try:
-            loss_fn = LossContrastive(temperature=0.5)
+            loss_fn = ConfigLossContrastive(temperature=0.5)
 
             # Contrastive loss expects (batch_size, feature_dim) inputs
             batch_size, feature_dim = 8, 128
@@ -1533,14 +1533,14 @@ class _LossFunctionTester:
 
         # FocalLoss
         results['FocalLoss'] = _LossFunctionTester._test_basic_loss(
-            LossFocal(use_softmax=True, to_onehot_y=True),
+            ConfigLossFocal(use_softmax=True, to_onehot_y=True),
             'FocalLoss',
             device=device
         )
 
         # TverskyLoss
         results['TverskyLoss'] = _LossFunctionTester._test_basic_loss(
-            LossTversky(softmax=True, to_onehot_y=True),
+            ConfigLossTversky(softmax=True, to_onehot_y=True),
             'TverskyLoss',
             device=device
         )
@@ -1550,84 +1550,84 @@ class _LossFunctionTester:
 
         # DiceLoss
         results['DiceLoss'] = _LossFunctionTester._test_basic_loss(
-            LossDice(softmax=True, to_onehot_y=True),
+            ConfigLossDice(softmax=True, to_onehot_y=True),
             'DiceLoss',
             device=device
         )
 
         # MaskedDiceLoss
         results['MaskedDiceLoss'] = _LossFunctionTester._test_basic_loss(
-            LossMaskedDice(softmax=True, to_onehot_y=True),
+            ConfigLossMaskedDice(softmax=True, to_onehot_y=True),
             'MaskedDiceLoss',
             device=device
         )
 
         # DeepSupervisionDiceLoss
         results['DeepSupervisionDiceLoss'] = _LossFunctionTester._test_deep_supervision_loss(
-            LossDeepSupervisionDice(softmax=True, to_onehot_y=True),
+            ConfigLossDeepSupervisionDice(softmax=True, to_onehot_y=True),
             'DeepSupervisionDiceLoss',
             device=device
         )
 
         # GeneralizedDiceLoss
         results['GeneralizedDiceLoss'] = _LossFunctionTester._test_basic_loss(
-            LossGeneralizedDice(softmax=True, to_onehot_y=True),
+            ConfigLossGeneralizedDice(softmax=True, to_onehot_y=True),
             'GeneralizedDiceLoss',
             device=device
         )
 
         # DeepSupervisionGeneralizedDiceLoss
         results['DeepSupervisionGeneralizedDiceLoss'] = _LossFunctionTester._test_deep_supervision_loss(
-            LossDeepSupervisionGeneralizedDice(softmax=True, to_onehot_y=True),
+            ConfigLossDeepSupervisionGeneralizedDice(softmax=True, to_onehot_y=True),
             'DeepSupervisionGeneralizedDiceLoss',
             device=device
         )
 
         # DiceCELoss
         results['DiceCELoss'] = _LossFunctionTester._test_basic_loss(
-            LossDiceCE(softmax=True, to_onehot_y=True),
+            ConfigLossDiceCE(softmax=True, to_onehot_y=True),
             'DiceCELoss',
             device=device
         )
 
         # DeepSupervisionDiceCELoss
         results['DeepSupervisionDiceCELoss'] = _LossFunctionTester._test_deep_supervision_loss(
-            LossDeepSupervisionDiceCE(softmax=True, to_onehot_y=True),
+            ConfigLossDeepSupervisionDiceCE(softmax=True, to_onehot_y=True),
             'DeepSupervisionDiceCELoss',
             device=device
         )
 
         # DiceFocalLoss
         results['DiceFocalLoss'] = _LossFunctionTester._test_basic_loss(
-            LossDiceFocal(softmax=True, to_onehot_y=True),
+            ConfigLossDiceFocal(softmax=True, to_onehot_y=True),
             'DiceFocalLoss',
             device=device
         )
 
         # DeepSupervisionDiceFocalLoss
         results['DeepSupervisionDiceFocalLoss'] = _LossFunctionTester._test_deep_supervision_loss(
-            LossDeepSupervisionDiceFocal(softmax=True, to_onehot_y=True),
+            ConfigLossDeepSupervisionDiceFocal(softmax=True, to_onehot_y=True),
             'DeepSupervisionDiceFocalLoss',
             device=device
         )
 
         # GeneralizedDiceFocalLoss
         results['GeneralizedDiceFocalLoss'] = _LossFunctionTester._test_basic_loss(
-            LossGeneralizedDiceFocal(softmax=True, to_onehot_y=True),
+            ConfigLossGeneralizedDiceFocal(softmax=True, to_onehot_y=True),
             'GeneralizedDiceFocalLoss',
             device=device
         )
 
         # DeepSupervisionGeneralizedDiceFocalLoss
         results['DeepSupervisionGeneralizedDiceFocalLoss'] = _LossFunctionTester._test_deep_supervision_loss(
-            LossDeepSupervisionGeneralizedDiceFocal(softmax=True, to_onehot_y=True),
+            ConfigLossDeepSupervisionGeneralizedDiceFocal(softmax=True, to_onehot_y=True),
             'DeepSupervisionGeneralizedDiceFocalLoss',
             device=device
         )
 
         # HausdorffDTLoss
         results['HausdorffDTLoss'] = _LossFunctionTester._test_basic_loss(
-            LossHausdorffDT(softmax=True, to_onehot_y=True),
+            ConfigLossHausdorffDT(softmax=True, to_onehot_y=True),
             'HausdorffDTLoss',
             device=device
         )

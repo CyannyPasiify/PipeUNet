@@ -22,24 +22,48 @@ import pathlib as pl
 import monai.data as mD
 from typing import Dict, Any, Optional, List, Union, Sequence, Callable, Iterable, Set, Type, Tuple
 from pandas._typing import DtypeArg
+from Dataset.dataset_configurer import ConfigDatasetBase, ConfigDatasetPersistent
+from Operator.operator_configurer import ConfigOperatorIdentity
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-
-from Dataset.ds_default_seg import DatasetBase, DatasetPersistent
-from Operator.operator_misc import OperatorIdentity
+from typing_extensions import override
 
 PathLike = Union[str, os.PathLike]
 
 
-def _default_empty_dict():
-    return dict()
+@dataclass
+class ConfigDatasetManifestretrieverBase(ABC):
+    def is_ready(self) -> bool:
+        return hasattr(self, "retriever")
 
+    def _assert_init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> None:
+        if self.is_ready(): return
+        self.init_essentials(*args, **kwargs)
 
-def _default_empty_list():
-    return list()
+    @abstractmethod
+    def init_essentials(
+            self,
+            *args,
+            **kwargs
+    ) -> 'ConfigDatasetManifestretrieverBase':
+        self.retriever = None  # Just placeholder
+        return self
+
+    @abstractmethod
+    def get_assembled_dataset(
+            self,
+            *args,
+            **kwargs
+    ) -> ConfigDatasetBase:
+        pass
 
 
 @dataclass
-class DatasetManifestRetrieverSegmentationDefault:
+class ConfigDatasetManifestRetrieverSegmentationDefault(ConfigDatasetManifestretrieverBase):
     """
     Dataset manifest retriever for segmentation tasks
     
@@ -61,19 +85,13 @@ class DatasetManifestRetrieverSegmentationDefault:
     """
     root_dir: PathLike = ""
     manifest_file: PathLike = ""
-    column_key_map: Dict[str, str] = field(default_factory=_default_empty_dict)
+    column_key_map: Dict[str, str] = field(default_factory=dict)
     column_key_relative_path: Union[Tuple[str, ...], List[str]] = ()
-    column_group_map: Dict[str, Union[Tuple[str, ...], List[str]]] = field(default_factory=_default_empty_dict)
+    column_group_map: Dict[str, Union[Tuple[str, ...], List[str]]] = field(default_factory=dict)
     column_dtype_map: Optional[DtypeArg] = None
 
-    def is_ready(self) -> bool:
-        return hasattr(self, "_is_ready")
-
-    def _assert_init_essentials(self) -> None:
-        if self.is_ready(): return
-        self.init_essentials()
-
-    def init_essentials(self) -> 'DatasetManifestRetrieverSegmentationDefault':
+    @override
+    def init_essentials(self) -> 'ConfigDatasetManifestRetrieverSegmentationDefault':
         # Validate root_dir and manifest_file
         if not pl.Path(self.root_dir).exists():
             raise ValueError(f"root_dir not exists: {self.root_dir}")
@@ -171,11 +189,11 @@ class DatasetManifestRetrieverSegmentationDefault:
         self._assert_init_essentials()
         return len(self.manifest)
 
-    def get_monai_dataset(
+    def get_assembled_dataset(
             self,
-            dataset: DatasetBase,
-            transform: Union[Sequence[Callable], Callable] = OperatorIdentity()
-    ) -> DatasetBase:
+            dataset: ConfigDatasetBase,
+            transform: Union[Sequence[Callable], Callable] = ConfigOperatorIdentity()
+    ) -> ConfigDatasetBase:
         """
         Create a MONAI dataset from the manifest
         
@@ -192,12 +210,12 @@ class DatasetManifestRetrieverSegmentationDefault:
 
 
 if __name__ == "__main__":
-    from Transform.tf_default_seg import TransformSegmentationDefaultTrain
+    from Transform.transform_configurer import ConfigTransformSegmentationDefaultTrain
     from typing import cast
     from monai.utils import GridSampleMode, GridSamplePadMode, PytorchPadMode, NumpyPadMode
 
     manifest_file: pl.Path = pl.Path(r'./Samples/split01_TJ/split01_TJ_train.xlsx')
-    ds: DatasetManifestRetrieverSegmentationDefault = DatasetManifestRetrieverSegmentationDefault(
+    ds: ConfigDatasetManifestRetrieverSegmentationDefault = ConfigDatasetManifestRetrieverSegmentationDefault(
         root_dir='./Samples',
         manifest_file=manifest_file,
         column_key_map={
@@ -234,12 +252,12 @@ if __name__ == "__main__":
         'param_tf_allow_missing_keys': False,
         'random_seed': 0
     }
-    transform: TransformSegmentationDefaultTrain = TransformSegmentationDefaultTrain(**transform_params)
+    transform: ConfigTransformSegmentationDefaultTrain = ConfigTransformSegmentationDefaultTrain(**transform_params)
 
     pds: mD.PersistentDataset = cast(
         mD.PersistentDataset,
-        ds.get_monai_dataset(
-            DatasetPersistent(cache_dir='./Samples/dataset_manifest_retriever_test/cache'),
+        ds.get_assembled_dataset(
+            ConfigDatasetPersistent(cache_dir='./Samples/dataset_manifest_retriever_test/cache'),
             transform.get_composed_transform()
         ).get_dataset()
     )
@@ -261,11 +279,11 @@ if __name__ == "__main__":
     max_len = len(ds)
     for i in range(10):
         print(f'Reproducibility [{i}]')
-        transform_1: TransformSegmentationDefaultTrain = TransformSegmentationDefaultTrain(random_seed=0)
+        transform_1: ConfigTransformSegmentationDefaultTrain = ConfigTransformSegmentationDefaultTrain(random_seed=0)
         pds_1: mD.PersistentDataset = cast(
             mD.PersistentDataset,
-            ds.get_monai_dataset(
-                DatasetPersistent(cache_dir='./Samples/dataset_manifest_retriever_test/cache'),
+            ds.get_assembled_dataset(
+                ConfigDatasetPersistent(cache_dir='./Samples/dataset_manifest_retriever_test/cache'),
                 transform_1.get_composed_transform()
             ).get_dataset()
         )
@@ -277,12 +295,12 @@ if __name__ == "__main__":
 
         tf_state = transform_1.get_state()
 
-        transform_2: TransformSegmentationDefaultTrain = TransformSegmentationDefaultTrain(random_seed=0)
+        transform_2: ConfigTransformSegmentationDefaultTrain = ConfigTransformSegmentationDefaultTrain(random_seed=0)
         transform_2.set_state(tf_state)
         pds_2: mD.PersistentDataset = cast(
             mD.PersistentDataset,
-            ds.get_monai_dataset(
-                DatasetPersistent(cache_dir='./Samples/dataset_manifest_retriever_test/cache'),
+            ds.get_assembled_dataset(
+                ConfigDatasetPersistent(cache_dir='./Samples/dataset_manifest_retriever_test/cache'),
                 transform_2.get_composed_transform()
             ).get_dataset()
         )
