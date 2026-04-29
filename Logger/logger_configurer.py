@@ -151,16 +151,16 @@ class ConfigLoggerWandb(ConfigLoggerBase):
         checkpoint_name: Checkpoint name
         kwargs: Other parameters passed to WandbLogger
     """
-    name: Optional[str] = None,
-    save_dir: Union[str, Path] = ".",
-    version: Optional[str] = None,
-    offline: bool = False,
-    anonymous: Optional[bool] = None,
-    project: Optional[str] = None,
-    log_model: Union[Literal["all"], bool] = False,
-    prefix: str = "",
-    experiment: Union["Run", "RunDisabled", None] = None,
-    checkpoint_name: Optional[str] = None,
+    name: Optional[str] = None
+    save_dir: Union[str, Path] = "."
+    version: Optional[str] = None
+    offline: bool = False
+    anonymous: Optional[bool] = None
+    project: Optional[str] = None
+    log_model: Union[Literal["all"], bool] = False
+    prefix: str = ""
+    experiment: Union["Run", "RunDisabled", None] = None
+    checkpoint_name: Optional[str] = None
     kwargs: Dict[str, Any] = field(default_factory=dict)
 
     @override

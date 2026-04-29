@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import gc
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
@@ -25,6 +26,8 @@ from Callback.callback_configurer import (
 )
 from lightning.pytorch.strategies import Strategy
 from dataclasses import dataclass
+
+from Module.ltn_module_segmentation_default import LightningModuleSegmentationDefault
 
 SupportedPrecision = Optional[Union[Literal[64, 32, 16,
 "transformer-engine", "transformer-engine-float16",
@@ -89,7 +92,7 @@ class TrainerInitArgs:
 
     # Debugging
     detect_anomaly: bool = True
-    num_sanity_val_steps: int = 2
+    num_sanity_val_steps: int = 0
     fast_dev_run: bool = False
     overfit_batches: Union[int, float] = 0.0
 
@@ -272,7 +275,7 @@ class ConfigTrainerSegmentationDefault(ConfigTrainerBase):
 
         assert self.trainer_init_args is not None, 'trainer_init_args must be specified before _get_trainer'
         init: TrainerInitArgs = self.trainer_init_args
-        self.trainer = Trainer(
+        trainer = Trainer(
             # Routine control
             accelerator=init.accelerator,
             devices=init.devices,
@@ -310,7 +313,7 @@ class ConfigTrainerSegmentationDefault(ConfigTrainerBase):
             overfit_batches=init.overfit_batches
         )
 
-        return self.trainer
+        return trainer
 
     def _get_callbacks(self) -> List[L.pytorch.callbacks.Callback]:
         callbacks: List[L.pytorch.callbacks.Callback] = []
@@ -442,7 +445,17 @@ class ConfigTrainerSegmentationDefault(ConfigTrainerBase):
                     print(f'  Device Mapping: {finetune_map_location}')
                 if finetune_hparams_file is not None:
                     print(f'  Hyper-Params File: {finetune_hparams_file}')
-                model.load_from_checkpoint(ckpt_path, finetune_map_location, finetune_hparams_file)
+                model: LightningModuleSegmentationDefault
+                ckpt = torch.load(ckpt_path, finetune_map_location)
+                model.load_state_dict(ckpt["state_dict"])
+                # model= type(model).load_from_checkpoint(
+                #     checkpoint_path=ckpt_path,
+                #     map_location=finetune_map_location,
+                #     hparams_file=finetune_hparams_file
+                # )
+                del ckpt
+                gc.collect()
+                torch.cuda.empty_cache()
             else:
                 print('  [Resume Fitting]')
                 print(f'  Checkpoint (resumed): {ckpt_path}')
@@ -619,7 +632,7 @@ if __name__ == "__main__":
         callback_device_stats_monitor=ConfigCallbackDeviceStatsMonitor(cpu_stats=True),
         callback_early_stopping=ConfigCallbackEarlyStopping(
             monitor='val/loss',
-            patience=100,
+            patience=20,
             mode='min',
             verbose=True
         ),
@@ -638,7 +651,7 @@ if __name__ == "__main__":
         callback_model_checkpoints=[
             ConfigCallbackModelCheckpoint(
                 dirpath='milestone',
-                filename='{epoch:03d}-loss={val/loss:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
+                filename='{epoch:03d}-loss={val/loss:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
                 monitor='epoch',
                 save_top_k=-1,
                 mode='max',
@@ -646,82 +659,82 @@ if __name__ == "__main__":
                 every_n_epochs=10
             ),
             ConfigCallbackModelCheckpoint(
-                dirpath='val/dice',
-                filename='{epoch:03d}-loss={val/loss:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
-                monitor='val/dice',
-                save_top_k=3,
+                dirpath='val/DSC',
+                filename='{epoch:03d}-loss={val/loss:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
+                monitor='val/DSC',
+                save_top_k=5,
                 mode='max',
                 save_last=False,
                 every_n_epochs=1
             ),
             ConfigCallbackModelCheckpoint(
-                dirpath='val/hd95',
-                filename='{epoch:03d}-loss={val/loss:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
-                monitor='val/hd95',
-                save_top_k=3,
+                dirpath='val/HD95',
+                filename='{epoch:03d}-loss={val/loss:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
+                monitor='val/HD95',
+                save_top_k=5,
                 mode='min',
                 save_last=False,
                 every_n_epochs=1
             ),
             ConfigCallbackModelCheckpoint(
-                dirpath='val/assd',
-                filename='{epoch:03d}-assd={val/assd:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
-                monitor='val/assd',
-                save_top_k=3,
-                mode='min',
-                save_last=False,
-                every_n_epochs=1
-            ),
-            ConfigCallbackModelCheckpoint(
-                dirpath='val/nsd',
-                filename='{epoch:03d}-nsd={val/nsd:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
-                monitor='val/nsd',
-                save_top_k=3,
+                dirpath='val/NSD',
+                filename='{epoch:03d}-NSD={val/NSD:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
+                monitor='val/NSD',
+                save_top_k=5,
                 mode='max',
                 save_last=False,
                 every_n_epochs=1
             ),
             ConfigCallbackModelCheckpoint(
-                dirpath='val/accuracy',
-                filename='{epoch:03d}-accuracy={val/accuracy:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
-                monitor='val/acc',
-                save_top_k=3,
+                dirpath='val/Acc',
+                filename='{epoch:03d}-Acc={val/Acc:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
+                monitor='val/Acc',
+                save_top_k=5,
                 mode='max',
                 save_last=False,
                 every_n_epochs=1
             ),
             ConfigCallbackModelCheckpoint(
-                dirpath='val/precision',
-                filename='{epoch:03d}-precision={val/precision:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
-                monitor='val/precision',
-                save_top_k=3,
+                dirpath='val/Prec',
+                filename='{epoch:03d}-Prec={val/Prec:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
+                monitor='val/Prec',
+                save_top_k=5,
                 mode='max',
                 save_last=False,
                 every_n_epochs=1
             ),
             ConfigCallbackModelCheckpoint(
-                dirpath='val/specificity',
-                filename='{epoch:03d}-spe={val/specificity:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
-                monitor='val/specificity',
-                save_top_k=3,
+                dirpath='val/Spec',
+                filename='{epoch:03d}-Spec={val/Spec:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
+                monitor='val/Spec',
+                save_top_k=5,
                 mode='max',
                 save_last=False,
                 every_n_epochs=1
             ),
             ConfigCallbackModelCheckpoint(
-                dirpath='val/recall',
-                filename='{epoch:03d}-recall={val/recall:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
-                monitor='val/recall',
-                save_top_k=3,
+                dirpath='val/Recall',
+                filename='{epoch:03d}-Recall={val/Recall:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
+                monitor='val/Recall',
+                save_top_k=5,
                 mode='max',
                 save_last=False,
                 every_n_epochs=1
             ),
             ConfigCallbackModelCheckpoint(
-                dirpath='val/auroc',
-                filename='{epoch:03d}-auroc={val/auroc:4f}-dice={val/dice:4f}-hd95{val/hd95:4f}',
-                monitor='val/auroc',
-                save_top_k=3,
+                dirpath='val/F1',
+                filename='{epoch:03d}-F1={val/F1:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
+                monitor='val/F1',
+                save_top_k=5,
+                mode='max',
+                save_last=False,
+                every_n_epochs=1
+            ),
+            ConfigCallbackModelCheckpoint(
+                dirpath='val/AUROC',
+                filename='{epoch:03d}-AUROC={val/AUROC:4f}-DSC={val/DSC:4f}-HD95={val/HD95:4f}',
+                monitor='val/AUROC',
+                save_top_k=5,
                 mode='max',
                 save_last=False,
                 every_n_epochs=1

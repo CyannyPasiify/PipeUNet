@@ -182,7 +182,7 @@ class ConfigLRSchedulerCosineAnnealingWarmRestarts(ConfigLRSchedulerBase):
 
 
 @dataclass
-class ConfigLRSchedulerOneCycleConfigLR(ConfigLRSchedulerBase):
+class ConfigLRSchedulerOneCycle(ConfigLRSchedulerBase):
     """
     Creates a configured OneCycle learning rate scheduler instance
     
@@ -212,7 +212,7 @@ class ConfigLRSchedulerOneCycleConfigLR(ConfigLRSchedulerBase):
     def init_essentials(
             self,
             optimizer: torch.optim.Optimizer
-    ) -> 'ConfigLRSchedulerOneCycleConfigLR':
+    ) -> 'ConfigLRSchedulerOneCycle':
         self.lr_scheduler: lr_scheduler.OneCycleLR = lr_scheduler.OneCycleLR(
             optimizer=optimizer,
             max_lr=self.max_lr,
@@ -228,7 +228,7 @@ class ConfigLRSchedulerOneCycleConfigLR(ConfigLRSchedulerBase):
 
 
 @dataclass
-class ConfigLRSchedulerReduceConfigLROnPlateau(ConfigLRSchedulerBase):
+class ConfigLRSchedulerReduceLROnPlateau(ConfigLRSchedulerBase):
     """
     Creates a configured performance-based learning rate scheduler instance
 
@@ -256,7 +256,7 @@ class ConfigLRSchedulerReduceConfigLROnPlateau(ConfigLRSchedulerBase):
     def init_essentials(
             self,
             optimizer: torch.optim.Optimizer
-    ) -> 'ConfigLRSchedulerReduceConfigLROnPlateau':
+    ) -> 'ConfigLRSchedulerReduceLROnPlateau':
         self.lr_scheduler: lr_scheduler.ReduceLROnPlateau = lr_scheduler.ReduceLROnPlateau(
             optimizer=optimizer,
             mode=self.mode,
@@ -307,7 +307,7 @@ if __name__ == "__main__":
                 eta_min=0
             )
         elif scheduler_type == 'OneCycleLR':
-            scheduler = ConfigLRSchedulerOneCycleConfigLR(
+            scheduler = ConfigLRSchedulerOneCycle(
                 max_lr=initial_lr * 10,
                 total_steps=total_steps,
                 epochs=1,
@@ -317,7 +317,7 @@ if __name__ == "__main__":
                 final_div_factor=10000.0
             )
         elif scheduler_type == 'ReduceLROnPlateau':
-            scheduler = ConfigLRSchedulerReduceConfigLROnPlateau(
+            scheduler = ConfigLRSchedulerReduceLROnPlateau(
                 mode='min',
                 factor=0.5,
                 patience=10,

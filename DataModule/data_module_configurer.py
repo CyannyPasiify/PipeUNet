@@ -47,7 +47,7 @@ class ConfigDataModuleSegmentationDefault(ConfigDataModuleBase):
 
     Initialize the DataModule
 
-    Args:
+    Attributes:
         train_init_args: Initialization arguments for the training phase
         val_init_args: Initialization arguments for the validation phase
         test_init_args: Initialization arguments for the testing phase

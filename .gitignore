@@ -184,3 +184,5 @@ cython_debug/
 /Samples
 *.pptx
 *.ppt
+debug
+Experiments

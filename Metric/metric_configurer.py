@@ -190,7 +190,7 @@ class ConfigMetricBase(ABC):
             *args,
             **kwargs
     ) -> 'ConfigMetricBase':
-        self.metric = None  # Just placeholder
+        self.metric: SupportedMetric = torchmetrics.MaxMetric()  # Just placeholder
         return self
 
     def __call__(
@@ -200,6 +200,10 @@ class ConfigMetricBase(ABC):
     ) -> torch.Tensor:
         self._assert_init_essentials()
         return self.metric(*args, **kwargs)
+
+    def to(self, *args, **kwargs) -> 'ConfigMetricBase':
+        self._assert_init_essentials()
+        return self
 
     def get_metric_operator(self, *args, **kwargs) -> SupportedMetric:
         self._assert_init_essentials(*args, **kwargs)
@@ -289,7 +293,9 @@ class ConfigMetricTorch(ConfigMetricBase, metaclass=ABCMeta):
             **kwargs
     ) -> Tensor:
         self._assert_init_essentials()
-        return self.metric(preds, target, *args, **kwargs)
+        ret = self.metric(preds, target, *args, **kwargs)
+        self.metric.reset()
+        return ret
 
     def plot(
             self,
@@ -386,7 +392,7 @@ class ConfigMetricTorch(ConfigMetricBase, metaclass=ABCMeta):
 
         """
         self._assert_init_essentials()
-        self.metric = self.metric.to(*args, **kwargs)
+        self.metric.to(*args, **kwargs)
         return self
 
 
@@ -1407,7 +1413,7 @@ class _BetterMulticlassConfusionMatrix(torchmetrics.classification.MulticlassCon
 
     - ``confusion_matrix``: [num_classes, num_classes] matrix
 
-    Args:
+    Attributes:
         num_classes: Integer specifying the number of classes
         ignore_index:
             Specifies a target value that is ignored and does not contribute to the metric calculation
@@ -1589,7 +1595,7 @@ class ConfigMetricMulticlassConfusionMatrix(ConfigMetricTorch):
 
     - ``confusion_matrix``: [num_classes, num_classes] matrix
 
-    Args:
+    Attributes:
         num_classes: Integer specifying the number of classes
         ignore_index:
             Specifies a target value that is ignored and does not contribute to the metric calculation
@@ -2008,6 +2014,7 @@ class ConfigMetricMonai(ConfigMetricBase, metaclass=ABCMeta):
         self._assert_init_essentials()
         ret = self.metric(y_pred=y_pred, y=y, **kwargs)
         ret = self.metric.aggregate().squeeze()
+        self.metric.reset()
         return ret
 
 
@@ -2040,7 +2047,7 @@ class ConfigMetricDiceScore(ConfigMetricMonai):
     Further information can be found in the official
     `MONAI Dice Overview <https://github.com/Project-MONAI/tutorials/blob/main/modules/dice_loss_metric_notes.ipynb>`.
 
-    Args:
+    Attributes:
         include_background: whether to include Dice computation on the first channel/category of the prediction and
             ground truth. Defaults to ``False``, use ``False`` to exclude the background class.
         reduction: defines mode of reduction to the metrics, this will only apply reduction on `not-nan` values. The
@@ -2094,7 +2101,7 @@ class ConfigMetricGeneralizedDiceScore(ConfigMetricMonai):
 
     Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
 
-    Args:
+    Attributes:
         include_background: Whether to include the background class (assumed to be in channel 0) in the
             score computation. Defaults to False.
         reduction: Define mode of reduction to the metrics. Available reduction modes:
@@ -2148,7 +2155,7 @@ class ConfigMetricMeanIoU(ConfigMetricMonai):
 
     Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
 
-    Args:
+    Attributes:
         include_background: whether to include IoU computation on the first channel of
             the predicted output. Defaults to ``False``.
         reduction: define mode of reduction to the metrics, will only apply reduction on `not-nan` values,
@@ -2194,7 +2201,7 @@ class ConfigMetricHausdorffDistance(ConfigMetricMonai):
 
     Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
 
-        Args:
+    Attributes:
         include_background: whether to include distance computation on the first channel of
             the predicted output. Defaults to ``False``.
         distance_metric: : [``"euclidean"``, ``"chessboard"``, ``"taxicab"``]
@@ -2243,7 +2250,7 @@ class ConfigMetricSurfaceDistance(ConfigMetricMonai):
 
     Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
 
-    Args:
+    Attributes:
         include_background: whether to include distance computation on the first channel of
             the predicted output. Defaults to ``False``.
         symmetric: whether to calculate the symmetric average surface distance between
@@ -2293,7 +2300,7 @@ class ConfigMetricNormalizedSurfaceDiceScore(ConfigMetricMonai):
 
     Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
 
-    Args:
+    Attributes:
         class_thresholds: List of class-specific thresholds.
             The thresholds relate to the acceptable amount of deviation in the segmentation boundary in pixels.
             Each threshold needs to be a finite, non-negative number.
@@ -2352,7 +2359,7 @@ class ConfigMetricMeanSquaredError(ConfigMetricMonai):
 
     Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
 
-    Args:
+    Attributes:
         reduction: define the mode to reduce metrics, will only execute reduction on `not-nan` values,
             available reduction modes: {``"none"``, ``"mean"``, ``"sum"``, ``"mean_batch"``, ``"sum_batch"``,
             ``"mean_channel"``, ``"sum_channel"``}, default to ``"mean"``. if "none", will not do reduction.
@@ -2377,21 +2384,21 @@ class ConfigMetricMeanAbsoluteError(ConfigMetricMonai):
 
     Compute Mean Absolute Error between two tensors using function:
 
-        .. math::
-            \operatorname {MAE}\left(Y, \hat{Y}\right) =\frac {1}{n}\sum _{i=1}^{n}\left|y_i-\hat{y_i}\right|.
+    .. math::
+        \operatorname {MAE}\left(Y, \hat{Y}\right) =\frac {1}{n}\sum _{i=1}^{n}\left|y_i-\hat{y_i}\right|.
 
-        More info: https://en.wikipedia.org/wiki/Mean_absolute_error
+    More info: https://en.wikipedia.org/wiki/Mean_absolute_error
 
-        Input `y_pred` is compared with ground truth `y`.
-        Both `y_pred` and `y` are expected to be real-valued, where `y_pred` is output from a regression model.
+    Input `y_pred` is compared with ground truth `y`.
+    Both `y_pred` and `y` are expected to be real-valued, where `y_pred` is output from a regression model.
 
-        Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
+    Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
 
-        Args:
-            reduction: define the mode to reduce metrics, will only execute reduction on `not-nan` values,
-                available reduction modes: {``"none"``, ``"mean"``, ``"sum"``, ``"mean_batch"``, ``"sum_batch"``,
-                ``"mean_channel"``, ``"sum_channel"``}, default to ``"mean"``. if "none", will not do reduction.
-            get_not_nans: whether to return the `not_nans` count, if True, aggregate() returns (metric, not_nans).
+    Attributes:
+        reduction: define the mode to reduce metrics, will only execute reduction on `not-nan` values,
+            available reduction modes: {``"none"``, ``"mean"``, ``"sum"``, ``"mean_batch"``, ``"sum_batch"``,
+            ``"mean_channel"``, ``"sum_channel"``}, default to ``"mean"``. if "none", will not do reduction.
+        get_not_nans: whether to return the `not_nans` count, if True, aggregate() returns (metric, not_nans).
     """
     reduction: Union[MetricReduction, str] = MetricReduction.MEAN
     get_not_nans: bool = False
@@ -2423,7 +2430,7 @@ class ConfigMetricRootMeanSquaredError(ConfigMetricMonai):
 
     Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
 
-    Args:
+    Attributes:
         reduction: define the mode to reduce metrics, will only execute reduction on `not-nan` values,
             available reduction modes: {``"none"``, ``"mean"``, ``"sum"``, ``"mean_batch"``, ``"sum_batch"``,
             ``"mean_channel"``, ``"sum_channel"``}, default to ``"mean"``. if "none", will not do reduction.
@@ -2462,7 +2469,7 @@ class ConfigMetricPeakSignalToNoiseRatio(ConfigMetricMonai):
 
     Example of the typical execution steps of this metric class follows :py:class:`monai.metrics.metric.Cumulative`.
 
-    Args:
+    Attributes:
         max_val: The dynamic range of the images/volumes (i.e., the difference between the
             maximum and the minimum allowed values e.g. 255 for a uint8 image).
         reduction: define the mode to reduce metrics, will only execute reduction on `not-nan` values,
@@ -2502,7 +2509,7 @@ class ConfigMetricStructuralSimilarityIndexMeasure(ConfigMetricMonai):
         Wang, Zhou, et al. "Image quality assessment: from error visibility to structural
         similarity." IEEE transactions on image processing 13.4 (2004): 600-612.
 
-    Args:
+    Attributes:
         spatial_dims: number of spatial dimensions of the input images.
         data_range: value range of input images. (usually 1.0 or 255)
         kernel_type: type of kernel, can be "gaussian" or "uniform".
@@ -2631,6 +2638,7 @@ class _VoxelProcessingPerSecond:
     def __call__(
             self,
             volume: Optional[Tensor] = None,
+            *args,
             time_point: Optional[datetime] = None  # If not specified, record now time
     ) -> Tensor:
         vps: float = 0.
@@ -2639,7 +2647,7 @@ class _VoxelProcessingPerSecond:
             time_delta: timedelta = now_datetime - self.time_checkpoint
             # Calculation
             seconds: float = time_delta.total_seconds()
-            vps: float = seconds / float(np.prod(volume.size()))
+            vps: float = float(np.prod(volume.size())) / seconds
         self.time_checkpoint = now_datetime  # Record time point, maybe another start later
         return torch.tensor(vps, dtype=torch.float, device=volume.device if volume is not None else torch.device('cpu'))
 
@@ -2658,10 +2666,11 @@ class ConfigMetricVoxelProcessingPerSecond(ConfigMetricEfficiency):
     def __call__(
             self,
             volume: Optional[Tensor] = None,
+            *args,
             time_point: Optional[datetime] = None  # If not specified, record now time
     ) -> Tensor:
         self._assert_init_essentials()
-        return self.metric(volume, time_point)
+        return self.metric(volume, *args, time_point=time_point)
 
 
 # endregion

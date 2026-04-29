@@ -17,6 +17,7 @@ class StrMaintainer(PrimitiveMaintainer):
         return True
 
     @classmethod
+    @override
     def shall_hotkey_confirm_cancel(cls: Type) -> Tuple[bool, bool]:
         # If in Standalone window, shall this type of maintainer react to
         # - Enter as Confirm
@@ -107,7 +108,7 @@ class StrMaintainer(PrimitiveMaintainer):
             self.update_button.pack(side=tk.RIGHT, padx=15)
 
         # Create a ScrolledText widget for multi-line input
-        self.scrolled_text = scrolledtext.ScrolledText(self.editor, width=60, height=10, wrap=tk.WORD)
+        self.scrolled_text = scrolledtext.ScrolledText(self.editor, width=10, height=10, wrap=tk.WORD)
         self.scrolled_text.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
 
         # Set initial value

@@ -1,820 +1,656 @@
-from Tools.YamlConfigurer.Maintainer.container_maintainer import ContainerMaintainer
-from typing import Any, Tuple, List, Type
+import copy
+from typing import Any, Tuple, Type, Callable, Optional, List, Literal, get_origin, get_args, Dict
+from typing_extensions import override
 import tkinter as tk
 from tkinter import ttk
+from Tools.YamlConfigurer.Maintainer.PrimitiveMaintainer.unsupported_maintainer import UnsupportedMaintainer
+from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
+from Tools.YamlConfigurer.Maintainer.container_maintainer import ContainerMaintainer
+from Tools.YamlConfigurer.auxiliary_functions import simplify_type
 
 
 class TupleMaintainer(ContainerMaintainer):
-    """Tuple type Maintainer base class"""
+    """tuple type Maintainer"""
+    # Static variable for new item indicator
+    NEW_ITEM_INDICATOR = "<New>"
 
-    # Whether to expand edit frame vertically
-    expand_edit_frame = True
+    @classmethod
+    @override
+    def default_standalone_window_size(cls: Type) -> Tuple[int, int]:
+        # W, H
+        return 1236, 600
+
+    @classmethod
+    @override
+    def shall_hotkey_confirm_cancel(cls: Type) -> Tuple[bool, bool]:
+        # If in Standalone window, shall this type of maintainer react to
+        # - Enter as Confirm
+        # - Esc as Cancel
+        # Hotkey enabled for (Confirm, Cancel)
+
+        # Tuple may have complex sub-editors, shall not use hotkeys
+        return False, False
 
     def __init__(
             self,
-            inner_types: List[Type] = None,
             attribute_name: str = "",
             attribute_type: Type = Tuple[Any],
             attribute_value: Any = None,
             logger: Any = None
     ):
-        """Initialize
+        """Initialize Maintainer
         
         Args:
-            inner_types: List of types in the tuple
             attribute_name: Name of the tuple attribute
             attribute_type: Type of the tuple
             attribute_value: Initial value
             logger: Logger instance for logging
         """
+        # Simplify first !!
+        attribute_type: Type = simplify_type(attribute_type)
         super().__init__(attribute_name, attribute_type, attribute_value, logger)
-        self.inner_types = inner_types or []
-        # 延迟导入MaintainerFactory，避免循环引用
-        from Tools.yaml_configurer.maintainer_factory import MaintainerFactory
-        self.inner_maintainers = [MaintainerFactory.get_maintainer(attribute_name, t, logger=logger) for t in
-                                  self.inner_types]
-
-    def get_default_value(self) -> Tuple[Any, ...]:
-        """Get default value"""
-        return ()
-
-    def is_compatible(self, value: Any) -> bool:
-        """Check if value is compatible with the type"""
-        if not isinstance(value, tuple):
-            return False
-        return True
-
-    def get_simplest_type_name(self) -> str:
-        """Get expected type name"""
-        return "Tuple"
-
-    @staticmethod
-    def get_simplest_type_name_static(inner_types: List[Type]) -> str:
-        """Get expected type name"""
-        if inner_types:
-            from Tools.yaml_configurer.maintainer_factory import MaintainerFactory
-            type_names = [MaintainerFactory.get_simplest_type_name(t) for t in inner_types]
-            return f"Tuple[{', '.join(type_names)}]"
-        return "Tuple"
-
-
-class TupleEmptyMaintainer(TupleMaintainer):
-    """Empty tuple type Maintainer"""
-
-    def __init__(
-            self,
-            attribute_name: str = "",
-            attribute_type: Type = Tuple[()],
-            attribute_value: Any = None,
-            logger: Any = None
-    ):
-        """Initialize
-        
-        Args:
-            attribute_name: Name of the tuple attribute
-            attribute_type: Type of the tuple
-            attribute_value: Initial value
-            logger: Logger instance for logging
-        """
-        super().__init__([], attribute_name, attribute_type, attribute_value, logger)
-
-    def get_default_value(self) -> Tuple[()]:
-        """Get default value"""
-        return ()
-
-    def is_compatible(self, value: Any) -> bool:
-        """Check if value is compatible with the type"""
-        return isinstance(value, tuple) and len(value) == 0
-
-    def get_simplest_type_name(self) -> str:
-        """Get expected type name"""
-        return "Tuple[()]"
-
-    @staticmethod
-    def get_simplest_type_name_static(*args, **kwargs) -> str:
-        """Get expected type name"""
-        return "Tuple[()]"
-
-    def create_editor(self, parent, value, on_change, attribute_name="Tuple"):
-        """Create edit control for empty tuple value
-        
-        Args:
-            parent: Parent widget
-            value: Initial value
-            on_change: Callback when value changes
-            attribute_name: Name of the tuple attribute
-            
-        Returns:
-            Tuple of (frame, enable_callback, disable_callback, set_value_callback)
-        """
-        frame = ttk.Frame(parent)
-
-        # Create buttons frame
-        self.buttons_frame = ttk.Frame(frame)
-        self.buttons_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.X)
-
-        # Add buttons with horizontal stretch (all disabled)
-        self.add_button = ttk.Button(self.buttons_frame, text="Add", state=tk.DISABLED)
-        self.add_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        self.remove_button = ttk.Button(self.buttons_frame, text="Remove", state=tk.DISABLED)
-        self.remove_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        self.up_button = ttk.Button(self.buttons_frame, text="Up", state=tk.DISABLED)
-        self.up_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        self.down_button = ttk.Button(self.buttons_frame, text="Down", state=tk.DISABLED)
-        self.down_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        self.edit_button = ttk.Button(self.buttons_frame, text="Edit", state=tk.DISABLED)
-        self.edit_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        # Create Treeview for tuple elements
-        self.tree_frame = ttk.Frame(frame)
-        self.tree_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.BOTH, expand=True)
-
-        # Create Treeview with Index, Type, and Value columns
-        self.tree = ttk.Treeview(self.tree_frame, columns=("index", "type", "value"), show="headings")
-        self.tree.heading("index", text="Index")
-        self.tree.heading("type", text="Type")
-        self.tree.heading("value", text="Value")
-        self.tree.column("index", minwidth=45, width=80, stretch=False, anchor=tk.W)
-        self.tree.column("type", minwidth=80, width=150, stretch=False, anchor=tk.W)
-        self.tree.column("value", minwidth=80, width=300, stretch=False, anchor=tk.W)
-
-        # Add vertical scrollbar
-        self.vscrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        self.tree.configure(yscrollcommand=self.vscrollbar.set)
-        self.vscrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Add horizontal scrollbar with custom command to increase step size
-        def custom_xview(*args):
-            # args[0] 是 'moveto' 或 'scroll'
-            if args[0] == 'scroll':
-                # args[1] 是滚动单位数，args[2] 是单位类型 ('units' 或 'pages')
-                # 增加滚动步长
-                if args[2] == 'units':
-                    # 对于单位滚动，增加步长
-                    self.tree.xview_scroll(int(args[1]) * 10, 'units')
-                else:
-                    # 对于页滚动，保持默认行为
-                    self.tree.xview_scroll(int(args[1]), 'pages')
+        self.item_maintainer_cls_list: Optional[List[Type[BaseMaintainer]]] = None
+        # Detect Maintainer for the arg type
+        if self.is_type_compatible():
+            from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+            type_args: Tuple[Any, ...] = get_args(self.attribute_type)
+            # Check if it's Tuple[E, ...]
+            if len(type_args) == 2 and type_args[1] == Ellipsis:
+                # Tuple[E, Ellipsis(...)] - similar to List[E]
+                self.item_maintainer_cls_list = [MaintainerFactory.get_maintainer_cls_supported_type(type_args[0])]
+            # tuple[()], Tuple[()]
+            elif len(type_args) == 0 or len(type_args) == 1 and type_args[0] == tuple():
+                pass
             else:
-                # 对于 moveto，保持默认行为
-                self.tree.xview_moveto(args[1])
+                # Tuple[E1, E2, ...] - fixed length
+                self.item_maintainer_cls_list = []
+                for arg_type in type_args:
+                    self.item_maintainer_cls_list.append(MaintainerFactory.get_maintainer_cls_supported_type(arg_type))
 
-        self.hscrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.HORIZONTAL, command=custom_xview)
-        self.tree.configure(xscrollcommand=self.hscrollbar.set)
-        self.hscrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+        # Vars
+        self.view_mode: Literal["Standalone", "Packed"] = "Standalone"
+        self.item_inspector_inner_frame_id: Optional[int] = None  # Standalone only
+        self.popup_canvas_inner_frame_id: Optional[int] = None  # Popup only
+        self.popup_wnd_result: Optional[Dict[str, Any]] = None  # Popup only
+        self.item_maintainer: Optional[BaseMaintainer] = None  # Popup only
+        self.current_selected_item: Optional[str] = None
+        # Widgets
+        ## Common
+        self.editor_label_frame: Optional[ttk.LabelFrame] = None
+        self.buttons_frame: Optional[ttk.Frame] = None
+        self.add_button: Optional[ttk.Button] = None
+        self.remove_button: Optional[ttk.Button] = None
+        self.up_button: Optional[ttk.Button] = None
+        self.down_button: Optional[ttk.Button] = None
+        self.edit_button: Optional[ttk.Button] = None  # Packed only
+        self.add_button: Optional[ttk.Button] = None
+        self.tree_frame: Optional[ttk.Frame] = None
+        self.list_treeview: Optional[ttk.Treeview] = None
+        self.tree_frame_vscrollbar: Optional[ttk.Scrollbar] = None
+        self.tree_frame_hscrollbar: Optional[ttk.Scrollbar] = None
+        ## Popup
+        self.popup_top_level: Optional[tk.Toplevel] = None
+        self.popup_inspector_frame: Optional[ttk.Frame] = None
+        self.popup_canvas: Optional[tk.Canvas] = None
+        self.popup_canvas_vscrollbar: Optional[ttk.Scrollbar] = None
+        self.popup_canvas_hscrollbar: Optional[ttk.Scrollbar] = None
+        self.popup_canvas_inner_frame: Optional[ttk.Frame] = None
+        self.popup_inspector_content: Optional[ttk.Widget] = None
+        self.popup_wnd_button_container: Optional[ttk.Frame] = None
+        self.popup_confirm_button: Optional[ttk.Button] = None
+        self.popup_cancel_button: Optional[ttk.Button] = None
+        ## Standalone only
+        self.double_paned_wnd: Optional[ttk.PanedWindow] = None
+        self.main_inspector_left_frame: Optional[ttk.Frame] = None
+        self.item_inspector_right_frame: Optional[ttk.Frame] = None
+        self.item_inspector_label_frame: Optional[ttk.LabelFrame] = None
+        self.item_inspector_canvas: Optional[tk.Canvas] = None
+        self.item_inspector_vscrollbar: Optional[ttk.Scrollbar] = None
+        self.item_inspector_hscrollbar: Optional[ttk.Scrollbar] = None
+        self.item_inspector_inner_frame: Optional[ttk.Frame] = None
 
-        self.tree.pack(fill=tk.BOTH, expand=True)
+    @override
+    def is_type_compatible(self) -> bool:
+        # Assuming attribute_type is simplified
+        origin: Type = get_origin(self.attribute_type)
+        return origin in {tuple, Tuple}
 
-        # Add a row with <Empty> indicator
-        self.tree.insert("", tk.END, values=("<Empty>", "", ""))
-
-        def enable():
-            # All controls remain disabled for empty tuple
-            pass
-
-        def disable():
-            pass
-
-        def set_value(new_value):
-            # Clear Treeview
-            for item in self.tree.get_children():
-                self.tree.delete(item)
-            # Add empty indicator
-            self.tree.insert("", tk.END, values=("<Empty>", "", ""))
-
-        return frame, enable, disable, set_value
-
-    def create_inspector(self, parent, attribute_name, value, on_change):
-        """Render control for editing empty tuple attribute"""
-        # Update instance attribute_name if provided
-        if attribute_name:
-            self.attribute_name = attribute_name
-
-        self.frame = ttk.Frame(parent)
-
-        # Attribute name
-        self.attribute_label = ttk.Label(self.frame, text=f"Attribute: {self.attribute_name}")
-        self.attribute_label.pack(anchor=tk.W, padx=10, pady=5)
-
-        # Type
-        self.type_label = ttk.Label(self.frame, text=f"Type: {self.get_simplest_type_name()}")
-        self.type_label.pack(anchor=tk.W, padx=10, pady=5)
-
-        # Value editor in Editor panel
-        self.edit_frame = ttk.LabelFrame(self.frame, text="Editor")
-        self.edit_frame.pack(anchor=tk.N, padx=10, pady=5, fill=tk.BOTH, expand=True)
-
-        # 创建一个包装的on_change函数，确保元组修改后能正确更新
-        def on_tuple_change(new_value):
-            # 直接调用原始的on_change函数，传递新值
-            on_change(new_value)
-
-        self.edit_control, enable, disable, set_value = self.create_editor(self.edit_frame, value,
-                                                                           on_tuple_change,
-                                                                           self.attribute_name)
-        self.edit_control.pack(fill=tk.BOTH, expand=True)
-
-        return self.frame, enable, disable, set_value
-
-
-class TupleFixedMaintainer(TupleMaintainer):
-    """Fixed size tuple type Maintainer"""
-
-    def __init__(
-            self,
-            inner_types: List[Type],
-            attribute_name: str = "",
-            attribute_type: Type = Tuple[Any, Any],
-            attribute_value: Any = None,
-            logger: Any = None
-    ):
-        """Initialize
-        
-        Args:
-            inner_types: List of types in the tuple
-            attribute_name: Name of the tuple attribute
-            attribute_type: Type of the tuple
-            attribute_value: Initial value
-            logger: Logger instance for logging
-        """
-        super().__init__(inner_types, attribute_name, attribute_type, attribute_value, logger)
-
-    def get_default_value(self) -> Tuple[Any, ...]:
-        """Get default value"""
-        return tuple(maintainer.get_default_value() for maintainer in self.inner_maintainers)
-
-    def is_compatible(self, value: Any) -> bool:
-        """Check if value is compatible with the type"""
-        if not isinstance(value, tuple) or len(value) != len(self.inner_maintainers):
+    @override
+    def is_value_compatible(self) -> bool:
+        if not self.is_type_compatible():
             return False
-        # Check if all items are compatible with their respective types
-        for item, maintainer in zip(value, self.inner_maintainers):
-            if not maintainer.is_compatible(item):
+
+        # Value is not a tuple, never compatible
+        if not isinstance(self.attribute_value, tuple):
+            return False
+
+        # Empty tuple () is always compatible
+        if len(self.attribute_value) == 0:
+            return True
+
+        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
+
+        # tuple[()], Tuple[()]
+        if len(type_args) == 0 or len(type_args) == 1 and type_args[0] == tuple():
+            return False
+
+        # Tuple[E, Ellipsis(...)]
+        if len(type_args) == 2 and type_args[1] == Ellipsis:
+            # Similar to List[E]
+            maintainer: Type[BaseMaintainer] = self.item_maintainer_cls_list[0]
+
+            # Unsupported element type, never compatible
+            if issubclass(maintainer, UnsupportedMaintainer):
                 return False
+
+            # Check compatibility for each item
+            for item in self.attribute_value:
+                if not maintainer.is_value_compatible_static(item, type_args[0]):
+                    return False
+            return True
+
+        # Tuple[E1, E2, ...]
+        # Check if value length matches type length
+        if len(self.attribute_value) != len(type_args):
+            return False
+
+        # Check compatibility for each item
+        for i, item in enumerate(self.attribute_value):
+            if i < len(self.item_maintainer_cls_list):
+                maintainer_cls = self.item_maintainer_cls_list[i]
+                if issubclass(maintainer_cls, UnsupportedMaintainer):
+                    return False
+                if not maintainer_cls.is_value_compatible_static(item, type_args[i]):
+                    return False
         return True
 
-    def get_simplest_type_name(self) -> str:
-        """Get expected type name"""
-        type_names = [maintainer.get_simplest_type_name() for maintainer in self.inner_maintainers]
-        return f"Tuple[{', '.join(type_names)}]"
+    @override
+    def get_default_value(self, *args, **kwargs) -> Tuple:
+        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
 
-    @staticmethod
-    def get_simplest_type_name_static(inner_types: List[Type]) -> str:
-        """Get expected type name"""
-        if inner_types:
-            from Tools.yaml_configurer.maintainer_factory import MaintainerFactory
-            type_names = [MaintainerFactory.get_simplest_type_name(t) for t in inner_types]
-            return f"Tuple[{', '.join(type_names)}]"
-        return "Tuple"
+        # tuple[()], Tuple[()]
+        if len(type_args) == 0 or len(type_args) == 1 and type_args[0] == tuple():
+            return tuple()
 
-    def create_editor(self, parent, value, on_change, attribute_name="Tuple"):
-        """Create edit control for fixed size tuple value
-        
-        Args:
-            parent: Parent widget
-            value: Initial value
-            on_change: Callback when value changes
-            attribute_name: Name of the tuple attribute
-            
-        Returns:
-            Tuple of (frame, enable_callback, disable_callback, set_value_callback)
+        # Tuple[E, Ellipsis(...)]
+        if len(type_args) == 2 and type_args[1] == Ellipsis:
+            return tuple()
+
+        # Tuple[E1, E2, ...]
+        default_values = []
+        for i, arg_type in enumerate(type_args):
+            if i < len(self.item_maintainer_cls_list):
+                default_values.append(
+                    self.item_maintainer_cls_list[i].get_default_value_static(target_type=arg_type))
+            else:
+                default_values.append(None)
+        return tuple(default_values)
+
+    @override
+    def get_simplest_type(self, *args, **kwargs) -> Type:
+        # Assuming attribute_type is simplified
+        return self.attribute_type
+
+    @override
+    def get_simplest_type_name(self, *args, **kwargs) -> str:
+        if not self.is_type_compatible():
+            return ""
+
+        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
+
+        # tuple[()], Tuple[()]
+        if len(type_args) == 0 or len(type_args) == 1 and type_args[0] == tuple():
+            return "Tuple[()]"
+
+        # Tuple[E, Ellipsis(...)]
+        if len(type_args) == 2 and type_args[1] == Ellipsis:
+            maintainer: Type[BaseMaintainer] = self.item_maintainer_cls_list[0]
+            subtype_str: str = maintainer.get_simplest_type_name_static(
+                target_type=type_args[0],
+                *args, **kwargs
+            )
+            return f"Tuple[{subtype_str}, ...]"
+
+        # Tuple[E1, E2, ...]
+        subtype_strs = []
+        for i, arg_type in enumerate(type_args):
+            if i < len(self.item_maintainer_cls_list):
+                subtype_str = self.item_maintainer_cls_list[i].get_simplest_type_name_static(
+                    target_type=arg_type,
+                    *args, **kwargs
+                )
+                subtype_strs.append(subtype_str)
+            else:
+                subtype_strs.append("Any")
+        return f"Tuple[{', '.join(subtype_strs)}]"
+
+    @override
+    def create_inspector(
+            self,
+            parent: ttk.Widget,
+            on_value_change: Optional[Callable[[Any], None]] = None,
+    ) -> ttk.Widget:
         """
-        frame = ttk.Frame(parent)
+            Shall call create_editor()
+        """
+        # Clear existing inspector (if exists)
+        if self.inspector is not None:
+            self.inspector.destroy()
 
-        # Create buttons frame
-        self.buttons_frame = ttk.Frame(frame)
-        self.buttons_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.X)
+        self.inspector = ttk.Frame(parent)
+        self.inspector.pack(fill=tk.BOTH, expand=True)
 
-        # Add buttons with horizontal stretch (all disabled for fixed size tuple)
-        self.add_button = ttk.Button(self.buttons_frame, text="Add", state=tk.DISABLED)
-        self.add_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
+        # Editor label frame and editor instance
+        if self.view_mode == "Packed":
+            self._create_attribute_type_display(self.inspector)
 
-        self.remove_button = ttk.Button(self.buttons_frame, text="Remove", state=tk.DISABLED)
-        self.remove_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
+            if not self.can_edit():
+                return self.inspector
 
-        self.up_button = ttk.Button(self.buttons_frame, text="Up", state=tk.DISABLED)
-        self.up_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
+            self.editor_label_frame = ttk.LabelFrame(self.inspector, text="Editor")
+            self.editor_label_frame.pack(
+                anchor=tk.N, padx=10, pady=5,
+                fill=tk.BOTH,
+                expand=True
+            )
 
-        self.down_button = ttk.Button(self.buttons_frame, text="Down", state=tk.DISABLED)
-        self.down_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
+            self.editor = self.create_editor(self.editor_label_frame, on_value_change)
+            self.editor.pack(fill=tk.BOTH, expand=True)
 
-        self.edit_button = ttk.Button(self.buttons_frame, text="Edit", state=tk.DISABLED)
-        self.edit_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
+        elif self.view_mode == "Standalone":
+            # 左右分栏，使用PanedWindow实现可拖动调整
+            self.double_paned_wnd = ttk.PanedWindow(self.inspector, orient=tk.HORIZONTAL)
+            self.double_paned_wnd.pack(fill=tk.BOTH, expand=True)
 
-        # Create Treeview for tuple elements
-        self.tree_frame = ttk.Frame(frame)
-        self.tree_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.BOTH, expand=True)
+            # 初始化分割位置50%
+            def on_pane_map(event: Optional[tk.Event] = None):
+                # 控件真正渲染完成了 → 此时宽度 100% 准确
+                w = self.double_paned_wnd.winfo_width()
+                self.double_paned_wnd.sashpos(0, w // 2)
 
-        # Create Treeview with Index, Type, and Value columns
-        self.tree = ttk.Treeview(self.tree_frame, columns=("index", "type", "value"), show="headings")
-        self.tree.heading("index", text="Index")
-        self.tree.heading("type", text="Type")
-        self.tree.heading("value", text="Value")
-        self.tree.column("index", minwidth=45, width=80, stretch=False, anchor=tk.W)
-        self.tree.column("type", minwidth=80, width=150, stretch=False, anchor=tk.W)
-        self.tree.column("value", minwidth=80, width=300, stretch=False, anchor=tk.W)
+                # 只执行一次，执行完解绑，避免多次触发
+                self.double_paned_wnd.unbind("<Map>")
 
-        # Add vertical scrollbar
-        self.vscrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        self.tree.configure(yscrollcommand=self.vscrollbar.set)
-        self.vscrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            self.double_paned_wnd.bind("<Map>", on_pane_map)
 
-        # Add horizontal scrollbar with custom command to increase step size
-        def custom_xview(*args):
-            # args[0] 是 'moveto' 或 'scroll'
-            if args[0] == 'scroll':
-                # args[1] 是滚动单位数，args[2] 是单位类型 ('units' 或 'pages')
-                # 增加滚动步长
-                if args[2] == 'units':
-                    # 对于单位滚动，增加步长
-                    self.tree.xview_scroll(int(args[1]) * 10, 'units')
-                else:
-                    # 对于页滚动，保持默认行为
-                    self.tree.xview_scroll(int(args[1]), 'pages')
-            else:
-                # 对于 moveto，保持默认行为
-                self.tree.xview_moveto(args[1])
+            # 主监视器框 - 左
+            self.main_inspector_left_frame = ttk.Frame(self.double_paned_wnd)
+            self.double_paned_wnd.add(self.main_inspector_left_frame, weight=1)
 
-        self.hscrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.HORIZONTAL, command=custom_xview)
-        self.tree.configure(xscrollcommand=self.hscrollbar.set)
-        self.hscrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+            # 元素监视器框 - 右
+            self.item_inspector_right_frame = ttk.Frame(self.double_paned_wnd)
+            self.double_paned_wnd.add(self.item_inspector_right_frame, weight=1)
 
-        self.tree.pack(fill=tk.BOTH, expand=True)
+            # 主监视器内容
+            # Attribute and type
+            self._create_attribute_type_display(self.main_inspector_left_frame)
 
-        # Populate Treeview with initial values
-        if value:
-            for i, (item, maintainer) in enumerate(zip(value, self.inner_maintainers)):
-                type_name = maintainer.get_simplest_type_name()
-                self.tree.insert("", tk.END, values=(i, type_name, repr(item)))
-        else:
-            # Use default values if no value provided
-            for i, maintainer in enumerate(self.inner_maintainers):
-                default_value = maintainer.get_default_value()
-                type_name = maintainer.get_simplest_type_name()
-                self.tree.insert("", tk.END, values=(i, type_name, repr(default_value)))
+            if not self.can_edit():
+                return self.inspector
 
-        # 跟踪当前选中的项目
-        selected_item = None
+            # Tuple label frame
+            self.editor_label_frame = ttk.LabelFrame(self.main_inspector_left_frame, text="Tuple")
+            self.editor_label_frame.pack(
+                anchor=tk.N,
+                fill=tk.BOTH,
+                expand=True,
+                padx=(5, 0),
+                pady=(5, 0)
+            )
 
-        # 处理Treeview选择事件
-        def on_tree_select(event):
-            nonlocal selected_item
-            selected_items = self.tree.selection()
-            if selected_items:
-                selected_item = selected_items[0]
-                # 启用Edit按钮
-                self.edit_button.config(state=tk.NORMAL)
-            else:
-                selected_item = None
-                self.edit_button.config(state=tk.DISABLED)
-
-        # 绑定Treeview选择事件
-        self.tree.bind("<<TreeviewSelect>>", on_tree_select)
-
-        # 共用的编辑窗口创建方法
-        def create_edit_window(title, item_value, item_attribute_name, maintainer):
-            # 创建编辑窗口
-            edit_window = tk.Toplevel(parent)
-            edit_window.title(title)
-            edit_window.geometry("700x500")
-            edit_window.resizable(True, True)
-            # 设置焦点到子窗口
-            edit_window.focus_set()
-
-            # 添加inspector LabelFrame
-            inspector_frame = ttk.LabelFrame(edit_window, text="Inspector")
-            inspector_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-            # 配置inspector_frame的grid布局
-            inspector_frame.grid_rowconfigure(0, weight=1)
-            inspector_frame.grid_rowconfigure(1, weight=0)  # 横向滚动条固定高度
-            inspector_frame.grid_columnconfigure(0, weight=1)
-            inspector_frame.grid_columnconfigure(1, weight=0)  # 纵向滚动条固定宽度
+            # 元素监视器内容
+            # 右侧Inspector面板 - 占据所有空间
+            self.item_inspector_label_frame = ttk.LabelFrame(
+                self.item_inspector_right_frame,
+                text="Inspector"
+            )
+            self.item_inspector_label_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
+            self.item_inspector_label_frame.grid_rowconfigure(0, weight=1)
+            self.item_inspector_label_frame.grid_rowconfigure(1, weight=0)  # 横向滚动条固定高度
+            self.item_inspector_label_frame.grid_columnconfigure(0, weight=1)
+            self.item_inspector_label_frame.grid_columnconfigure(1, weight=0)  # 纵向滚动条固定宽度
 
             # 创建带滚动条的容器
-            canvas = tk.Canvas(inspector_frame)
-            scrollbar = ttk.Scrollbar(inspector_frame, orient="vertical", command=canvas.yview)
-            hscrollbar = ttk.Scrollbar(inspector_frame, orient="horizontal", command=canvas.xview)
-            canvas.configure(yscrollcommand=scrollbar.set, xscrollcommand=hscrollbar.set)
+            self.item_inspector_canvas = tk.Canvas(self.item_inspector_label_frame, highlightthickness=0)
+            self.item_inspector_vscrollbar = ttk.Scrollbar(
+                self.item_inspector_label_frame,
+                orient="vertical",
+                command=self.item_inspector_canvas.yview
+            )
+            self.item_inspector_hscrollbar = ttk.Scrollbar(
+                self.item_inspector_label_frame,
+                orient="horizontal",
+                command=self.item_inspector_canvas.xview
+            )
+            self.item_inspector_canvas.configure(
+                yscrollcommand=self.item_inspector_vscrollbar.set,
+                xscrollcommand=self.item_inspector_hscrollbar.set
+            )
 
             # 布局 - 使用grid布局
-            canvas.grid(row=0, column=0, sticky=tk.NSEW)
-            scrollbar.grid(row=0, column=1, sticky=tk.NS)
-            hscrollbar.grid(row=1, column=0, sticky=tk.EW)
+            self.item_inspector_canvas.grid(row=0, column=0, sticky=tk.NSEW)
+            self.item_inspector_vscrollbar.grid(row=0, column=1, sticky=tk.NS)
+            self.item_inspector_hscrollbar.grid(row=1, column=0, sticky=tk.EW)
 
             # 创建内部框架，用于容纳所有Inspector内容
-            inner_frame = ttk.Frame(canvas, padding=10)
+            self.item_inspector_inner_frame = ttk.Frame(self.item_inspector_canvas, padding=10)
             # 将内部框架添加到canvas
-            inner_frame_id = canvas.create_window((0, 0), window=inner_frame, anchor=tk.NW)
+            self.item_inspector_inner_frame_id = self.item_inspector_canvas.create_window(
+                (0, 0),
+                window=self.item_inspector_inner_frame,
+                anchor=tk.NW
+            )
 
             # 绑定事件，当内部框架大小改变时更新canvas的滚动区域
-            def on_inner_configure(event):
-                canvas.configure(scrollregion=canvas.bbox("all"))
-
-            inner_frame.bind("<Configure>", on_inner_configure)
-
+            self.item_inspector_inner_frame.bind("<Configure>", self._on_item_inspector_inner_frame_configure)
             # 绑定事件，当canvas大小改变时调整内部框架的宽度
-            def on_canvas_configure(event):
-                """当canvas大小改变时调整内部框架的宽度和高度"""
-                # 获取canvas的宽度和高度，留出滚动条的空间
-                canvas_width = event.width - 5  # 留出滚动条的宽度空间
-                canvas_height = event.height - 5  # 留出滚动条的高度空间
+            self.item_inspector_canvas.bind("<Configure>", self._on_item_inspector_canvas_configure)
 
-                # 获取内部框架的最小宽度和高度
-                min_width = inner_frame.winfo_reqwidth()
-                min_height = inner_frame.winfo_reqheight()
+            # Now create editor with sub-inspector
+            self.editor = self.create_editor(self.editor_label_frame, on_value_change)
+            self.editor.pack(fill=tk.BOTH, expand=True)
+        else:
+            raise NotImplementedError(f"{self.view_mode} is not implemented")
 
-                # 计算内部框架的实际宽度和高度
-                # 如果canvas窗口更大，则伸长到占满canvas窗口的大小
-                # 否则使用内部控件的最小宽度和高度
-                actual_width = max(canvas_width, min_width)
-                actual_height = max(canvas_height, min_height)
-                canvas.itemconfig(inner_frame_id, width=event.width)
+        return self.inspector
 
-                # 设置内部框架的宽度和高度
-                canvas.itemconfig(inner_frame_id, width=actual_width, height=actual_height)
+    def _create_attribute_type_display(self, parent: ttk.Widget):
+        # Attribute name
+        self.attribute_frame = ttk.Frame(parent)
+        self.attribute_frame.pack(anchor=tk.W, padx=10, pady=5)
+        self.attribute_title_label = ttk.Label(self.attribute_frame, text="Attribute:")
+        self.attribute_title_label.pack(side=tk.LEFT)
+        self.attribute_content_label = ttk.Label(self.attribute_frame, text=f"{self.attribute_name}")
+        self.attribute_content_label.pack(side=tk.LEFT)
 
-                # 更新canvas的滚动区域
-                canvas.configure(scrollregion=canvas.bbox("all"))
+        # Type name
+        self.type_frame = ttk.Frame(parent)
+        self.type_frame.pack(anchor=tk.W, padx=10, pady=5)
+        self.type_title_label = ttk.Label(self.type_frame, text="Type:")
+        self.type_title_label.pack(side=tk.LEFT)
+        self.type_content_label = ttk.Label(self.type_frame, text=f"{self.get_simplest_type_name()}")
+        self.type_content_label.pack(side=tk.LEFT)
 
-            canvas.bind("<Configure>", on_canvas_configure)
+    def _on_item_inspector_inner_frame_configure(self, event: Optional[tk.Event] = None) -> None:
+        """当内部框架大小改变时更新canvas的滚动区域"""
+        # 更新canvas的滚动区域
+        self.item_inspector_canvas.configure(scrollregion=self.item_inspector_canvas.bbox("all"))
 
-            # 结果变量
-            result = {'value': item_value, 'confirmed': False}
+    def _on_item_inspector_canvas_configure(self, event: Optional[tk.Event] = None) -> None:
+        """当canvas大小改变时调整内部框架的宽度和高度"""
+        # 获取canvas的宽度和高度，留出滚动条的空间
+        canvas_width: int = event.width - 5  # 留出滚动条的宽度空间
+        canvas_height: int = event.height - 5  # 留出滚动条的高度空间
 
-            # 定义值变化的回调函数
-            def on_value_change(new_val):
-                result['value'] = new_val
+        # 获取内部框架的最小宽度和高度
+        min_width: int = self.item_inspector_inner_frame.winfo_reqwidth()
+        min_height: int = self.item_inspector_inner_frame.winfo_reqheight()
 
-            # 使用render_control创建编辑控件，使用inner_frame作为父容器
-            control_frame, enable, disable, set_value = maintainer.create_inspector(
-                inner_frame,
-                item_attribute_name,
-                item_value,
-                on_value_change
-            )
-            control_frame.pack(fill=tk.BOTH, expand=True)
+        # 计算内部框架的实际宽度和高度
+        # 如果canvas窗口更大，则伸长到占满canvas窗口的大小
+        # 否则使用内部控件的最小宽度和高度
+        actual_width: int = max(canvas_width, min_width)
+        actual_height: int = max(canvas_height, min_height)
 
-            # 添加按钮框架
-            button_frame = ttk.Frame(edit_window)
-            button_frame.pack(fill=tk.X, padx=10, pady=10)
+        # 设置内部框架的宽度和高度
+        self.item_inspector_canvas.itemconfig(
+            self.item_inspector_inner_frame_id,
+            width=actual_width,
+            height=actual_height
+        )
 
-            # 确认按钮回调
-            def on_confirm():
-                result['confirmed'] = True
-                edit_window.destroy()
+        # 更新canvas的滚动区域
+        self.item_inspector_canvas.configure(scrollregion=self.item_inspector_canvas.bbox("all"))
 
-            # 取消按钮回调
-            def on_cancel():
-                result['confirmed'] = False
-                edit_window.destroy()
+    @override
+    def create_editor(
+            self,
+            parent: ttk.Widget,
+            on_value_change: Optional[Callable[[Any], None]] = None,
+    ) -> ttk.Widget:
+        super().create_editor(parent, on_value_change)
 
-            # 创建一个容器来居中按钮
-            button_container = ttk.Frame(button_frame)
-            button_container.pack(side=tk.TOP, anchor=tk.CENTER)
+        # Create buttons frame
+        self.buttons_frame = ttk.Frame(self.editor)
+        self.buttons_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.X)
 
-            # 添加Confirm按钮（放在前面）
-            confirm_button = ttk.Button(button_container, text="Confirm", command=on_confirm)
-            confirm_button.pack(side=tk.LEFT, padx=5)
+        # Add buttons with horizontal stretch
+        self.add_button = ttk.Button(self.buttons_frame, text="Add", state=tk.DISABLED, width=6)
+        self.add_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
 
-            # 添加Cancel按钮
-            cancel_button = ttk.Button(button_container, text="Cancel", command=on_cancel)
-            cancel_button.pack(side=tk.LEFT, padx=5)
+        self.remove_button = ttk.Button(self.buttons_frame, text="Remove", state=tk.DISABLED, width=6)
+        self.remove_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
 
-            # 绑定回车键和Esc键
-            def on_return_key(event):
-                on_confirm()
-                return "break"  # 阻止事件继续传播
+        self.up_button = ttk.Button(self.buttons_frame, text="Up", state=tk.DISABLED, width=6)
+        self.up_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
 
-            def on_escape_key(event):
-                on_cancel()
-                return "break"  # 阻止事件继续传播
+        self.down_button = ttk.Button(self.buttons_frame, text="Down", state=tk.DISABLED, width=6)
+        self.down_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
 
-            # 为窗口绑定按键事件
-            edit_window.bind("<Return>", on_return_key)
-            edit_window.bind("<Escape>", on_escape_key)
+        if self.view_mode == "Packed":
+            self.edit_button = ttk.Button(self.buttons_frame, text="Edit", state=tk.DISABLED, width=6)
+            self.edit_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
 
-            # 阻塞主窗口
-            edit_window.transient(parent)
-            edit_window.grab_set()
-            parent.wait_window(edit_window)
+        # Create Treeview for tuple elements
+        self.tree_frame = ttk.Frame(self.editor)
+        self.tree_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.BOTH, expand=True)
 
-            return result
+        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
 
-        # 实现编辑元组元素功能
-        def edit_item():
-            nonlocal selected_item
-            if not selected_item:
-                return
+        # Check if it's Tuple[E, ...]
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
 
-            # 获取选中项的索引
-            item_values = self.tree.item(selected_item, "values")
-            if not item_values:
-                return
+        # Create Treeview with Index, Type and Value columns
+        if is_variable_length:
+            # For Tuple[E, ...], similar to List[E]
+            self.list_treeview = ttk.Treeview(self.tree_frame, columns=("index", "value"), show="headings")
+            self.list_treeview.heading("index", text="Index")
+            # Add type information to Value column heading
+            from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+            item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(type_args[0])
+            inner_type_name = item_maintainer_cls.get_simplest_type_name_static(target_type=type_args[0])
+            self.list_treeview.heading("value", text=f"Value[{inner_type_name}]")
+            # 初始设置列宽
+            self.list_treeview.column("index", minwidth=45, width=45, stretch=False, anchor=tk.W)
+            self.list_treeview.column("value", minwidth=80, width=80, stretch=False, anchor=tk.W)
+        else:
+            # For Tuple[E1, E2, ...], fixed length
+            self.list_treeview = ttk.Treeview(self.tree_frame, columns=("index", "type", "value"), show="headings")
+            self.list_treeview.heading("index", text="Index")
+            self.list_treeview.heading("type", text="Type")
+            self.list_treeview.heading("value", text="Value")
+            # 初始设置列宽
+            self.list_treeview.column("index", minwidth=45, width=45, stretch=False, anchor=tk.W)
+            self.list_treeview.column("type", minwidth=80, width=80, stretch=False, anchor=tk.W)
+            self.list_treeview.column("value", minwidth=80, width=80, stretch=False, anchor=tk.W)
+        
+        # 绑定Treeview的Configure事件，当Treeview大小改变时调整列宽
+        def adjust_tree_columns(event: Optional[tk.Event] = None):
+            # 获取Treeview的实际宽度
+            tree_width = self.list_treeview.winfo_width()
+            
+            # 确保tree_width有有效值
+            if tree_width > 0:
+                # 计算各列的宽度，预留一些空间给滚动条和边框
+                available_width = tree_width - 2  # 减去滚动条和边框的宽度
+                
+                if is_variable_length:
+                    # 2列的情况：Index和Value
+                    index_ratio = 0.2  # 20%
+                    # 计算各列宽度
+                    index_width = max(45, int(available_width * index_ratio))
+                    value_width = max(80, available_width - index_width)
+                    
+                    # 确保总和不超过可用宽度
+                    total_width = index_width + value_width
+                    if total_width > available_width:
+                        # 调整value列宽度
+                        value_width = available_width - index_width
+                    
+                    # 设置列宽
+                    self.list_treeview.column("index", minwidth=45, width=index_width, stretch=False, anchor=tk.W)
+                    self.list_treeview.column("value", minwidth=80, width=value_width, stretch=False, anchor=tk.W)
+                else:
+                    # 3列的情况：Index, Type和Value
+                    index_ratio = 0.2  # 20%
+                    type_ratio = 0.3       # 30%
+                    # 计算各列宽度
+                    index_width = max(45, int(available_width * index_ratio))
+                    type_width = max(80, int(available_width * type_ratio))
+                    value_width = max(80, available_width - index_width - type_width)
+                    
+                    # 确保总和不超过可用宽度
+                    total_width = index_width + type_width + value_width
+                    if total_width > available_width:
+                        # 调整value列宽度
+                        value_width = available_width - index_width - type_width
+                    
+                    # 设置列宽
+                    self.list_treeview.column("index", minwidth=45, width=index_width, stretch=False, anchor=tk.W)
+                    self.list_treeview.column("type", minwidth=80, width=type_width, stretch=False, anchor=tk.W)
+                    self.list_treeview.column("value", minwidth=80, width=value_width, stretch=False, anchor=tk.W)
+        
+        # 绑定事件
+        self.list_treeview.bind("<Configure>", adjust_tree_columns, add="+")
 
-            index = int(item_values[0])
+        # Add vertical scrollbar
+        self.tree_frame_vscrollbar = ttk.Scrollbar(
+            self.tree_frame,
+            orient=tk.VERTICAL,
+            command=self.list_treeview.yview
+        )
+        self.list_treeview.configure(yscrollcommand=self.tree_frame_vscrollbar.set)
+        self.tree_frame_vscrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-            # 检查索引是否有效
-            if 0 <= index < len(self.inner_maintainers):
-                # 获取当前值
-                current_value = value[index] if value and index < len(value) else self.inner_maintainers[
-                    index].get_default_value()
+        # Add horizontal scrollbar with custom command to increase step size
+        def custom_xview(*args):
+            # args[0] 是 'moveto' 或 'scroll'
+            if args[0] == 'scroll':
+                # args[1] 是滚动单位数，args[2] 是单位类型 ('units' 或 'pages')
+                # 增加滚动步长
+                if args[2] == 'units':
+                    # 对于单位滚动，增加步长
+                    self.list_treeview.xview_scroll(int(args[1]) * 10, 'units')
+                else:
+                    # 对于页滚动，保持默认行为
+                    self.list_treeview.xview_scroll(int(args[1]), 'pages')
+            else:
+                # 对于 moveto，保持默认行为
+                self.list_treeview.xview_moveto(args[1])
 
-                # 构建属性名称：{元组属性名称}[{此元素的下标序号}]
-                item_attribute_name = f"{attribute_name}[{index}]"
+        self.tree_frame_hscrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.HORIZONTAL, command=custom_xview)
+        self.list_treeview.configure(xscrollcommand=self.tree_frame_hscrollbar.set)
+        self.tree_frame_hscrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-                # 获取对应的维护器
-                maintainer = self.inner_maintainers[index]
+        self.list_treeview.pack(fill=tk.BOTH, expand=True)
 
-                # 调用共用方法创建编辑窗口
-                result = create_edit_window(f"Edit {attribute_name}[{index}]", current_value, item_attribute_name,
-                                            maintainer)
+        # Populate Treeview with initial values
+        if self.editor_value:
+            for i, item in enumerate(self.editor_value):
+                if is_variable_length:
+                    self.list_treeview.insert("", tk.END, values=(i, repr(item)))
+                else:
+                    # For fixed length tuple, show type information
+                    type_name = "Any"
+                    if i < len(self.item_maintainer_cls_list):
+                        type_args = get_args(self.attribute_type)
+                        if i < len(type_args):
+                            type_name = self.item_maintainer_cls_list[i].get_simplest_type_name_static(
+                                target_type=type_args[i])
+                    self.list_treeview.insert("", tk.END, values=(i, type_name, repr(item)))
 
-                # 如果用户确认，更新值
-                if result['confirmed']:
-                    # 确保值是元组类型
-                    if not isinstance(value, tuple):
-                        updated_value = list(self.get_default_value())
-                    else:
-                        updated_value = list(value)
+        # Add a blank row at the end for variable length tuple
+        if is_variable_length:
+            self.list_treeview.insert("", tk.END, values=(TupleMaintainer.NEW_ITEM_INDICATOR, ""))
 
-                    # 更新值
-                    updated_value[index] = result['value']
-                    updated_value = tuple(updated_value)
-                    on_change(updated_value)
+        # 跟踪当前选中的项目
+        self.current_selected_item = None
 
-                    # 更新Treeview中的显示
-                    type_name = maintainer.get_simplest_type_name()
-                    self.tree.item(selected_item, values=(index, type_name, repr(result['value'])))
+        # 绑定Treeview选择事件
+        self.list_treeview.bind("<<TreeviewSelect>>", self._on_treeview_select)
 
-                    # 确保选中项在视野范围内
-                    self.tree.see(selected_item)
-                    # 设置焦点回到Treeview并选中当前编辑的项
-                    self.tree.focus_set()
-                    self.tree.selection_set(selected_item)
+        # 绑定Add按钮点击事件
+        self.add_button.config(command=self._add_item)
+
+        # 绑定Remove按钮点击事件
+        self.remove_button.config(command=self._on_remove_button_click)
+
+        # 绑定Up按钮点击事件
+        self.up_button.config(command=self._move_item_up)
+
+        # 绑定Down按钮点击事件
+        self.down_button.config(command=self._move_item_down)
 
         # 绑定Edit按钮点击事件
-        self.edit_button.config(command=edit_item)
+        if self.view_mode == "Packed":
+            self.edit_button.config(command=self._edit_item)
 
-        # 绑定双击事件，双击项目打开编辑界面
-        def on_tree_double_click(event):
-            # 获取点击的项
-            item = self.tree.identify_row(event.y)
-            # 只有双击到具体项时才执行编辑操作，双击标题不触发
-            if item:
-                # 模拟点击Edit按钮
-                edit_item()
+        # 为Treeview绑定Delete键
+        self.list_treeview.bind("<Delete>", self._on_delete_key)
 
-        self.tree.bind("<Double-1>", on_tree_double_click)
+        # 为Treeview绑定Backspace键
+        self.list_treeview.bind("<BackSpace>", self._on_backspace_key)
+
+        # 确保Treeview可以获得焦点
+        self.list_treeview.config(takefocus=True)
+
+        self.list_treeview.bind("<Double-1>", self._on_tree_double_click)
 
         # Bind mouse wheel to horizontal scroll with increased sensitivity
-        def on_mouse_wheel(event):
+        def on_mouse_wheel(event: Optional[tk.Event] = None):
             # 检测Shift键是否被按下（使用更可靠的方式）
             shift_pressed = event.state & 0x0001 != 0
 
             if not shift_pressed:  # No modifier key
                 # Vertical scroll (default behavior)
-                self.tree.yview_scroll(-1 * (event.delta // 120), "units")
+                self.list_treeview.yview_scroll(-1 * (event.delta // 120), "units")
             else:  # Shift key pressed
                 # Horizontal scroll with increased sensitivity
-                self.tree.xview_scroll(-1 * (event.delta // 10), "units")
+                self.list_treeview.xview_scroll(-1 * (event.delta // 10), "units")
 
-        self.tree.bind("<MouseWheel>", on_mouse_wheel)
+        self.list_treeview.bind("<MouseWheel>", on_mouse_wheel)
 
-        def enable():
-            self.tree.config(state='normal')
-            self.edit_button.config(state='normal')
+        # Disable add/remove buttons for fixed length tuple
+        type_args = get_args(self.attribute_type)
+        if not (len(type_args) == 2 and type_args[1] == Ellipsis):
+            self.add_button.config(state=tk.DISABLED)
+            self.remove_button.config(state=tk.DISABLED)
+            self.up_button.config(state=tk.DISABLED)
+            self.down_button.config(state=tk.DISABLED)
 
-        def disable():
-            self.tree.config(state='disabled')
-            self.edit_button.config(state='disabled')
+        return self.editor
 
-        def set_value(new_value):
-            # 清空Treeview
-            for item in self.tree.get_children():
-                self.tree.delete(item)
+    # 处理Treeview选择事件
+    def _on_treeview_select(self, event: Optional[tk.Event] = None):
+        selected_items = self.list_treeview.selection()
+        if selected_items:
+            self.current_selected_item: str = selected_items[0]
 
-            # 重新填充Treeview
-            if new_value:
-                for i, (item, maintainer) in enumerate(zip(new_value, self.inner_maintainers)):
-                    type_name = maintainer.get_simplest_type_name()
-                    self.tree.insert("", tk.END, values=(i, type_name, repr(item)))
-            else:
-                # Use default values if no value provided
-                for i, maintainer in enumerate(self.inner_maintainers):
-                    default_value = maintainer.get_default_value()
-                    type_name = maintainer.get_simplest_type_name()
-                    self.tree.insert("", tk.END, values=(i, type_name, repr(default_value)))
+            type_args = get_args(self.attribute_type)
+            is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
 
-        return frame, enable, disable, set_value
-
-    def create_inspector(self, parent, attribute_name, value, on_change):
-        """Render control for editing fixed size tuple attribute"""
-        # Update instance attribute_name if provided
-        if attribute_name:
-            self.attribute_name = attribute_name
-
-        self.frame = ttk.Frame(parent)
-
-        # Attribute name
-        self.attribute_label = ttk.Label(self.frame, text=f"Attribute: {self.attribute_name}")
-        self.attribute_label.pack(anchor=tk.W, padx=10, pady=5)
-
-        # Type
-        self.type_label = ttk.Label(self.frame, text=f"Type: {self.get_simplest_type_name()}")
-        self.type_label.pack(anchor=tk.W, padx=10, pady=5)
-
-        # Value editor in Editor panel
-        self.edit_frame = ttk.LabelFrame(self.frame, text="Editor")
-        self.edit_frame.pack(anchor=tk.N, padx=10, pady=5, fill=tk.BOTH, expand=True)
-
-        # 创建一个包装的on_change函数，确保元组修改后能正确更新
-        def on_tuple_change(new_value):
-            # 直接调用原始的on_change函数，传递新值
-            on_change(new_value)
-
-        self.edit_control, enable, disable, set_value = self.create_editor(
-            self.edit_frame, value, on_tuple_change, self.attribute_name)
-        self.edit_control.pack(fill=tk.BOTH, expand=True)
-
-        return self.frame, enable, disable, set_value
-
-
-class TupleVariadicMaintainer(TupleMaintainer):
-    """Variadic tuple type Maintainer"""
-
-    # Static variable for new item indicator
-    NEW_ITEM_INDICATOR = "<New Item>"
-
-    def __init__(
-            self,
-            inner_type: Type = Any,
-            attribute_name: str = "",
-            attribute_type: Type = Tuple[Any, ...],
-            attribute_value: Any = None,
-            logger: Any = None
-    ):
-        """Initialize
-        
-        Args:
-            inner_type: Type of items in the tuple
-            attribute_name: Name of the tuple attribute
-            attribute_type: Type of the tuple
-            attribute_value: Initial value
-            logger: Logger instance for logging
-        """
-        super().__init__([inner_type], attribute_name, attribute_type, attribute_value, logger)
-        self.inner_type = inner_type
-        # 延迟导入MaintainerFactory，避免循环引用
-        from Tools.yaml_configurer.maintainer_factory import MaintainerFactory
-        self.inner_maintainer = MaintainerFactory.get_maintainer(attribute_name, inner_type, logger=logger)
-
-    def get_default_value(self) -> Tuple[Any, ...]:
-        """Get default value"""
-        return ()
-
-    def is_compatible(self, value: Any) -> bool:
-        """Check if value is compatible with the type"""
-        if not isinstance(value, tuple):
-            return False
-        # Check if all items are compatible with inner type
-        for item in value:
-            if not self.inner_maintainer.is_compatible(item):
-                return False
-        return True
-
-    def get_simplest_type_name(self) -> str:
-        """Get expected type name"""
-        inner_type_name = self.inner_maintainer.get_simplest_type_name()
-        return f"Tuple[{inner_type_name}, ...]"
-
-    @staticmethod
-    def get_simplest_type_name_static(inner_type: Type) -> str:
-        """Get expected type name"""
-        if inner_type:
-            from Tools.yaml_configurer.maintainer_factory import MaintainerFactory
-            inner_type_name = MaintainerFactory.get_simplest_type_name(inner_type)
-            return f"Tuple[{inner_type_name}, ...]"
-        return "Tuple[Any, ...]"
-
-    def create_editor(self, parent, value, on_change, attribute_name="Tuple"):
-        """Create edit control for variadic tuple value
-        
-        Args:
-            parent: Parent widget
-            value: Initial value
-            on_change: Callback when value changes
-            attribute_name: Name of the tuple attribute
-            
-        Returns:
-            Tuple of (frame, enable_callback, disable_callback, set_value_callback)
-        """
-        frame = ttk.Frame(parent)
-
-        # Create buttons frame
-        self.buttons_frame = ttk.Frame(frame)
-        self.buttons_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.X)
-
-        # Add buttons with horizontal stretch
-        self.add_button = ttk.Button(self.buttons_frame, text="Add", state=tk.DISABLED)
-        self.add_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        self.remove_button = ttk.Button(self.buttons_frame, text="Remove", state=tk.DISABLED)
-        self.remove_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        self.up_button = ttk.Button(self.buttons_frame, text="Up", state=tk.DISABLED)
-        self.up_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        self.down_button = ttk.Button(self.buttons_frame, text="Down", state=tk.DISABLED)
-        self.down_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        self.edit_button = ttk.Button(self.buttons_frame, text="Edit", state=tk.DISABLED)
-        self.edit_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
-
-        # Create Treeview for tuple elements
-        self.tree_frame = ttk.Frame(frame)
-        self.tree_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.BOTH, expand=True)
-
-        # Create Treeview with Index, Type, and Value columns
-        self.tree = ttk.Treeview(self.tree_frame, columns=("index", "type", "value"), show="headings")
-        self.tree.heading("index", text="Index")
-        self.tree.heading("type", text="Type")
-        # Add type information to Value column heading
-        inner_type_name = self.inner_maintainer.get_simplest_type_name()
-        self.tree.heading("value", text="Value")
-        self.tree.column("index", minwidth=45, width=80, stretch=False, anchor=tk.W)
-        self.tree.column("type", minwidth=80, width=150, stretch=False, anchor=tk.W)
-        self.tree.column("value", minwidth=80, width=329, stretch=False, anchor=tk.W)
-
-        # Add vertical scrollbar
-        self.vscrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        self.tree.configure(yscrollcommand=self.vscrollbar.set)
-        self.vscrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Add horizontal scrollbar with custom command to increase step size
-        def custom_xview(*args):
-            # args[0] 是 'moveto' 或 'scroll'
-            if args[0] == 'scroll':
-                # args[1] 是滚动单位数，args[2] 是单位类型 ('units' 或 'pages')
-                # 增加滚动步长
-                if args[2] == 'units':
-                    # 对于单位滚动，增加步长
-                    self.tree.xview_scroll(int(args[1]) * 10, 'units')
-                else:
-                    # 对于页滚动，保持默认行为
-                    self.tree.xview_scroll(int(args[1]), 'pages')
-            else:
-                # 对于 moveto，保持默认行为
-                self.tree.xview_moveto(args[1])
-
-        self.hscrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.HORIZONTAL, command=custom_xview)
-        self.tree.configure(xscrollcommand=self.hscrollbar.set)
-        self.hscrollbar.pack(side=tk.BOTTOM, fill=tk.X)
-
-        self.tree.pack(fill=tk.BOTH, expand=True)
-
-        # Populate Treeview with initial values
-        if value:
-            self.value = value
-            for i, item in enumerate(value):
-                type_name = self.inner_maintainer.get_simplest_type_name()
-                self.tree.insert("", tk.END, values=(i, type_name, repr(item)))
-
-        # Add a blank row at the end for tuple
-        self.tree.insert("", tk.END, values=(TupleVariadicMaintainer.NEW_ITEM_INDICATOR, "", ""))
-
-        # 跟踪当前选中的项目
-        selected_item = None
-
-        # 处理Treeview选择事件
-        def on_tree_select(event):
-            nonlocal selected_item
-            selected_items = self.tree.selection()
-            if selected_items:
-                selected_item = selected_items[0]
+            if is_variable_length:
                 # 启用Add按钮
                 self.add_button.config(state=tk.NORMAL)
                 # 启用Edit按钮
-                self.edit_button.config(state=tk.NORMAL)
-                # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
-                item_values = self.tree.item(selected_item, "values")
-                if item_values and item_values[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                    self.remove_button.config(state=tk.NORMAL)
+                if self.view_mode == "Packed":
                     self.edit_button.config(state=tk.NORMAL)
+                # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
+                item_values = self.list_treeview.item(self.current_selected_item, "values")
+                if item_values and item_values[0] != TupleMaintainer.NEW_ITEM_INDICATOR:
+                    self.remove_button.config(state=tk.NORMAL)
+                    if self.view_mode == "Packed":
+                        self.edit_button.config(state=tk.NORMAL)
                     # 检查Up按钮是否可用
-                    if self.tree.prev(selected_item):
+                    if self.list_treeview.prev(self.current_selected_item):
                         self.up_button.config(state=tk.NORMAL)
                     else:
                         self.up_button.config(state=tk.DISABLED)
                     # 检查Down按钮是否可用
-                    next_item = self.tree.next(selected_item)
+                    next_item: str = self.list_treeview.next(self.current_selected_item)
                     if next_item:
-                        next_values = self.tree.item(next_item, "values")
-                        if next_values and next_values[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
+                        next_values: Any = self.list_treeview.item(next_item, "values")
+                        if next_values and next_values[0] != TupleMaintainer.NEW_ITEM_INDICATOR:
                             self.down_button.config(state=tk.NORMAL)
                         else:
                             self.down_button.config(state=tk.DISABLED)
@@ -825,586 +661,890 @@ class TupleVariadicMaintainer(TupleMaintainer):
                     self.up_button.config(state=tk.DISABLED)
                     self.down_button.config(state=tk.DISABLED)
             else:
-                selected_item = None
+                # For fixed length tuple, only enable edit button
+                if self.view_mode == "Packed":
+                    self.edit_button.config(state=tk.NORMAL)
+        else:
+            self.current_selected_item = None
+            type_args = get_args(self.attribute_type)
+            is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+
+            if is_variable_length:
                 self.add_button.config(state=tk.DISABLED)
                 self.remove_button.config(state=tk.DISABLED)
-                self.edit_button.config(state=tk.DISABLED)
                 self.up_button.config(state=tk.DISABLED)
                 self.down_button.config(state=tk.DISABLED)
 
-        # 绑定Treeview选择事件
-        self.tree.bind("<<TreeviewSelect>>", on_tree_select)
-
-        # 实现Remove功能
-        def remove_item(backspace=False):
-            nonlocal selected_item
-            if not selected_item:
-                return
-
-            # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
-            item_values = self.tree.item(selected_item, "values")
-            if item_values and item_values[0] == TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                return
-
-            # 获取选中项的索引
-            index = int(item_values[0])
-
-            # 从原始值中移除该项
-            if 0 <= index < len(self.value):
-                value_list = list(self.value)
-                value_list.pop(index)
-                self.value = tuple(value_list)
-                # 调用on_change更新Parser属性
-                on_change(self.value)
-
-                # 保存当前选中项的前一个项目
-                prev_item = self.tree.prev(selected_item)
-
-                # 直接删除选中的项目
-                self.tree.delete(selected_item)
-
-                # 更新剩余项目的索引
-                type_name = self.inner_maintainer.get_simplest_type_name()
-                for item in self.tree.get_children():
-                    item_vals = self.tree.item(item, "values")
-                    if item_vals and item_vals[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                        item_idx = int(item_vals[0])
-                        if item_idx > index:
-                            self.tree.item(item, values=(item_idx - 1, type_name, item_vals[2]))
-
-                # 更新最后一行的显示
-                last_item = self.tree.get_children()[-1]
-                self.tree.item(last_item, values=(TupleVariadicMaintainer.NEW_ITEM_INDICATOR, "", ""))
-
-                # 根据操作类型设置新的选中项
-                if backspace and prev_item:
-                    # Backspace: 选择上一项
-                    self.tree.selection_set(prev_item)
-                    selected_item = prev_item
-                    # 确保选中项在视野范围内
-                    self.tree.see(prev_item)
-                    # 检查新选中的是否是最后一行（NEW_ITEM_INDICATOR）
-                    prev_values = self.tree.item(prev_item, "values")
-                    if prev_values and prev_values[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                        self.remove_button.config(state=tk.NORMAL)
-                    else:
-                        self.remove_button.config(state=tk.DISABLED)
-                else:
-                    # Delete: 保持选中项位置不变
-                    # 尝试选择当前位置的项目（如果存在）
-                    current_items = self.tree.get_children()
-                    if index < len(current_items):
-                        new_selected = current_items[index]
-                        self.tree.selection_set(new_selected)
-                        selected_item = new_selected
-                        # 确保选中项在视野范围内
-                        self.tree.see(new_selected)
-                        # 检查新选中的是否是最后一行（NEW_ITEM_INDICATOR）
-                        new_values = self.tree.item(new_selected, "values")
-                        if new_values and new_values[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                            self.remove_button.config(state=tk.NORMAL)
-                        else:
-                            self.remove_button.config(state=tk.DISABLED)
-                    else:
-                        # 如果索引超出范围，重置选择状态
-                        selected_item = None
-                        self.remove_button.config(state=tk.DISABLED)
-
-        # 实现移动项目功能
-        def move_item_up():
-            nonlocal selected_item
-            if not selected_item:
-                return
-
-            # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
-            item_values = self.tree.item(selected_item, "values")
-            if item_values and item_values[0] == TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                return
-
-            # 获取选中项的前一个项目
-            prev_item = self.tree.prev(selected_item)
-            if not prev_item:
-                return  # 已经是第一个项目
-
-            # 获取选中项的索引
-            index = int(item_values[0])
-            if index > 0:
-                # 交换元组中的项目
-                value_list = list(self.value)
-                value_list[index], value_list[index - 1] = value_list[index - 1], value_list[index]
-                self.value = tuple(value_list)
-                # 调用on_change更新Parser属性
-                on_change(self.value)
-
-                # 重新排序并更新所有项目的索引
-                type_name = self.inner_maintainer.get_simplest_type_name()
-                for i, item in enumerate(self.tree.get_children()):
-                    item_vals = self.tree.item(item, "values")
-                    if item_vals and item_vals[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                        # 找到对应的值并更新显示
-                        if i < len(self.value):
-                            self.tree.item(item, values=(i, type_name, repr(self.value[i])))
-
-                # 选择移动后的项目
-                # 找到新位置的项目（索引为index-1）
-                new_selected = None
-                for item in self.tree.get_children():
-                    item_vals = self.tree.item(item, "values")
-                    if item_vals and item_vals[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                        # 提取索引值进行比较
-                        item_idx = int(item_vals[0])
-                        if item_idx == index - 1:
-                            new_selected = item
-                            break
-
-                if new_selected:
-                    self.tree.selection_set(new_selected)
-                    selected_item = new_selected
-                    # 确保选中项在视野范围内
-                    self.tree.see(new_selected)
-
-                # 更新按钮状态
-                on_tree_select(None)
-
-                # 保持焦点在Treeview上
-                self.tree.focus_set()
-
-        def move_item_down():
-            nonlocal selected_item
-            if not selected_item:
-                return
-
-            # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
-            item_values = self.tree.item(selected_item, "values")
-            if item_values and item_values[0] == TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                return
-
-            # 获取选中项的后一个项目
-            next_item = self.tree.next(selected_item)
-            if not next_item:
-                return  # 已经是最后一个项目
-
-            # 检查后一个项目是否是占位符
-            next_values = self.tree.item(next_item, "values")
-            if next_values and next_values[0] == TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                return  # 不能移动到占位符之后
-
-            # 获取选中项的索引
-            index = int(item_values[0])
-            if index < len(self.value) - 1:
-                # 交换元组中的项目
-                value_list = list(self.value)
-                value_list[index], value_list[index + 1] = value_list[index + 1], value_list[index]
-                self.value = tuple(value_list)
-                # 调用on_change更新Parser属性
-                on_change(self.value)
-
-                # 重新排序并更新所有项目的索引
-                type_name = self.inner_maintainer.get_simplest_type_name()
-                for i, item in enumerate(self.tree.get_children()):
-                    item_vals = self.tree.item(item, "values")
-                    if item_vals and item_vals[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                        # 找到对应的值并更新显示
-                        if i < len(self.value):
-                            self.tree.item(item, values=(i, type_name, repr(self.value[i])))
-
-                # 选择移动后的项目
-                # 找到新位置的项目（索引为index+1）
-                new_selected = None
-                for item in self.tree.get_children():
-                    item_vals = self.tree.item(item, "values")
-                    if item_vals and item_vals[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                        # 提取索引值进行比较
-                        item_idx = int(item_vals[0])
-                        if item_idx == index + 1:
-                            new_selected = item
-                            break
-
-                if new_selected:
-                    self.tree.selection_set(new_selected)
-                    selected_item = new_selected
-                    # 确保选中项在视野范围内
-                    self.tree.see(new_selected)
-
-                # 更新按钮状态
-                on_tree_select(None)
-
-                # 保持焦点在Treeview上
-                self.tree.focus_set()
-
-        # 共用的编辑窗口创建方法
-        def create_edit_window(title, item_value, item_attribute_name):
-            # 创建编辑窗口
-            edit_window = tk.Toplevel(parent)
-            edit_window.title(title)
-            edit_window.geometry("700x500")
-            edit_window.resizable(True, True)
-            # 设置焦点到子窗口
-            edit_window.focus_set()
-
-            # 添加inspector LabelFrame
-            inspector_frame = ttk.LabelFrame(edit_window, text="Inspector")
-            inspector_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-            # 配置inspector_frame的grid布局
-            inspector_frame.grid_rowconfigure(0, weight=1)
-            inspector_frame.grid_rowconfigure(1, weight=0)  # 横向滚动条固定高度
-            inspector_frame.grid_columnconfigure(0, weight=1)
-            inspector_frame.grid_columnconfigure(1, weight=0)  # 纵向滚动条固定宽度
-
-            # 创建带滚动条的容器
-            canvas = tk.Canvas(inspector_frame)
-            scrollbar = ttk.Scrollbar(inspector_frame, orient="vertical", command=canvas.yview)
-            hscrollbar = ttk.Scrollbar(inspector_frame, orient="horizontal", command=canvas.xview)
-            canvas.configure(yscrollcommand=scrollbar.set, xscrollcommand=hscrollbar.set)
-
-            # 布局 - 使用grid布局
-            canvas.grid(row=0, column=0, sticky=tk.NSEW)
-            scrollbar.grid(row=0, column=1, sticky=tk.NS)
-            hscrollbar.grid(row=1, column=0, sticky=tk.EW)
-
-            # 创建内部框架，用于容纳所有Inspector内容
-            inner_frame = ttk.Frame(canvas, padding=10)
-            # 将内部框架添加到canvas
-            inner_frame_id = canvas.create_window((0, 0), window=inner_frame, anchor=tk.NW)
-
-            # 绑定事件，当内部框架大小改变时更新canvas的滚动区域
-            def on_inner_configure(event):
-                canvas.configure(scrollregion=canvas.bbox("all"))
-
-            inner_frame.bind("<Configure>", on_inner_configure)
-
-            # 绑定事件，当canvas大小改变时调整内部框架的宽度
-            def on_canvas_configure(event):
-                """当canvas大小改变时调整内部框架的宽度和高度"""
-                # 获取canvas的宽度和高度，留出滚动条的空间
-                canvas_width = event.width - 5  # 留出滚动条的宽度空间
-                canvas_height = event.height - 5  # 留出滚动条的高度空间
-
-                # 获取内部框架的最小宽度和高度
-                min_width = inner_frame.winfo_reqwidth()
-                min_height = inner_frame.winfo_reqheight()
-
-                # 计算内部框架的实际宽度和高度
-                # 如果canvas窗口更大，则伸长到占满canvas窗口的大小
-                # 否则使用内部控件的最小宽度和高度
-                actual_width = max(canvas_width, min_width)
-                actual_height = max(canvas_height, min_height)
-                canvas.itemconfig(inner_frame_id, width=event.width)
-
-                # 设置内部框架的宽度和高度
-                canvas.itemconfig(inner_frame_id, width=actual_width, height=actual_height)
-
-                # 更新canvas的滚动区域
-                canvas.configure(scrollregion=canvas.bbox("all"))
-
-            canvas.bind("<Configure>", on_canvas_configure)
-
-            # 结果变量
-            result = {'value': item_value, 'confirmed': False}
-
-            # 定义值变化的回调函数
-            def on_value_change(new_val):
-                result['value'] = new_val
-
-            # 使用render_control创建编辑控件，使用inner_frame作为父容器
-            control_frame, enable, disable, set_value = self.inner_maintainer.create_inspector(inner_frame,
-                                                                                               item_attribute_name,
-                                                                                               item_value,
-                                                                                               on_value_change)
-            control_frame.pack(fill=tk.BOTH, expand=True)
-
-            # 添加按钮框架
-            button_frame = ttk.Frame(edit_window)
-            button_frame.pack(fill=tk.X, padx=10, pady=10)
-
-            # 确认按钮回调
-            def on_confirm():
-                result['confirmed'] = True
-                edit_window.destroy()
-
-            # 取消按钮回调
-            def on_cancel():
-                result['confirmed'] = False
-                edit_window.destroy()
-
-            # 创建一个容器来居中按钮
-            button_container = ttk.Frame(button_frame)
-            button_container.pack(side=tk.TOP, anchor=tk.CENTER)
-
-            # 添加Confirm按钮（放在前面）
-            confirm_button = ttk.Button(button_container, text="Confirm", command=on_confirm)
-            confirm_button.pack(side=tk.LEFT, padx=5)
-
-            # 添加Cancel按钮
-            cancel_button = ttk.Button(button_container, text="Cancel", command=on_cancel)
-            cancel_button.pack(side=tk.LEFT, padx=5)
-
-            # 绑定回车键和Esc键
-            def on_return_key(event):
-                on_confirm()
-                return "break"  # 阻止事件继续传播
-
-            def on_escape_key(event):
-                on_cancel()
-                return "break"  # 阻止事件继续传播
-
-            # 为窗口绑定按键事件
-            edit_window.bind("<Return>", on_return_key)
-            edit_window.bind("<Escape>", on_escape_key)
-
-            # 阻塞主窗口
-            edit_window.transient(parent)
-            edit_window.grab_set()
-            parent.wait_window(edit_window)
-
-            return result
-
-        # 实现编辑元组元素功能
-        def edit_item():
-            nonlocal selected_item
-            if not selected_item:
-                return
-
-            # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
-            item_values = self.tree.item(selected_item, "values")
-            if item_values and item_values[0] == TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                # 当焦点在<New Item>上时，调用add_item函数，等同于添加新元素
-                add_item()
-                return
-
-            # 获取选中项的索引
-            index = int(item_values[0])
-
-            # 获取选中项的当前值
-            if 0 <= index < len(self.value):
-                current_value = self.value[index]
-
-                # 构建属性名称：{元组属性名称}[{此元素的下标序号}]
-                item_attribute_name = f"{attribute_name}[{index}]"
-
-                # 调用共用方法创建编辑窗口
-                result = create_edit_window(f"Edit {attribute_name}[{index}]", current_value, item_attribute_name)
-
-                # 如果用户确认，更新值
-                if result['confirmed']:
-                    value_list = list(self.value)
-                    value_list[index] = result['value']
-                    self.value = tuple(value_list)
-                    on_change(self.value)
-
-                    # 更新Treeview中的显示
-                    type_name = self.inner_maintainer.get_simplest_type_name()
-                    for i, item in enumerate(self.tree.get_children()):
-                        item_vals = self.tree.item(item, "values")
-                        if item_vals and item_vals[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                            if i < len(self.value):
-                                self.tree.item(item, values=(i, type_name, repr(self.value[i])))
-
-                    # 确保选中项在视野范围内
-                    self.tree.see(selected_item)
-                    # 设置焦点回到Treeview并选中当前编辑的项
-                    self.tree.focus_set()
-                    self.tree.selection_set(selected_item)
-
-        # 绑定Up按钮点击事件
-        self.up_button.config(command=move_item_up)
-
-        # 绑定Down按钮点击事件
-        self.down_button.config(command=move_item_down)
-
-        # 绑定Edit按钮点击事件
-        self.edit_button.config(command=edit_item)
-
-        # 实现添加元组元素功能
-        def add_item():
-            nonlocal selected_item
-            if not selected_item:
-                return
-
-            # 确定要添加的位置
-            item_values = self.tree.item(selected_item, "values")
-            if item_values and item_values[0] == TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                # 如果选中的是<New Item>，则添加到元组末尾
-                index = len(self.value)
+            if self.view_mode == "Packed":
+                self.edit_button.config(state=tk.DISABLED)
+
+        if self.view_mode == "Standalone":
+            self._update_item_inspector()
+
+    def _on_tuple_content_change(self, new_value: Any) -> None:
+        """Handle value change"""
+        # Assuming new_value is mutable
+        is_valid, validated_value = self.editor_validate(new_value)
+        if is_valid:
+            # editor_value shall be already modified by methods like _remove_item
+            self.editor_value = validated_value
+            # Transferring a copy of editor_value, always assuming editor_value as immutable
+            self.on_value_change(copy.deepcopy(self.editor_value))
+
+    def _remove_item(self, select_prev: bool = False):
+        type_args = get_args(self.attribute_type)
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+
+        if not is_variable_length:
+            return  # Fixed length tuple, cannot remove items
+
+        if self.current_selected_item is None:
+            return
+
+        # 获取选中项的索引
+        index: int = self.list_treeview.index(self.current_selected_item)
+        items: Tuple[str, ...] = self.list_treeview.get_children()
+
+        # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
+        if index == len(items) - 1:
+            return
+
+        assert 0 <= index < len(self.editor_value), f"Index {index} out of range"
+
+        # 从原始值中移除该项
+        list_value = list(self.editor_value)
+        list_value.pop(index)
+        self.editor_value = tuple(list_value)
+
+        # 保存当前选中项的前一个项目
+        # item = [Index, Value] or [Index, Type, Value]
+        prev_item: Optional[str] = self.list_treeview.prev(self.current_selected_item)
+
+        # 直接删除选中的项目
+        self.list_treeview.delete(self.current_selected_item)
+
+        # 更新剩余项目的索引
+        for idx in range(index + 1, len(items) - 1):
+            # item = [Index, Value] or [Index, Type, Value]
+            item_vals = self.list_treeview.item(items[idx], "values")
+            if len(item_vals) == 2:
+                # [Index, Value]
+                self.list_treeview.item(items[idx], values=(idx - 1, item_vals[1]))
             else:
-                # 否则，添加到当前位置，当前选中项目及其它后续项目全部后移
-                index = int(item_values[0])
+                # [Index, Type, Value]
+                self.list_treeview.item(items[idx], values=(idx - 1, item_vals[1], item_vals[2]))
 
-            # 获取默认值
-            default_value = self.inner_maintainer.get_default_value()
+        # 根据操作类型设置新的选中项
+        if select_prev and prev_item:
+            # Backspace: 选择上一项
+            self.list_treeview.selection_set(prev_item)
+            self.current_selected_item = prev_item
+            # 确保选中项在视野范围内
+            self.list_treeview.see(prev_item)
+        else:
+            # Delete: 保持选中项位置不变
+            # 尝试选择当前位置的项目（如果存在）
+            current_items: Tuple[str, ...] = self.list_treeview.get_children()
+            if index < len(current_items):
+                new_selected: str = current_items[index]
+                self.list_treeview.selection_set(new_selected)
+                self.current_selected_item = new_selected
+                # 确保选中项在视野范围内
+                self.list_treeview.see(new_selected)
+                # 检查新选中的是否是最后一行（NEW_ITEM_INDICATOR）
+                if index != len(current_items) - 1:
+                    self.remove_button.config(state=tk.NORMAL)
+                else:
+                    self.remove_button.config(state=tk.DISABLED)
+            else:
+                # 如果索引超出范围，重置选择状态
+                self.current_selected_item = None
+                self.remove_button.config(state=tk.DISABLED)
 
-            # 构建属性名称：{元组属性名称}[{此元素的下标序号}]
-            item_attribute_name = f"{attribute_name}[{index}]"
+        # 调用_on_tuple_content_change传递更新
+        self._on_tuple_content_change(self.editor_value)
 
-            # 调用共用方法创建编辑窗口
-            result = create_edit_window(f"Edit New {attribute_name}[{index}]", default_value, item_attribute_name)
+    def _move_item_up(self):
+        type_args = get_args(self.attribute_type)
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
 
-            # 如果用户确认，添加新值
-            if result['confirmed']:
-                # 在指定位置插入新元素
-                value_list = list(self.value)
-                value_list.insert(index, result['value'])
-                self.value = tuple(value_list)
-                on_change(self.value)
+        if not is_variable_length:
+            return  # Fixed length tuple, cannot reorder items
 
-                # 清空Treeview并重新填充
-                for item in self.tree.get_children():
-                    self.tree.delete(item)
+        if not self.current_selected_item:
+            return
 
-                # 重新填充Treeview
-                type_name = self.inner_maintainer.get_simplest_type_name()
-                if self.value:
-                    for i, item in enumerate(self.value):
-                        self.tree.insert("", tk.END, values=(i, type_name, repr(item)))
+        # 获取选中项的索引
+        index: int = self.list_treeview.index(self.current_selected_item)
+        items: Tuple[str, ...] = self.list_treeview.get_children()
 
-                # 添加空白行
-                self.tree.insert("", tk.END, values=(TupleVariadicMaintainer.NEW_ITEM_INDICATOR, "", ""))
+        # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
+        if index == len(items) - 1:
+            return
 
-                # 选择新添加的项目
-                items = self.tree.get_children()
-                if index < len(items):
-                    self.tree.selection_set(items[index])
-                    selected_item = items[index]
-                    # 确保新添加的项目在视野范围内
-                    self.tree.see(selected_item)
-                    # 设置焦点回到Treeview并选中新插入的项
-                    self.tree.focus_set()
-                    self.tree.selection_set(selected_item)
+        assert 0 < index < len(self.editor_value), f"Index {index} out of range"
 
-        # 绑定Add按钮点击事件
-        self.add_button.config(command=add_item)
+        # 获取选中项的前一个项目
+        prev_item: str = self.list_treeview.prev(self.current_selected_item)
+        if not prev_item:
+            return  # 已经是第一个项目
 
-        # 绑定方向键上/下
-        def on_up_key(event):
-            move_item_up()
-            return "break"  # 阻止事件继续传播
+        # 交换元组中的项目
+        list_value = list(self.editor_value)
+        list_value[index], list_value[index - 1] = list_value[index - 1], list_value[index]
+        self.editor_value = tuple(list_value)
 
-        def on_down_key(event):
-            move_item_down()
-            return "break"  # 阻止事件继续传播
+        # 更新交换项目的内容
+        if len(self.list_treeview.item(items[index - 1], "values")) == 2:
+            # [Index, Value]
+            self.list_treeview.item(items[index - 1], values=(index - 1, repr(self.editor_value[index - 1])))
+            self.list_treeview.item(items[index], values=(index, repr(self.editor_value[index])))
+        else:
+            # [Index, Type, Value]
+            type_args = get_args(self.attribute_type)
+            type_name_prev = "Any"
+            type_name_current = "Any"
+            if index - 1 < len(self.item_maintainer_cls_list):
+                if index - 1 < len(type_args):
+                    type_name_prev = self.item_maintainer_cls_list[index - 1].get_simplest_type_name_static(
+                        target_type=type_args[index - 1])
+            if index < len(self.item_maintainer_cls_list):
+                if index < len(type_args):
+                    type_name_current = self.item_maintainer_cls_list[index].get_simplest_type_name_static(
+                        target_type=type_args[index])
+            self.list_treeview.item(items[index - 1],
+                                    values=(index - 1, type_name_prev, repr(self.editor_value[index - 1])))
+            self.list_treeview.item(items[index], values=(index, type_name_current, repr(self.editor_value[index])))
 
-        # 为Treeview绑定方向键
-        self.tree.bind("<Up>", on_up_key)
-        self.tree.bind("<Down>", on_down_key)
+        # 选择移动后的项目
+        # 找到新位置的项目（索引为index-1）
+        new_selected: str = items[index - 1]
+        self.list_treeview.selection_set(new_selected)
+        self.current_selected_item = new_selected
+        # 确保选中项在视野范围内
+        self.list_treeview.see(new_selected)
 
-        # 绑定Remove按钮点击事件
-        def on_remove_button_click():
-            remove_item(backspace=False)
-            # 将焦点设置回Treeview，确保按键依然能被接收
-            self.tree.focus_set()
-            # 如果有选中项，确保选中项被高亮
-            if self.tree.selection():
-                self.tree.selection_set(self.tree.selection())
+        # 更新按钮状态
+        self._on_treeview_select()
 
-        # 绑定Remove按钮点击事件
-        self.remove_button.config(command=on_remove_button_click)
+        # 保持焦点在Treeview上
+        self.list_treeview.focus_set()
+        self.list_treeview.focus(new_selected)
 
-        # 绑定Delete键
-        def on_delete_key(event):
-            selected_items = self.tree.selection()
-            if selected_items:
-                item_values = self.tree.item(selected_items[0], "values")
-                if item_values and item_values[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                    remove_item(backspace=False)
-            return "break"  # 阻止事件继续传播
+        # 调用_on_tuple_content_change传递更新
+        self._on_tuple_content_change(self.editor_value)
 
-        # 为Treeview绑定Delete键
-        self.tree.bind("<Delete>", on_delete_key)
+    def _move_item_down(self):
+        type_args = get_args(self.attribute_type)
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
 
-        # 绑定Backspace键
-        def on_backspace_key(event):
-            selected_items = self.tree.selection()
-            if selected_items:
-                item_values = self.tree.item(selected_items[0], "values")
-                if item_values and item_values[0] != TupleVariadicMaintainer.NEW_ITEM_INDICATOR:
-                    remove_item(backspace=True)
-            return "break"  # 阻止事件继续传播
+        if not is_variable_length:
+            return  # Fixed length tuple, cannot reorder items
 
-        # 为Treeview绑定Backspace键
-        self.tree.bind("<BackSpace>", on_backspace_key)
+        if not self.current_selected_item:
+            return
 
-        # 确保Treeview可以获得焦点
-        self.tree.config(takefocus=True)
+        # 获取选中项的索引
+        index: int = self.list_treeview.index(self.current_selected_item)
+        items: Tuple[str, ...] = self.list_treeview.get_children()
 
-        # 绑定双击事件，双击项目打开编辑界面
-        def on_tree_double_click(event):
-            # 获取点击的项
-            item = self.tree.identify_row(event.y)
-            # 只有双击到具体项时才执行编辑操作，双击标题不触发
-            if item:
-                # 模拟点击Edit按钮
-                edit_item()
+        # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
+        if index == len(items) - 1:
+            return
 
-        self.tree.bind("<Double-1>", on_tree_double_click)
+        assert 0 <= index < len(self.editor_value) - 1, f"Index {index} out of range"
 
-        # Bind mouse wheel to horizontal scroll with increased sensitivity
-        def on_mouse_wheel(event):
-            # 检测Shift键是否被按下（使用更可靠的方式）
-            shift_pressed = event.state & 0x0001 != 0
+        # 获取选中项的后一个项目
+        next_item: str = self.list_treeview.next(self.current_selected_item)
+        if not next_item:
+            return  # 已经是最后一个项目
 
-            if not shift_pressed:  # No modifier key
-                # Vertical scroll (default behavior)
-                self.tree.yview_scroll(-1 * (event.delta // 120), "units")
-            else:  # Shift key pressed
-                # Horizontal scroll with increased sensitivity
-                self.tree.xview_scroll(-1 * (event.delta // 10), "units")
+        # 交换元组中的项目
+        list_value = list(self.editor_value)
+        list_value[index], list_value[index + 1] = list_value[index + 1], list_value[index]
+        self.editor_value = tuple(list_value)
 
-        self.tree.bind("<MouseWheel>", on_mouse_wheel)
+        # 更新交换项目的内容
+        if len(self.list_treeview.item(items[index], "values")) == 2:
+            # [Index, Value]
+            self.list_treeview.item(items[index], values=(index, repr(self.editor_value[index])))
+            self.list_treeview.item(items[index + 1], values=(index + 1, repr(self.editor_value[index + 1])))
+        else:
+            # [Index, Type, Value]
+            type_args = get_args(self.attribute_type)
+            type_name_current = "Any"
+            type_name_next = "Any"
+            if index < len(self.item_maintainer_cls_list):
+                if index < len(type_args):
+                    type_name_current = self.item_maintainer_cls_list[index].get_simplest_type_name_static(
+                        target_type=type_args[index])
+            if index + 1 < len(self.item_maintainer_cls_list):
+                if index + 1 < len(type_args):
+                    type_name_next = self.item_maintainer_cls_list[index + 1].get_simplest_type_name_static(
+                        target_type=type_args[index + 1]
+                    )
+            self.list_treeview.item(items[index], values=(index, type_name_current, repr(self.editor_value[index])))
+            self.list_treeview.item(
+                items[index + 1],
+                values=(index + 1, type_name_next, repr(self.editor_value[index + 1]))
+            )
 
-        def enable():
-            self.tree.config(state='normal')
-            for widget in self.buttons_frame.winfo_children():
-                widget.config(state='normal')
+        # 选择移动后的项目
+        # 找到新位置的项目（索引为index+1）
+        new_selected: str = items[index + 1]
+        self.list_treeview.selection_set(new_selected)
+        self.current_selected_item = new_selected
+        # 确保选中项在视野范围内
+        self.list_treeview.see(new_selected)
 
-        def disable():
-            self.tree.config(state='disabled')
-            for widget in self.buttons_frame.winfo_children():
-                widget.config(state='disabled')
+        # 更新按钮状态
+        self._on_treeview_select()
 
-        def set_value(new_value):
-            # 清空Treeview
-            for item in self.tree.get_children():
-                self.tree.delete(item)
+        # 保持焦点在Treeview上
+        self.list_treeview.focus_set()
+        self.list_treeview.focus(new_selected)
 
-            # 重新填充Treeview
-            type_name = self.inner_maintainer.get_simplest_type_name()
-            if new_value:
-                for i, item in enumerate(new_value):
-                    self.tree.insert("", tk.END, values=(i, type_name, repr(item)))
+        # 调用_on_tuple_content_change传递更新
+        self._on_tuple_content_change(self.editor_value)
+
+    # 绑定Remove按钮点击事件
+    def _on_remove_button_click(self):
+        self._remove_item(select_prev=False)
+        # 将焦点设置回Treeview，确保按键依然能被接收
+        self.list_treeview.focus_set()
+        # 如果有选中项，确保选中项被高亮
+        if self.list_treeview.selection():
+            self.list_treeview.selection_set(self.list_treeview.selection())
+
+    # 绑定Delete键
+    def _on_delete_key(self, event: Optional[tk.Event] = None):
+        type_args = get_args(self.attribute_type)
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+
+        if not is_variable_length:
+            return "break"  # Fixed length tuple, cannot remove items
+
+        selected_items = self.list_treeview.selection()
+        if selected_items:
+            item_values = self.list_treeview.item(selected_items[0], "values")
+            if item_values and item_values[0] != TupleMaintainer.NEW_ITEM_INDICATOR:
+                self._remove_item(select_prev=False)
+        return "break"  # 阻止事件继续传播
+
+    # 绑定Backspace键
+    def _on_backspace_key(self, event: Optional[tk.Event] = None):
+        type_args = get_args(self.attribute_type)
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+
+        if not is_variable_length:
+            return "break"  # Fixed length tuple, cannot remove items
+
+        selected_items = self.list_treeview.selection()
+        if selected_items:
+            item_values = self.list_treeview.item(selected_items[0], "values")
+            if item_values and item_values[0] != TupleMaintainer.NEW_ITEM_INDICATOR:
+                self._remove_item(select_prev=True)
+        return "break"  # 阻止事件继续传播
+
+    # 绑定双击事件，双击项目打开编辑界面
+    def _on_tree_double_click(self, event: Optional[tk.Event] = None):
+        # 获取点击的项
+        item: str = self.list_treeview.identify_row(event.y)
+        # 只有双击到具体项时才执行编辑操作，双击标题不触发
+        if item:
+            # 模拟点击Edit按钮
+            self._edit_item()
+
+    # 共用的编辑窗口创建方法
+    def _create_popup_inspector_window(
+            self,
+            title: str,
+            item_attribute_name: str,
+            item_attribute_type: Type,
+            item_attribute_value: Any
+    ):
+        # 创建编辑窗口
+        self.popup_top_level = tk.Toplevel(self.editor)
+        self.popup_top_level.title(title)
+        self.popup_top_level.resizable(True, True)
+        # 设置焦点到子窗口
+        self.popup_top_level.focus_set()
+
+        # 添加inspector LabelFrame
+        self.popup_inspector_frame = ttk.Frame(self.popup_top_level)
+
+        self.popup_inspector_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 配置inspector_frame的grid布局
+        self.popup_inspector_frame.grid_rowconfigure(0, weight=1)
+        self.popup_inspector_frame.grid_rowconfigure(1, weight=0)  # 横向滚动条固定高度
+        self.popup_inspector_frame.grid_columnconfigure(0, weight=1)
+        self.popup_inspector_frame.grid_columnconfigure(1, weight=0)  # 纵向滚动条固定宽度
+
+        # 创建带滚动条的容器
+        self.popup_canvas = tk.Canvas(self.popup_inspector_frame, highlightthickness=0)
+        self.popup_canvas_vscrollbar = ttk.Scrollbar(
+            self.popup_inspector_frame,
+            orient="vertical",
+            command=self.popup_canvas.yview
+        )
+        self.popup_canvas_hscrollbar = ttk.Scrollbar(
+            self.popup_inspector_frame,
+            orient="horizontal",
+            command=self.popup_canvas.xview
+        )
+        self.popup_canvas.configure(
+            yscrollcommand=self.popup_canvas_vscrollbar.set,
+            xscrollcommand=self.popup_canvas_hscrollbar.set
+        )
+
+        # 布局 - 使用grid布局
+        self.popup_canvas.grid(row=0, column=0, sticky=tk.NSEW)
+        self.popup_canvas_vscrollbar.grid(row=0, column=1, sticky=tk.NS)
+        self.popup_canvas_hscrollbar.grid(row=1, column=0, sticky=tk.EW)
+
+        # 创建内部框架，用于容纳所有Inspector内容
+        self.popup_canvas_inner_frame = ttk.Frame(self.popup_canvas, padding=5)
+        # 将内部框架添加到canvas
+        self.popup_canvas_inner_frame_id = self.popup_canvas.create_window(
+            (0, 0), window=self.popup_canvas_inner_frame, anchor=tk.NW
+        )
+
+        # 绑定事件，当内部框架大小改变时更新canvas的滚动区域
+        self.popup_canvas_inner_frame.bind("<Configure>", self._on_popup_canvas_inner_frame_configure)
+
+        # 绑定事件，当canvas大小改变时调整内部框架的宽度
+        self.popup_canvas.bind("<Configure>", self._on_popup_canvas_configure)
+
+        # 结果变量
+        self.popup_wnd_result = {'value': item_attribute_value, 'confirmed': False}
+
+        # 定义值变化的回调函数
+        def on_popup_editor_value_change(new_val: Any):
+            self.popup_wnd_result['value'] = new_val
+
+        # 使用 create_inspector 创建编辑控件，popup_canvas_inner_frame 作为父控件
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(item_attribute_type)
+        self.item_maintainer = item_maintainer_cls(
+            item_attribute_name,
+            item_attribute_type,
+            item_attribute_value,
+            self.logger
+        )
+        self.item_maintainer.config_view("Standalone")
+        wnd_size = self.item_maintainer.default_standalone_window_size()
+        self.popup_top_level.geometry(f"{wnd_size[0]}x{wnd_size[1]}")
+        self.popup_inspector_content = self.item_maintainer.create_inspector(
+            self.popup_canvas_inner_frame,
+            on_popup_editor_value_change
+        )
+        self.popup_inspector_content.pack(fill=tk.BOTH, expand=True)
+
+        # 创建一个容器来居中按钮
+        self.popup_wnd_button_container = ttk.Frame(self.popup_top_level)
+        self.popup_wnd_button_container.pack(side=tk.TOP, anchor=tk.CENTER)
+
+        # 添加Confirm按钮（放在前面）
+        self.popup_confirm_button = ttk.Button(
+            self.popup_wnd_button_container,
+            text="Confirm",
+            command=self._on_popup_confirm
+        )
+        self.popup_confirm_button.pack(side=tk.LEFT, padx=10, pady=(0, 10))
+
+        # 添加Cancel按钮
+        self.popup_cancel_button = ttk.Button(
+            self.popup_wnd_button_container,
+            text="Cancel",
+            command=self._on_popup_cancel
+        )
+        self.popup_cancel_button.pack(side=tk.LEFT, padx=10, pady=(0, 10))
+
+        # 为窗口绑定按键事件
+        hotkey_confirm, hotkey_cancel = self.item_maintainer.shall_hotkey_confirm_cancel()
+        if hotkey_confirm:
+            self.popup_top_level.bind("<Return>", self._on_popup_return_key)
+        if hotkey_cancel:
+            self.popup_top_level.bind("<Escape>", self._on_popup_escape_key)
+
+        # 阻塞主窗口
+        self.popup_top_level.transient(self.editor.winfo_toplevel())
+        self.popup_top_level.grab_set()
+        self.editor.winfo_toplevel().wait_window(self.popup_top_level)
+
+        return self.popup_wnd_result
+
+    def _on_popup_canvas_inner_frame_configure(self, event: Optional[tk.Event] = None) -> None:
+        self.popup_canvas.configure(scrollregion=self.popup_canvas.bbox("all"))
+
+    def _on_popup_canvas_configure(self, event: Optional[tk.Event] = None) -> None:
+        """当canvas大小改变时调整内部框架的宽度和高度"""
+        # 获取canvas的宽度和高度，留出滚动条的空间
+        canvas_width = event.width - 5  # 留出滚动条的宽度空间
+        canvas_height = event.height - 5  # 留出滚动条的高度空间
+
+        # 获取内部框架的最小宽度和高度
+        min_width = self.popup_canvas_inner_frame.winfo_reqwidth()
+        min_height = self.popup_canvas_inner_frame.winfo_reqheight()
+
+        # 计算内部框架的实际宽度和高度
+        # 如果canvas窗口更大，则伸长到占满canvas窗口的大小
+        # 否则使用内部控件的最小宽度和高度
+        actual_width = max(canvas_width, min_width)
+        actual_height = max(canvas_height, min_height)
+        self.popup_canvas.itemconfig(self.popup_canvas_inner_frame_id, width=event.width)
+
+        # 设置内部框架的宽度和高度
+        self.popup_canvas.itemconfig(self.popup_canvas_inner_frame_id, width=actual_width, height=actual_height)
+
+        # 更新canvas的滚动区域
+        self.popup_canvas.configure(scrollregion=self.popup_canvas.bbox("all"))
+
+    # 确认按钮回调
+    def _on_popup_confirm(self):
+        self.popup_wnd_result['confirmed'] = True
+        self.popup_top_level.destroy()
+
+    # 取消按钮回调
+    def _on_popup_cancel(self):
+        self.popup_wnd_result['confirmed'] = False
+        self.popup_top_level.destroy()
+
+    # 绑定弹出编辑窗口的回车键和Esc键
+    def _on_popup_return_key(self, event: Optional[tk.Event] = None):
+        self._on_popup_confirm()
+        return "break"  # 阻止事件继续传播
+
+    def _on_popup_escape_key(self, event: Optional[tk.Event] = None):
+        self._on_popup_cancel()
+        return "break"  # 阻止事件继续传播
+
+    # 实现编辑元组元素功能
+    def _edit_item(self):
+        if self.current_selected_item is None:
+            return
+
+        # 获取选中项的索引
+        index: int = self.list_treeview.index(self.current_selected_item)
+        items: Tuple[str, ...] = self.list_treeview.get_children()
+
+        type_args = get_args(self.attribute_type)
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+
+        # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
+        if is_variable_length and index == len(items) - 1:
+            # 当焦点在<New Item>上时，调用add_item函数，等同于添加新元素
+            self._add_item()
+            return
+
+        assert 0 <= index < len(self.editor_value), f"Index {index} out of range"
+
+        # 获取选中项的当前值
+        current_value: Any = self.editor_value[index]
+
+        # 构建属性名称：{元组属性名称}[{此元素的下标序号}]
+        item_attribute_name: str = f"{self.attribute_name}[{index}]"
+
+        # 确定元素类型
+        if is_variable_length:
+            # Tuple[E, ...]
+            item_attribute_type = type_args[0]
+        else:
+            # Tuple[E1, E2, ...]
+            if index < len(type_args):
+                item_attribute_type = type_args[index]
+            else:
+                item_attribute_type = Any
+
+        # 调用共用方法创建编辑窗口
+        # self.popup_wnd_result will store status
+        self._create_popup_inspector_window(
+            f"Edit {self.attribute_name}[{index}]",
+            item_attribute_name,
+            item_attribute_type,
+            current_value
+        )
+
+        # 如果用户确认，更新值
+        if self.popup_wnd_result['confirmed']:
+            list_value = list(self.editor_value)
+            list_value[index] = self.popup_wnd_result['value']
+            self.editor_value = tuple(list_value)
+
+            # 更新Treeview中的显示
+            if is_variable_length:
+                self.list_treeview.item(items[index], values=(index, repr(self.editor_value[index])))
+            else:
+                # For fixed length tuple, show type information
+                type_name = "Any"
+                if index < len(self.item_maintainer_cls_list):
+                    if index < len(type_args):
+                        type_name = self.item_maintainer_cls_list[index].get_simplest_type_name_static(
+                            target_type=type_args[index])
+                self.list_treeview.item(items[index], values=(index, type_name, repr(self.editor_value[index])))
+
+            # 确保选中项在视野范围内
+            self.list_treeview.see(self.current_selected_item)
+            # 设置焦点回到Treeview并选中当前编辑的项
+            self.list_treeview.focus_set()
+            self.list_treeview.selection_set(self.current_selected_item)
+
+            # 调用_on_tuple_content_change传递更新
+            self._on_tuple_content_change(self.editor_value)
+
+    # 实现添加元组元素功能
+    def _add_item(self):
+        type_args = get_args(self.attribute_type)
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+
+        if not is_variable_length:
+            return  # Fixed length tuple, cannot add items
+
+        if not self.current_selected_item:
+            return
+
+        # 获取选中项的索引
+        index: int = self.list_treeview.index(self.current_selected_item)
+        items: Tuple[str, ...] = self.list_treeview.get_children()
+
+        assert 0 <= index <= len(self.editor_value), f"Index {index} out of range"
+
+        # 获取默认值
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(type_args[0])
+        default_value = item_maintainer_cls.get_default_value_static(target_type=type_args[0])
+
+        # 构建属性名称：{元组属性名称}[{此元素的下标序号}]
+        item_attribute_name = f"{self.attribute_name}[{index}]"
+
+        # 调用共用方法创建编辑窗口
+        self._create_popup_inspector_window(
+            f"Edit New {self.attribute_name}[{index}]",
+            item_attribute_name,
+            type_args[0],
+            default_value
+        )
+
+        # 如果用户确认，添加新值
+        if self.popup_wnd_result['confirmed']:
+            # 在指定位置插入新元素
+            list_value = list(self.editor_value)
+            list_value.insert(index, self.popup_wnd_result['value'])
+            self.editor_value = tuple(list_value)
+
+            # 从index开始重新填充Treeview
+            for idx in range(index, len(self.editor_value)):
+                self.list_treeview.item(items[idx], values=(idx, repr(self.editor_value[idx])))
 
             # 添加空白行
-            self.tree.insert("", tk.END, values=(TupleVariadicMaintainer.NEW_ITEM_INDICATOR, "", ""))
+            self.list_treeview.insert("", tk.END, values=(TupleMaintainer.NEW_ITEM_INDICATOR, ""))
 
-        return frame, enable, disable, set_value
+            # 选择新添加的项目
+            items = self.list_treeview.get_children()
+            assert index < len(items) - 1, f"Index {index} out of range"
 
-    def create_inspector(self, parent, attribute_name, value, on_change):
-        """Render control for editing variadic tuple attribute"""
-        # Update instance attribute_name if provided
-        if attribute_name:
-            self.attribute_name = attribute_name
+            self.current_selected_item = items[index]
+            # 确保新添加的项目在视野范围内
+            self.list_treeview.see(self.current_selected_item)
+            # 设置焦点回到Treeview并选中新插入的项
+            self.list_treeview.focus_set()
+            self.list_treeview.selection_set(self.current_selected_item)
 
-        self.frame = ttk.Frame(parent)
+            # 调用_on_tuple_content_change传递更新
+            self._on_tuple_content_change(self.editor_value)
 
-        # Attribute name
-        self.attribute_label = ttk.Label(self.frame, text=f"Attribute: {self.attribute_name}")
-        self.attribute_label.pack(anchor=tk.W, padx=10, pady=5)
+    def _update_item_inspector(self) -> None:
+        """更新弹出编辑窗口内部的Inspector面板，显示属性信息和编辑控件"""
+        if self.view_mode != "Standalone":
+            return
 
-        # Type
-        self.type_label = ttk.Label(self.frame, text=f"Type: {self.get_simplest_type_name()}")
-        self.type_label.pack(anchor=tk.W, padx=10, pady=5)
+        # 清空内部框架
+        for widget in self.item_inspector_inner_frame.winfo_children():
+            widget.destroy()
 
-        # Value editor in Editor panel
-        self.edit_frame = ttk.LabelFrame(self.frame, text="Editor")
-        self.edit_frame.pack(anchor=tk.N, padx=10, pady=5, fill=tk.BOTH, expand=True)
+        if self.current_selected_item is None:
+            return
 
-        # 创建一个包装的on_change函数，确保元组修改后能正确更新
-        def on_tuple_change(new_value):
-            # 直接调用原始的on_change函数，传递新值
-            on_change(new_value)
+        # 获取选中项的索引
+        index: int = self.list_treeview.index(self.current_selected_item)
+        items: Tuple[str, ...] = self.list_treeview.get_children()
 
-        self.edit_control, enable, disable, set_value = self.create_editor(
-            self.edit_frame, value, on_tuple_change, self.attribute_name)
-        self.edit_control.pack(fill=tk.BOTH, expand=True)
+        type_args = get_args(self.attribute_type)
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
 
-        return self.frame, enable, disable, set_value
+        # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
+        if is_variable_length and index == len(items) - 1:
+            return
+
+        assert 0 <= index < len(self.editor_value), f"Index {index} out of range"
+
+        # 获取选中项的当前值
+        current_value: Any = self.editor_value[index]
+
+        # 构建属性名称：{元组属性名称}[{此元素的下标序号}]
+        item_attribute_name: str = f"{self.attribute_name}[{index}]"
+
+        # 确定元素类型
+        if is_variable_length:
+            # Tuple[E, ...]
+            item_attribute_type = type_args[0]
+        else:
+            # Tuple[E1, E2, ...]
+            if index < len(type_args):
+                item_attribute_type = type_args[index]
+            else:
+                item_attribute_type = Any
+
+        # 使用 create_inspector 创建编辑控件，popup_canvas_inner_frame 作为父控件
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(item_attribute_type)
+        self.item_maintainer = item_maintainer_cls(
+            item_attribute_name,
+            item_attribute_type,
+            current_value,
+            self.logger
+        )
+        self.item_maintainer.config_view("Packed")
+        self.item_inspector = self.item_maintainer.create_inspector(
+            self.item_inspector_inner_frame,
+            self._on_item_value_change
+        )
+        self.item_inspector.pack(fill=tk.BOTH, expand=True)
+
+        # 更新内部框架的宽高规格
+        # 获取canvas的宽度和高度，留出滚动条的空间
+        canvas_width: int = self.item_inspector_canvas.winfo_width() - 5  # 留出滚动条的宽度空间
+        canvas_height: int = self.item_inspector_canvas.winfo_height() - 5  # 留出滚动条的高度空间
+
+        # 强制更新布局，确保获取准确的所需规格
+        self.item_inspector_inner_frame.update_idletasks()
+
+        # 获取内部框架的最小宽度和高度
+        min_width: int = self.item_inspector_inner_frame.winfo_reqwidth()
+        min_height: int = self.item_inspector_inner_frame.winfo_reqheight()
+
+        # 计算内部框架的实际宽度和高度
+        # 如果canvas窗口更大，则伸长到占满canvas窗口的大小
+        # 否则使用内部控件的最小宽度和高度
+        actual_width: int = max(canvas_width, min_width)
+        actual_height: int = max(canvas_height, min_height)
+
+        # 设置内部框架的宽度和高度
+        self.item_inspector_canvas.itemconfig(
+            self.item_inspector_inner_frame_id,
+            width=actual_width,
+            height=actual_height
+        )
+
+        # 更新canvas的滚动区域
+        self.item_inspector_canvas.configure(scrollregion=self.item_inspector_canvas.bbox("all"))
+
+    def _on_item_value_change(self, new_value: Any) -> None:
+        """处理元素值变化"""
+        assert self.item_maintainer is not None
+        assert self.current_selected_item is not None
+
+        # Detect currently selected item
+        # 获取选中项的索引
+        index: int = self.list_treeview.index(self.current_selected_item)
+        items: Tuple[str, ...] = self.list_treeview.get_children()
+
+        list_value = list(self.editor_value)
+        list_value[index] = new_value
+        self.editor_value = tuple(list_value)
+        self.item_maintainer.confirm_editor_change()
+
+        type_args = get_args(self.attribute_type)
+        is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+
+        # 更新Treeview中的显示
+        if is_variable_length:
+            self.list_treeview.item(items[index], values=(index, repr(self.editor_value[index])))
+        else:
+            # For fixed length tuple, show type information
+            type_name = "Any"
+            if index < len(self.item_maintainer_cls_list):
+                if index < len(type_args):
+                    type_name = self.item_maintainer_cls_list[index].get_simplest_type_name_static(
+                        target_type=type_args[index])
+            self.list_treeview.item(items[index], values=(index, type_name, repr(self.editor_value[index])))
+
+        # 确保选中项在视野范围内
+        self.list_treeview.see(self.current_selected_item)
+
+        # 调用_on_tuple_content_change传递更新
+        self._on_tuple_content_change(self.editor_value)
+
+        # 记录日志
+        self.log_message(f"Updated attribute '{self.attribute_name}[{index}]' to {repr(new_value)}")
+
+    @override
+    def editor_enable(self):
+        if self.editor is not None:
+            self.list_treeview.state(['!disabled'])
+            for widget in self.buttons_frame.winfo_children():
+                if isinstance(widget, ttk.Button):
+                    # For fixed length tuple, only enable edit button
+                    type_args = get_args(self.attribute_type)
+                    is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+                    if not is_variable_length and widget != self.edit_button:
+                        widget.config(state='disabled')
+                    else:
+                        widget.config(state='normal')
+        super().editor_enable()
+
+    @override
+    def editor_disable(self):
+        if self.editor is not None:
+            self.list_treeview.state(['disabled'])
+            for widget in self.buttons_frame.winfo_children():
+                if isinstance(widget, ttk.Button):
+                    widget.config(state='disabled')
+        super().editor_disable()
+
+    @override
+    def editor_set_value(self, new_value: Any):
+        if self.editor is not None:
+            # 清空Treeview
+            for item in self.list_treeview.get_children():
+                self.list_treeview.delete(item)
+            # 重新填充Treeview
+            if new_value:
+                type_args = get_args(self.attribute_type)
+                is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+
+                for i, item in enumerate(new_value):
+                    if is_variable_length:
+                        self.list_treeview.insert("", tk.END, values=(i, repr(item)))
+                    else:
+                        # For fixed length tuple, show type information
+                        type_name = "Any"
+                        if i < len(self.item_maintainer_cls_list):
+                            if i < len(type_args):
+                                type_name = self.item_maintainer_cls_list[i].get_simplest_type_name_static(
+                                    target_type=type_args[i])
+                        self.list_treeview.insert("", tk.END, values=(i, type_name, repr(item)))
+            # 添加空白行（仅对可变长度元组）
+            type_args = get_args(self.attribute_type)
+            is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+            if is_variable_length:
+                self.list_treeview.insert("", tk.END, values=(TupleMaintainer.NEW_ITEM_INDICATOR, ""))
+        super().editor_set_value(new_value)
+
+    @override
+    def config_view(self, view_mode: Literal["Standalone", "Packed"], *args, **kwargs):
+        self.view_mode = view_mode
+
+    @override
+    def editor_validate(self, input_value: Any) -> Tuple[bool, Any]:
+        if isinstance(input_value, tuple):
+            return True, input_value
+        return False, None
+
+    @staticmethod
+    @override
+    def is_type_compatible_static(target_type: Type) -> bool:
+        sim_type: Type = simplify_type(target_type)
+        # Assuming attribute_type is simplified
+        origin: Type = get_origin(sim_type)
+        return origin in {tuple, Tuple}
+
+    @staticmethod
+    @override
+    def is_value_compatible_static(value: Any, target_type: Type = Tuple[Any]) -> bool:
+        sim_type: Type = simplify_type(target_type)
+        if not TupleMaintainer.is_type_compatible_static(sim_type):
+            return False
+
+        # Value is not a tuple, never compatible
+        if not isinstance(value, tuple):
+            return False
+
+        # Empty tuple () is always compatible
+        if len(value) == 0:
+            return True
+
+        type_args: Tuple[Any, ...] = get_args(sim_type)
+
+        # tuple[()], Tuple[()]
+        if len(type_args) == 0 or len(type_args) == 1 and type_args[0] == tuple():
+            return False
+
+        # Tuple[E, Ellipsis(...)]
+        if len(type_args) == 2 and type_args[1] == Ellipsis:
+            from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+            item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(type_args[0])
+
+            # Unsupported element type, never compatible
+            if issubclass(item_maintainer_cls, UnsupportedMaintainer):
+                return False
+
+            # Check compatibility for each item
+            for item in value:
+                if not item_maintainer_cls.is_value_compatible_static(item, type_args[0]):
+                    return False
+            return True
+
+        # Tuple[E1, E2, ...]
+        # Check if value length matches type length
+        if len(value) != len(type_args):
+            return False
+
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        # Check compatibility for each item
+        for i, item in enumerate(value):
+            maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(type_args[i])
+            if issubclass(maintainer_cls, UnsupportedMaintainer):
+                return False
+            if not maintainer_cls.is_value_compatible_static(item, type_args[i]):
+                return False
+        return True
+
+    @staticmethod
+    @override
+    def get_default_value_static(target_type: Type, *args, **kwargs) -> Any:
+        sim_type: Type = simplify_type(target_type)
+        if not TupleMaintainer.is_type_compatible_static(sim_type):
+            return None
+        return tuple()
+
+    @staticmethod
+    @override
+    def get_simplest_type_static(target_type: Type, *args, **kwargs) -> Type:
+        return simplify_type(target_type)
+
+    @staticmethod
+    @override
+    def get_simplest_type_name_static(target_type: Type, *args, **kwargs) -> str:
+        sim_type: Type = simplify_type(target_type)
+        if not TupleMaintainer.is_type_compatible_static(sim_type):
+            return ""
+
+        type_args: Tuple[Any, ...] = get_args(sim_type)
+
+        # tuple[()], Tuple[()]
+        if len(type_args) == 0 or len(type_args) == 1 and type_args[0] == tuple():
+            return "Tuple[()]"
+
+        # Tuple[E, ...]
+        if len(type_args) == 2 and type_args[1] == Ellipsis:
+            from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+            item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(type_args[0])
+            subtype_str: str = item_maintainer_cls.get_simplest_type_name_static(
+                target_type=type_args[0],
+                *args, **kwargs
+            )
+            return f"Tuple[{subtype_str}, ...]"
+
+        # Tuple[E1, E2, ...]
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        subtype_strs = []
+        for arg_type in type_args:
+            item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(arg_type)
+            subtype_str = item_maintainer_cls.get_simplest_type_name_static(
+                target_type=arg_type,
+                *args, **kwargs
+            )
+            subtype_strs.append(subtype_str)
+        return f"Tuple[{', '.join(subtype_strs)}]"

@@ -195,7 +195,7 @@ def simplify_type(target_type: Type) -> Any:
         origin_type: Type[Union[List, Tuple, Set, Dict]] = map_to_typing[origin] if origin in map_to_typing else origin
 
         if len(type_args) == 1 and type_args[0] == ():
-            return origin[()]
+            return origin_type[()]
 
         # Simply simplify all args
         sim_args: List = [simplify_type(t) for t in type_args]

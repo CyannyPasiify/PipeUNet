@@ -32,7 +32,7 @@ PathLike = Union[str, os.PathLike]
 
 
 @dataclass
-class ConfigDatasetManifestretrieverBase(ABC):
+class ConfigDatasetManifestRetrieverBase(ABC):
     def is_ready(self) -> bool:
         return hasattr(self, "retriever")
 
@@ -49,7 +49,7 @@ class ConfigDatasetManifestretrieverBase(ABC):
             self,
             *args,
             **kwargs
-    ) -> 'ConfigDatasetManifestretrieverBase':
+    ) -> 'ConfigDatasetManifestRetrieverBase':
         self.retriever = None  # Just placeholder
         return self
 
@@ -63,7 +63,7 @@ class ConfigDatasetManifestretrieverBase(ABC):
 
 
 @dataclass
-class ConfigDatasetManifestRetrieverSegmentationDefault(ConfigDatasetManifestretrieverBase):
+class ConfigDatasetManifestRetrieverSegmentationDefault(ConfigDatasetManifestRetrieverBase):
     """
     Dataset manifest retriever for segmentation tasks
     
@@ -104,7 +104,6 @@ class ConfigDatasetManifestRetrieverSegmentationDefault(ConfigDatasetManifestret
         self.manifest_file: pl.Path = pl.Path(self.manifest_file)
 
         # Process column groups
-        self.column_group_map: Dict[str, Set[str]] = {group: set(keys) for group, keys in self.column_group_map.items()}
         self._column_group_inv_map: Dict[str, Set[str]] = {}
         for group, keys in self.column_group_map.items():
             for key in keys:

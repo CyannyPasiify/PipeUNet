@@ -12,6 +12,15 @@ from Tools.YamlConfigurer.auxiliary_functions import simplify_type
 class OptionalMaintainer(WrapperMaintainer):
     """Optional type wrapper Maintainer"""
 
+    @classmethod
+    @override
+    def shall_hotkey_confirm_cancel(cls: Type) -> Tuple[bool, bool]:
+        # If in Standalone window, shall this type of maintainer react to
+        # - Enter/Return as Confirm
+        # - Esc as Cancel
+        # Hotkey enabled for (Confirm, Cancel)
+        return False, True
+
     def __init__(
             self,
             attribute_name: str = "",

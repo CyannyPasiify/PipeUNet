@@ -18,12 +18,13 @@ Key Features:
     - State management for reproducibility
 """
 import os
+import torch
 import pathlib as pl
 from monai.data.dataloader import DataLoader
 import lightning as L
 from typing import Dict, Any, Optional, Union, Literal
 from dataclasses import dataclass
-from Dataset.dataset_configurer import ConfigDatasetBase, ConfigDatasetPersistent
+from Dataset.dataset_configurer import ConfigDatasetBase, ConfigDatasetPersistent, ConfigDatasetCache
 from Transform.transform_configurer import (
     ConfigTransformBase,
     ConfigTransformSegmentationDefaultTrain,
@@ -45,11 +46,11 @@ class DataModuleSegmentationDefaultInitArgs:
     Contains all parameters needed to initialize a DataModule for segmentation tasks
     """
     # Dataset Retriever
-    retriever: ConfigDatasetManifestRetrieverSegmentationDefault = ConfigDatasetManifestRetrieverSegmentationDefault()
+    config_retriever: ConfigDatasetManifestRetrieverSegmentationDefault = ConfigDatasetManifestRetrieverSegmentationDefault()
     # Runtime Dataset
-    dataset: ConfigDatasetBase = ConfigDatasetPersistent()  # Wrapped MONAI dataset class to use
+    config_dataset: ConfigDatasetBase = ConfigDatasetCache()  # Wrapped MONAI dataset class to use
     # Transform
-    transform: ConfigTransformBase = ConfigTransformSegmentationDefaultInferencePre  # Transform class to use
+    config_transform: ConfigTransformBase = ConfigTransformSegmentationDefaultInferencePre  # Transform class to use
     # Dataloader (We use original torch Dataloader)
     batch_size: Optional[int] = 1  # Batch size for dataloader
     shuffle: Optional[bool] = None  # Whether to shuffle data
@@ -149,8 +150,8 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
         stage: str
         init: DataModuleSegmentationDefaultInitArgs
         for stage, init in self.init_args.items():
-            root_dir: PathLike = init.retriever.root_dir
-            manifest_file: PathLike = init.retriever.manifest_file
+            root_dir: PathLike = init.config_retriever.root_dir
+            manifest_file: PathLike = init.config_retriever.manifest_file
             if not pl.Path(root_dir).exists():
                 raise ValueError(f"Root for '{stage}' dataset not exists: {root_dir}")
             if not pl.Path(manifest_file).exists():
@@ -174,14 +175,14 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             if 'train' in self.init_args:
                 init: DataModuleSegmentationDefaultInitArgs = self.init_args['train']
                 # Create transform pipeline
-                init.transform.init_essentials()
-                self.transforms['train'] = init.transform
+                init.config_transform.init_essentials()
+                self.transforms['train'] = init.config_transform
                 # Create dataset retriever
-                init.retriever.init_essentials()
-                self.retrievers['train'] = init.retriever
+                init.config_retriever.init_essentials()
+                self.retrievers['train'] = init.config_retriever
                 # Create dataset with composed transform for acceleration
                 self.datasets['train'] = self.retrievers['train'].get_assembled_dataset(
-                    init.dataset, init.transform.get_composed_transform()
+                    init.config_dataset, init.config_transform.get_composed_transform()
                 )
 
             elif stage is not None:
@@ -190,14 +191,14 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             if 'val' in self.init_args:
                 init: DataModuleSegmentationDefaultInitArgs = self.init_args['val']
                 # Create transform pipeline
-                init.transform.init_essentials()
-                self.transforms['val'] = init.transform
+                init.config_transform.init_essentials()
+                self.transforms['val'] = init.config_transform
                 # Create dataset retriever
-                init.retriever.init_essentials()
-                self.retrievers['val'] = init.retriever
+                init.config_retriever.init_essentials()
+                self.retrievers['val'] = init.config_retriever
                 # Create dataset with composed transform for acceleration
                 self.datasets['val'] = self.retrievers['val'].get_assembled_dataset(
-                    init.dataset, init.transform.get_composed_transform()
+                    init.config_dataset, init.config_transform.get_composed_transform()
                 )
 
             elif stage is not None:
@@ -208,14 +209,14 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             if 'val' in self.init_args:
                 init: DataModuleSegmentationDefaultInitArgs = self.init_args['val']
                 # Create transform pipeline
-                init.transform.init_essentials()
-                self.transforms['val'] = init.transform
+                init.config_transform.init_essentials()
+                self.transforms['val'] = init.config_transform
                 # Create dataset retriever
-                init.retriever.init_essentials()
-                self.retrievers['val'] = init.retriever
+                init.config_retriever.init_essentials()
+                self.retrievers['val'] = init.config_retriever
                 # Create dataset with composed transform for acceleration
                 self.datasets['val'] = self.retrievers['val'].get_assembled_dataset(
-                    init.dataset, init.transform.get_composed_transform()
+                    init.config_dataset, init.config_transform.get_composed_transform()
                 )
 
             elif stage is not None:
@@ -226,14 +227,14 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             if 'test' in self.init_args:
                 init: DataModuleSegmentationDefaultInitArgs = self.init_args['test']
                 # Create transform pipeline
-                init.transform.init_essentials()
-                self.transforms['test'] = init.transform
+                init.config_transform.init_essentials()
+                self.transforms['test'] = init.config_transform
                 # Create dataset retriever
-                init.retriever.init_essentials()
-                self.retrievers['test'] = init.retriever
+                init.config_retriever.init_essentials()
+                self.retrievers['test'] = init.config_retriever
                 # Create dataset with composed transform for acceleration
                 self.datasets['test'] = self.retrievers['test'].get_assembled_dataset(
-                    init.dataset, init.transform.get_composed_transform()
+                    init.config_dataset, init.config_transform.get_composed_transform()
                 )
 
             elif stage is not None:
@@ -244,14 +245,14 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
             if 'predict' in self.init_args:
                 init: DataModuleSegmentationDefaultInitArgs = self.init_args['predict']
                 # Create transform pipeline
-                init.transform.init_essentials()
-                self.transforms['predict'] = init.transform
+                init.config_transform.init_essentials()
+                self.transforms['predict'] = init.config_transform
                 # Create dataset retriever
-                init.retriever.init_essentials()
-                self.retrievers['predict'] = init.retriever
+                init.config_retriever.init_essentials()
+                self.retrievers['predict'] = init.config_retriever
                 # Create dataset with composed transform for acceleration
                 self.datasets['predict'] = self.retrievers['predict'].get_assembled_dataset(
-                    init.dataset, init.transform.get_composed_transform()
+                    init.config_dataset, init.config_transform.get_composed_transform()
                 )
 
             elif stage is not None:
@@ -435,7 +436,6 @@ class DataModuleSegmentationDefault(L.LightningDataModule):
 
 if __name__ == "__main__":
     from monai.utils import GridSampleMode, GridSamplePadMode, PytorchPadMode
-    import torch
     import numpy as np
 
     init_args_train: DataModuleSegmentationDefaultInitArgs = DataModuleSegmentationDefaultInitArgs(
@@ -451,8 +451,8 @@ if __name__ == "__main__":
             column_group_map={'volume': ['volume'], 'mask': ['mask_0', 'mask_1']},
             column_dtype_map=None
         ),
-        dataset=ConfigDatasetPersistent(cache_dir='./Samples/datamodule_test/cache'),
-        transform=ConfigTransformSegmentationDefaultTrain(
+        config_dataset=ConfigDatasetPersistent(cache_dir='./Samples/datamodule_test/cache'),
+        config_transform=ConfigTransformSegmentationDefaultTrain(
             volume_key='volume',
             mask_key='mask',
             param_volume_tf_duplicate_items_dup_keys_volume=None,
@@ -478,6 +478,18 @@ if __name__ == "__main__":
         ),
         batch_size=3,
         shuffle=True,
+        # Multiprocessing note:
+        # Keep in mind that there shall occur worker thread unexpected exiting if you wrap PersistentDataset with monai.DataLoader
+        # and set num_workers > 0 for the first run, which might caused by cache file writing issues.
+        # It is doubtful whether this error has something to do with CUDA cooperation, because I only encounter this error when
+        # using GPU devices while setting num_workers > 0 for the first run.
+        # To handle this:
+        # You may first set num_workers = 0 to run a pre-epoch which generates all cache files, and then launch formal experiments.
+        # After all cache files are generated, set num_workers > 0 won't encounter errors anymore.
+        #
+        # If you modify transform parameters which affects cache (i.e., all non-randomness transforms before the first random transform),
+        # then you should delete old cache files and regenerate new ones.
+        # Alternatively, you may use CacheDataset or torch Dataset to avoid these matters, at the cost of efficiency loss.
         num_workers=4,
         pin_memory=True,
         drop_last=False,
@@ -504,8 +516,8 @@ if __name__ == "__main__":
             column_group_map={'volume': ['volume'], 'mask': ['mask_0', 'mask_1']},
             column_dtype_map=None
         ),
-        dataset=ConfigDatasetPersistent(cache_dir='./Samples/datamodule_test/cache'),
-        transform=ConfigTransformSegmentationDefaultInferencePre(
+        config_dataset=ConfigDatasetPersistent(cache_dir='./Samples/datamodule_test/cache'),
+        config_transform=ConfigTransformSegmentationDefaultInferencePre(
             volume_key='volume',
             mask_key='mask',
             param_volume_tf_duplicate_items_dup_keys_volume='volume_raw',

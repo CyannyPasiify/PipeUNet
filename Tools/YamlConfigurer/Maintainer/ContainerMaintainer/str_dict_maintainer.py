@@ -9,8 +9,8 @@ from Tools.YamlConfigurer.Maintainer.container_maintainer import ContainerMainta
 from Tools.YamlConfigurer.auxiliary_functions import simplify_type
 
 
-class ListMaintainer(ContainerMaintainer):
-    """list type Maintainer"""
+class StrDictMaintainer(ContainerMaintainer):
+    """str dict type Maintainer"""
     # Static variable for new item indicator
     NEW_ITEM_INDICATOR = "<New>"
 
@@ -21,28 +21,27 @@ class ListMaintainer(ContainerMaintainer):
         return 1236, 600
 
     @classmethod
-    @override
     def shall_hotkey_confirm_cancel(cls: Type) -> Tuple[bool, bool]:
         # If in Standalone window, shall this type of maintainer react to
         # - Enter as Confirm
         # - Esc as Cancel
         # Hotkey enabled for (Confirm, Cancel)
 
-        # List may have complex sub-editors, shall not use hotkeys
+        # Dict may have complex sub-editors, shall not use hotkeys
         return False, False
 
     def __init__(
             self,
             attribute_name: str = "",
-            attribute_type: Type = List[Any],
+            attribute_type: Type = Dict[str, Any],
             attribute_value: Any = None,
             logger: Any = None
     ):
         """Initialize Maintainer
         
         Args:
-            attribute_name: Name of the list attribute
-            attribute_type: Type of the list
+            attribute_name: Name of the dict attribute
+            attribute_type: Type of the dict
             attribute_value: Initial value
             logger: Logger instance for logging
         """
@@ -50,16 +49,17 @@ class ListMaintainer(ContainerMaintainer):
         attribute_type: Type = simplify_type(attribute_type)
         super().__init__(attribute_name, attribute_type, attribute_value, logger)
         self.item_maintainer_cls: Optional[Type[BaseMaintainer]] = None
-        # Detect Maintainer for the arg type
+        # Detect Maintainer for the value type
         if self.is_type_compatible():
             from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
             type_args: Tuple[Any, ...] = get_args(self.attribute_type)
-            # List[T]
-            assert len(type_args) == 1, f"List must have only 1 argument"
-            self.item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(type_args[0])
+            # Dict[str, T]
+            assert len(type_args) == 2, f"StrDict must have 2 arguments"
+            self.item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(type_args[1])
         # Vars
         self.view_mode: Literal["Standalone", "Packed"] = "Standalone"
         self.item_inspector_inner_frame_id: Optional[int] = None  # Standalone only
+        self.popup_key_string_var: Optional[tk.StringVar] = None  # Popup only
         self.popup_canvas_inner_frame_id: Optional[int] = None  # Popup only
         self.popup_wnd_result: Optional[Dict[str, Any]] = None  # Popup only
         self.item_maintainer: Optional[BaseMaintainer] = None  # Popup only
@@ -81,6 +81,10 @@ class ListMaintainer(ContainerMaintainer):
         ## Popup
         self.popup_top_level: Optional[tk.Toplevel] = None
         self.popup_inspector_frame: Optional[ttk.Frame] = None
+        self.popup_key_frame: Optional[ttk.Frame] = None
+        self.popup_key_label: Optional[ttk.Label] = None
+        self.popup_key_entry: Optional[ttk.Entry] = None
+        self.popup_key_duplicate_label: Optional[ttk.Label] = None
         self.popup_canvas: Optional[tk.Canvas] = None
         self.popup_canvas_vscrollbar: Optional[ttk.Scrollbar] = None
         self.popup_canvas_hscrollbar: Optional[ttk.Scrollbar] = None
@@ -103,38 +107,49 @@ class ListMaintainer(ContainerMaintainer):
     def is_type_compatible(self) -> bool:
         # Assuming attribute_type is simplified
         origin: Type = get_origin(self.attribute_type)
-        return origin in {list, List}
+        if origin not in {dict, Dict}:
+            return False
+        # Check if key type is str
+        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
+        if len(type_args) != 2:
+            return False
+        return type_args[0] is str
 
     @override
     def is_value_compatible(self) -> bool:
         if not self.is_type_compatible():
             return False
 
-        # Value is not a list, never compatible
-        if not isinstance(self.attribute_value, list):
+        # Value is not a dict, never compatible
+        if not isinstance(self.attribute_value, dict):
             return False
 
-        # Empty list [] is always compatible
+        # Empty dict {} is always compatible
         if len(self.attribute_value) == 0:
             return True
 
         type_args: Tuple[Any, ...] = get_args(self.attribute_type)
-        # List[T]
-        assert len(type_args) == 1, f"List must have only 1 argument"
+        # Dict[str, T]
+        assert len(type_args) == 2, f"StrDict must have 2 arguments"
 
-        # Unsupported element type, never compatible, because there is no way to determine compatibility
+        # Check all keys are strings
+        for key in self.attribute_value:
+            if not isinstance(key, str):
+                return False
+
+        # Unsupported value type, never compatible
         if issubclass(self.item_maintainer_cls, UnsupportedMaintainer):
             return False
 
-        # Any item not compatible?
-        for item in self.attribute_value:
-            if not self.item_maintainer_cls.is_value_compatible_static(item, type_args[0]):
+        # Any value not compatible?
+        for value in self.attribute_value.values():
+            if not self.item_maintainer_cls.is_value_compatible_static(value, type_args[1]):
                 return False
         return True
 
     @override
-    def get_default_value(self, *args, **kwargs) -> List:
-        return list()
+    def get_default_value(self, *args, **kwargs) -> Dict[str, Any]:
+        return dict()
 
     @override
     def get_simplest_type(self, *args, **kwargs) -> Type:
@@ -147,14 +162,14 @@ class ListMaintainer(ContainerMaintainer):
             return ""
 
         type_args: Tuple[Any, ...] = get_args(self.attribute_type)
-        # List[T]
-        assert len(type_args) == 1, f"List must have only 1 argument"
-        item_type: Type = type_args[0]
+        # Dict[str, T]
+        assert len(type_args) == 2, f"StrDict must have 2 arguments"
+        value_type: Type = type_args[1]
         subtype_str: str = self.item_maintainer_cls.get_simplest_type_name_static(
-            target_type=item_type,
+            target_type=value_type,
             *args, **kwargs
         )
-        return f"List[{subtype_str}]"
+        return f"Dict[str, {subtype_str}]"
 
     @override
     def create_inspector(
@@ -164,8 +179,7 @@ class ListMaintainer(ContainerMaintainer):
     ) -> ttk.Widget:
         """
             Shall call create_editor()
-        """
-        # Clear existing inspector (if exists)
+        """  # Clear existing inspector (if exists)
         if self.inspector is not None:
             self.inspector.destroy()
 
@@ -220,8 +234,8 @@ class ListMaintainer(ContainerMaintainer):
             if not self.can_edit():
                 return self.inspector
 
-            # List label frame
-            self.editor_label_frame = ttk.LabelFrame(self.main_inspector_left_frame, text="List")
+            # Dict label frame
+            self.editor_label_frame = ttk.LabelFrame(self.main_inspector_left_frame, text="Dict")
             self.editor_label_frame.pack(
                 anchor=tk.N,
                 fill=tk.BOTH,
@@ -363,28 +377,26 @@ class ListMaintainer(ContainerMaintainer):
             self.edit_button = ttk.Button(self.buttons_frame, text="Edit", state=tk.DISABLED, width=6)
             self.edit_button.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)
 
-        # Create Treeview for list elements
+        # Create Treeview for dict items
         self.tree_frame = ttk.Frame(self.editor)
         self.tree_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.BOTH, expand=True)
 
-        # Create Treeview with Index and Value columns
-        self.list_treeview = ttk.Treeview(self.tree_frame, columns=("index", "value"), show="headings")
-        self.list_treeview.heading("index", text="Index")
+        # Create Treeview with Key and Value columns
+        self.list_treeview = ttk.Treeview(self.tree_frame, columns=("key", "value"), show="headings")
+        self.list_treeview.heading("key", text="Key[str]")
         # Add type information to Value column heading
         type_args: Tuple[Any, ...] = get_args(self.attribute_type)
-        # List[T]
-        assert len(type_args) == 1, f"List must have only 1 argument"
-        inner_type_name = self.item_maintainer_cls.get_simplest_type_name_static(target_type=type_args[0])
+        # Dict[str, T]
+        assert len(type_args) == 2, f"Dict must have 2 arguments"
+        inner_type_name = self.item_maintainer_cls.get_simplest_type_name_static(target_type=type_args[1])
         self.list_treeview.heading("value", text=f"Value[{inner_type_name}]")
-
-        # 初始设置列宽
-        self.list_treeview.column("index", minwidth=45, width=45, stretch=False, anchor=tk.W)
+        self.list_treeview.column("key", minwidth=45, width=45, stretch=False, anchor=tk.W)
         self.list_treeview.column("value", minwidth=80, width=80, stretch=False, anchor=tk.W)
 
         # 绑定Treeview的Configure事件，当Treeview大小改变时调整列宽
         def adjust_tree_columns(event: Optional[tk.Event] = None):
             # 定义列宽比例
-            index_ratio = 0.2  # 20%
+            key_ratio = 0.2  # 20%
 
             # 获取Treeview的实际宽度
             tree_width = self.list_treeview.winfo_width()
@@ -395,11 +407,11 @@ class ListMaintainer(ContainerMaintainer):
                 available_width = tree_width - 2  # 减去滚动条和边框的宽度
 
                 # 计算各列宽度
-                index_width = max(45, int(available_width * index_ratio))
+                index_width = max(45, int(available_width * key_ratio))
                 value_width = max(80, available_width - index_width)
 
                 # 设置列宽
-                self.list_treeview.column("index", minwidth=45, width=index_width, stretch=False, anchor=tk.W)
+                self.list_treeview.column("key", minwidth=45, width=index_width, stretch=False, anchor=tk.W)
                 self.list_treeview.column("value", minwidth=80, width=value_width, stretch=False, anchor=tk.W)
 
         # 绑定事件
@@ -438,11 +450,11 @@ class ListMaintainer(ContainerMaintainer):
 
         # Populate Treeview with initial values
         if self.editor_value:
-            for i, item in enumerate(self.editor_value):
-                self.list_treeview.insert("", tk.END, values=(i, repr(item)))
+            for key, value in self.editor_value.items():
+                self.list_treeview.insert("", tk.END, values=(key, repr(value)))
 
-        # Add a blank row at the end for list
-        self.list_treeview.insert("", tk.END, values=(ListMaintainer.NEW_ITEM_INDICATOR, ""))
+        # Add a blank row at the end for dict
+        self.list_treeview.insert("", tk.END, values=(StrDictMaintainer.NEW_ITEM_INDICATOR, ""))
 
         # 跟踪当前选中的项目
         self.current_selected_item = None
@@ -505,7 +517,7 @@ class ListMaintainer(ContainerMaintainer):
                 self.edit_button.config(state=tk.NORMAL)
             # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
             item_values = self.list_treeview.item(self.current_selected_item, "values")
-            if item_values and item_values[0] != ListMaintainer.NEW_ITEM_INDICATOR:
+            if item_values and item_values[0] != StrDictMaintainer.NEW_ITEM_INDICATOR:
                 self.remove_button.config(state=tk.NORMAL)
                 if self.view_mode == "Packed":
                     self.edit_button.config(state=tk.NORMAL)
@@ -518,7 +530,7 @@ class ListMaintainer(ContainerMaintainer):
                 next_item: str = self.list_treeview.next(self.current_selected_item)
                 if next_item:
                     next_values: Any = self.list_treeview.item(next_item, "values")
-                    if next_values and next_values[0] != ListMaintainer.NEW_ITEM_INDICATOR:
+                    if next_values and next_values[0] != StrDictMaintainer.NEW_ITEM_INDICATOR:
                         self.down_button.config(state=tk.NORMAL)
                     else:
                         self.down_button.config(state=tk.DISABLED)
@@ -540,7 +552,7 @@ class ListMaintainer(ContainerMaintainer):
         if self.view_mode == "Standalone":
             self._update_item_inspector()
 
-    def _on_list_content_change(self, new_value: Any) -> None:
+    def _on_dict_content_change(self, new_value: Any) -> None:
         """Handle value change"""
         # Assuming new_value is mutable
         is_valid, validated_value = self.editor_validate(new_value)
@@ -562,23 +574,17 @@ class ListMaintainer(ContainerMaintainer):
         if index == len(items) - 1:
             return
 
-        assert 0 <= index < len(self.editor_value), f"Index {index} out of range"
-
         # 从原始值中移除该项
-        self.editor_value.pop(index)
+        dict_list = list(self.editor_value.items())
+        if 0 <= index < len(dict_list):
+            key, _ = dict_list[index]
+            del self.editor_value[key]
 
         # 保存当前选中项的前一个项目
-        # item = [Index, Value]
         prev_item: Optional[str] = self.list_treeview.prev(self.current_selected_item)
 
         # 直接删除选中的项目
         self.list_treeview.delete(self.current_selected_item)
-
-        # 更新剩余项目的索引
-        for idx in range(index + 1, len(items) - 1):
-            # item = [Index, Value]
-            item_vals: str = self.list_treeview.item(items[idx], "values")
-            self.list_treeview.item(items[idx], values=(idx - 1, item_vals[1]))
 
         # 根据操作类型设置新的选中项
         if select_prev and prev_item:
@@ -607,8 +613,8 @@ class ListMaintainer(ContainerMaintainer):
                 self.current_selected_item = None
                 self.remove_button.config(state=tk.DISABLED)
 
-        # 调用_on_list_content_change传递更新
-        self._on_list_content_change(self.editor_value)
+        # 调用_on_dict_content_change传递更新
+        self._on_dict_content_change(self.editor_value)
 
     def _move_item_up(self):
         if not self.current_selected_item:
@@ -622,38 +628,43 @@ class ListMaintainer(ContainerMaintainer):
         if index == len(items) - 1:
             return
 
-        assert 0 < index < len(self.editor_value), f"Index {index} out of range"
+        # 检查是否是第一个项目
+        if index == 0:
+            return
 
-        # 获取选中项的前一个项目
-        prev_item: str = self.list_treeview.prev(self.current_selected_item)
-        if not prev_item:
-            return  # 已经是第一个项目
+        # 将字典转换为有序列表
+        dict_list = list(self.editor_value.items())
+        if 0 < index < len(dict_list):
+            # 交换项目
+            dict_list[index], dict_list[index - 1] = dict_list[index - 1], dict_list[index]
+            # 重建字典
+            self.editor_value = {}
+            for key, value in dict_list:
+                self.editor_value[key] = value
 
-        # 交换列表中的项目
-        self.editor_value[index], self.editor_value[index - 1] = \
-            self.editor_value[index - 1], self.editor_value[index]
+            # 更新Treeview
+            self.list_treeview.delete(*self.list_treeview.get_children())
+            for key, value in self.editor_value.items():
+                self.list_treeview.insert("", tk.END, values=(key, repr(value)))
+            # 添加空白行
+            self.list_treeview.insert("", tk.END, values=(StrDictMaintainer.NEW_ITEM_INDICATOR, ""))
 
-        # 更新交换项目的内容
-        self.list_treeview.item(items[index - 1], values=(index - 1, repr(self.editor_value[index - 1])))
-        self.list_treeview.item(items[index], values=(index, repr(self.editor_value[index])))
+            # 选择移动后的项目
+            new_selected = self.list_treeview.get_children()[index - 1]
+            self.list_treeview.selection_set(new_selected)
+            self.current_selected_item = new_selected
+            # 确保选中项在视野范围内
+            self.list_treeview.see(new_selected)
 
-        # 选择移动后的项目
-        # 找到新位置的项目（索引为index-1）
-        new_selected: str = items[index - 1]
-        self.list_treeview.selection_set(new_selected)
-        self.current_selected_item = new_selected
-        # 确保选中项在视野范围内
-        self.list_treeview.see(new_selected)
+            # 更新按钮状态
+            self._on_treeview_select()
 
-        # 更新按钮状态
-        self._on_treeview_select()
+            # 保持焦点在Treeview上
+            self.list_treeview.focus_set()
+            self.list_treeview.focus(new_selected)
 
-        # 保持焦点在Treeview上
-        self.list_treeview.focus_set()
-        self.list_treeview.focus(new_selected)
-
-        # 调用_on_list_content_change传递更新
-        self._on_list_content_change(self.editor_value)
+            # 调用_on_dict_content_change传递更新
+            self._on_dict_content_change(self.editor_value)
 
     def _move_item_down(self):
         if not self.current_selected_item:
@@ -667,38 +678,39 @@ class ListMaintainer(ContainerMaintainer):
         if index == len(items) - 1:
             return
 
-        assert 0 <= index < len(self.editor_value) - 1, f"Index {index} out of range"
+        # 将字典转换为有序列表
+        dict_list = list(self.editor_value.items())
+        if 0 <= index < len(dict_list) - 1:
+            # 交换项目
+            dict_list[index], dict_list[index + 1] = dict_list[index + 1], dict_list[index]
+            # 重建字典
+            self.editor_value = {}
+            for key, value in dict_list:
+                self.editor_value[key] = value
 
-        # 获取选中项的后一个项目
-        next_item: str = self.list_treeview.next(self.current_selected_item)
-        if not next_item:
-            return  # 已经是最后一个项目
+            # 更新Treeview
+            self.list_treeview.delete(*self.list_treeview.get_children())
+            for key, value in self.editor_value.items():
+                self.list_treeview.insert("", tk.END, values=(key, repr(value)))
+            # 添加空白行
+            self.list_treeview.insert("", tk.END, values=(StrDictMaintainer.NEW_ITEM_INDICATOR, ""))
 
-        # 交换列表中的项目
-        self.editor_value[index], self.editor_value[index + 1] = \
-            self.editor_value[index + 1], self.editor_value[index]
+            # 选择移动后的项目
+            new_selected = self.list_treeview.get_children()[index + 1]
+            self.list_treeview.selection_set(new_selected)
+            self.current_selected_item = new_selected
+            # 确保选中项在视野范围内
+            self.list_treeview.see(new_selected)
 
-        # 更新交换项目的内容
-        self.list_treeview.item(items[index], values=(index, repr(self.editor_value[index])))
-        self.list_treeview.item(items[index + 1], values=(index + 1, repr(self.editor_value[index + 1])))
+            # 更新按钮状态
+            self._on_treeview_select()
 
-        # 选择移动后的项目
-        # 找到新位置的项目（索引为index+1）
-        new_selected: str = items[index + 1]
-        self.list_treeview.selection_set(new_selected)
-        self.current_selected_item = new_selected
-        # 确保选中项在视野范围内
-        self.list_treeview.see(new_selected)
+            # 保持焦点在Treeview上
+            self.list_treeview.focus_set()
+            self.list_treeview.focus(new_selected)
 
-        # 更新按钮状态
-        self._on_treeview_select()
-
-        # 保持焦点在Treeview上
-        self.list_treeview.focus_set()
-        self.list_treeview.focus(new_selected)
-
-        # 调用_on_list_content_change传递更新
-        self._on_list_content_change(self.editor_value)
+            # 调用_on_dict_content_change传递更新
+            self._on_dict_content_change(self.editor_value)
 
     # 绑定Remove按钮点击事件
     def _on_remove_button_click(self):
@@ -714,7 +726,7 @@ class ListMaintainer(ContainerMaintainer):
         selected_items = self.list_treeview.selection()
         if selected_items:
             item_values = self.list_treeview.item(selected_items[0], "values")
-            if item_values and item_values[0] != ListMaintainer.NEW_ITEM_INDICATOR:
+            if item_values and item_values[0] != StrDictMaintainer.NEW_ITEM_INDICATOR:
                 self._remove_item(select_prev=False)
         return "break"  # 阻止事件继续传播
 
@@ -723,7 +735,7 @@ class ListMaintainer(ContainerMaintainer):
         selected_items = self.list_treeview.selection()
         if selected_items:
             item_values = self.list_treeview.item(selected_items[0], "values")
-            if item_values and item_values[0] != ListMaintainer.NEW_ITEM_INDICATOR:
+            if item_values and item_values[0] != StrDictMaintainer.NEW_ITEM_INDICATOR:
                 self._remove_item(select_prev=True)
         return "break"  # 阻止事件继续传播
 
@@ -741,8 +753,9 @@ class ListMaintainer(ContainerMaintainer):
             self,
             title: str,
             item_attribute_name: str,
-            item_attribute_type: Type,
-            item_attribute_value: Any
+            item_key: str,
+            item_value: Any,
+            is_add_new: bool = False
     ):
         # 创建编辑窗口
         self.popup_top_level = tk.Toplevel(self.editor)
@@ -757,12 +770,49 @@ class ListMaintainer(ContainerMaintainer):
         self.popup_inspector_frame.pack(fill=tk.BOTH, expand=True)
 
         # 配置inspector_frame的grid布局
-        self.popup_inspector_frame.grid_rowconfigure(0, weight=1)
-        self.popup_inspector_frame.grid_rowconfigure(1, weight=0)  # 横向滚动条固定高度
+        self.popup_inspector_frame.grid_rowconfigure(0, weight=0)  # Key input row
+        self.popup_inspector_frame.grid_rowconfigure(1, weight=1)  # Value inspector row
+        self.popup_inspector_frame.grid_rowconfigure(2, weight=0)  # Horizontal scrollbar row
         self.popup_inspector_frame.grid_columnconfigure(0, weight=1)
-        self.popup_inspector_frame.grid_columnconfigure(1, weight=0)  # 纵向滚动条固定宽度
+        self.popup_inspector_frame.grid_columnconfigure(1, weight=0)  # Vertical scrollbar column
 
-        # 创建带滚动条的容器
+        # Key input frame
+        self.popup_key_frame = ttk.Frame(self.popup_inspector_frame)
+        self.popup_key_frame.grid(row=0, column=0, sticky=tk.EW, padx=10, pady=5)
+        self.popup_key_frame.grid_columnconfigure(1, weight=1)
+        self.popup_key_frame.grid_columnconfigure(2, weight=0)
+
+        # Key label
+        self.popup_key_label = ttk.Label(self.popup_key_frame, text="Key:")
+        self.popup_key_label.grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+
+        # Key entry
+        self.popup_key_string_var = tk.StringVar(value=item_key)
+        self.popup_key_entry = ttk.Entry(self.popup_key_frame, textvariable=self.popup_key_string_var, width=30)
+        self.popup_key_entry.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=5)
+
+        # Duplicate key label
+        self.popup_key_duplicate_label = ttk.Label(self.popup_key_frame, text="", foreground="red")
+        self.popup_key_duplicate_label.grid(row=0, column=2, sticky=tk.W, padx=5, pady=5)
+
+        # Check for duplicate keys
+        def check_duplicate_key(*args):
+            new_key = self.popup_key_string_var.get()
+            warn_text_list: List[str] = []
+            if new_key == "":
+                warn_text_list.append("Key is empty")
+            if (is_add_new or new_key != item_key) and new_key in self.editor_value:
+                warn_text_list.append("Key is duplicative, will overwrite")
+            warn_text: str = "; ".join(warn_text_list)
+            if len(warn_text_list) > 0:
+                warn_text = f"Caution: {warn_text}!"
+            self.popup_key_duplicate_label.config(text=warn_text)
+
+        # Bind key change event
+        check_duplicate_key()
+        self.popup_key_string_var.trace_add("write", check_duplicate_key)
+
+        # Create canvas for value inspector
         self.popup_canvas = tk.Canvas(self.popup_inspector_frame, highlightthickness=0)
         self.popup_canvas_vscrollbar = ttk.Scrollbar(
             self.popup_inspector_frame,
@@ -780,9 +830,9 @@ class ListMaintainer(ContainerMaintainer):
         )
 
         # 布局 - 使用grid布局
-        self.popup_canvas.grid(row=0, column=0, sticky=tk.NSEW)
-        self.popup_canvas_vscrollbar.grid(row=0, column=1, sticky=tk.NS)
-        self.popup_canvas_hscrollbar.grid(row=1, column=0, sticky=tk.EW)
+        self.popup_canvas.grid(row=1, column=0, sticky=tk.NSEW)
+        self.popup_canvas_vscrollbar.grid(row=1, column=1, sticky=tk.NS)
+        self.popup_canvas_hscrollbar.grid(row=2, column=0, sticky=tk.EW)
 
         # 创建内部框架，用于容纳所有Inspector内容
         self.popup_canvas_inner_frame = ttk.Frame(self.popup_canvas, padding=5)
@@ -798,17 +848,21 @@ class ListMaintainer(ContainerMaintainer):
         self.popup_canvas.bind("<Configure>", self._on_popup_canvas_configure)
 
         # 结果变量
-        self.popup_wnd_result = {'value': item_attribute_value, 'confirmed': False}
+        self.popup_wnd_result = {'key': item_key, 'value': item_value, 'confirmed': False}
 
         # 定义值变化的回调函数
         def on_popup_editor_value_change(new_val: Any):
             self.popup_wnd_result['value'] = new_val
 
         # 使用 create_inspector 创建编辑控件，popup_canvas_inner_frame 作为父控件
-        self.item_maintainer = self.item_maintainer_cls(
-            item_attribute_name,
-            item_attribute_type,
-            item_attribute_value,
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
+        value_type = type_args[1]
+        item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(value_type)
+        self.item_maintainer = item_maintainer_cls(
+            f"{item_attribute_name}",
+            value_type,
+            item_value,
             self.logger
         )
         self.item_maintainer.config_view("Standalone")
@@ -872,6 +926,7 @@ class ListMaintainer(ContainerMaintainer):
         # 否则使用内部控件的最小宽度和高度
         actual_width = max(canvas_width, min_width)
         actual_height = max(canvas_height, min_height)
+        self.popup_canvas.itemconfig(self.popup_canvas_inner_frame_id, width=event.width)
 
         # 设置内部框架的宽度和高度
         self.popup_canvas.itemconfig(self.popup_canvas_inner_frame_id, width=actual_width, height=actual_height)
@@ -881,6 +936,9 @@ class ListMaintainer(ContainerMaintainer):
 
     # 确认按钮回调
     def _on_popup_confirm(self):
+        # Get the new key
+        new_key = self.popup_key_string_var.get()
+        self.popup_wnd_result['key'] = new_key
         self.popup_wnd_result['confirmed'] = True
         self.popup_top_level.destroy()
 
@@ -898,7 +956,7 @@ class ListMaintainer(ContainerMaintainer):
         self._on_popup_cancel()
         return "break"  # 阻止事件继续传播
 
-    # 实现编辑列表元素功能
+    # 实现编辑字典元素功能
     def _edit_item(self):
         if self.current_selected_item is None:
             return
@@ -908,48 +966,82 @@ class ListMaintainer(ContainerMaintainer):
         items: Tuple[str, ...] = self.list_treeview.get_children()
 
         # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
-        if index == len(items) - 1:
+        item_values = self.list_treeview.item(self.current_selected_item, "values")
+        if item_values and item_values[0] == StrDictMaintainer.NEW_ITEM_INDICATOR:
             # 当焦点在<New Item>上时，调用add_item函数，等同于添加新元素
             self._add_item()
             return
 
-        assert 0 <= index < len(self.editor_value), f"Index {index} out of range"
+        # 获取选中项的当前键值对
+        key = item_values[0]
+        dict_list = list(self.editor_value.items())
+        if 0 <= index < len(dict_list):
+            current_key, current_value = dict_list[index]
+        else:
+            return
 
-        # 获取选中项的当前值
-        current_value: Any = self.editor_value[index]
-
-        # 构建属性名称：{列表属性名称}[{此元素的下标序号}]
-        item_attribute_name: str = f"{self.attribute_name}[{index}]"
-        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
-        # List[T]
-        assert len(type_args) == 1, f"List must have only 1 argument"
+        # 构建属性名称：{字典属性名称}[{键}]
+        item_attribute_name: str = f"{self.attribute_name}[{key!r}]"
 
         # 调用共用方法创建编辑窗口
         # self.popup_wnd_result will store status
         self._create_popup_inspector_window(
-            f"Edit {self.attribute_name}[{index}]",
+            f"Edit {self.attribute_name}[{key!r}]",
             item_attribute_name,
-            type_args[0],
+            current_key,
             current_value
         )
 
         # 如果用户确认，更新值
         if self.popup_wnd_result['confirmed']:
-            self.editor_value[index] = self.popup_wnd_result['value']
+            new_key = self.popup_wnd_result['key']
+            new_value = self.popup_wnd_result['value']
 
-            # 更新Treeview中的显示
-            self.list_treeview.item(items[index], values=(index, repr(self.editor_value[index])))
+            # 检查是否需要更新键
+            if new_key != current_key:
+                # 确保新键不存在
+                if new_key not in self.editor_value:
+                    # 转换为列表以保持顺序
+                    dict_items = list(self.editor_value.items())
+                    # 找到旧键的位置
+                    for i, (k, v) in enumerate(dict_items):
+                        if k == current_key:
+                            # 替换为新键值对
+                            dict_items[i] = (new_key, new_value)
+                            break
+                    # 重建字典以保持顺序
+                    self.editor_value = {}
+                    for k, v in dict_items:
+                        self.editor_value[k] = v
+                else:
+                    # 新键已存在，只更新值
+                    self.editor_value[new_key] = new_value
+            else:
+                # 只更新值
+                self.editor_value[current_key] = new_value
 
-            # 确保选中项在视野范围内
-            self.list_treeview.see(self.current_selected_item)
-            # 设置焦点回到Treeview并选中当前编辑的项
-            self.list_treeview.focus_set()
-            self.list_treeview.selection_set(self.current_selected_item)
+            # 更新Treeview
+            self.list_treeview.delete(*self.list_treeview.get_children())
+            for k, v in self.editor_value.items():
+                self.list_treeview.insert("", tk.END, values=(k, repr(v)))
+            # 添加空白行
+            self.list_treeview.insert("", tk.END, values=(StrDictMaintainer.NEW_ITEM_INDICATOR, ""))
 
-            # 调用_on_list_content_change传递更新
-            self._on_list_content_change(self.editor_value)
+            # 选择更新后的项目
+            new_items = self.list_treeview.get_children()
+            for item in new_items:
+                item_vals = self.list_treeview.item(item, "values")
+                if item_vals[0] == new_key:
+                    self.list_treeview.selection_set(item)
+                    self.current_selected_item = item
+                    # 确保选中项在视野范围内
+                    self.list_treeview.see(item)
+                    break
 
-    # 实现添加列表元素功能
+            # 调用_on_dict_content_change传递更新
+            self._on_dict_content_change(self.editor_value)
+
+    # 实现添加字典元素功能
     def _add_item(self):
         if not self.current_selected_item:
             return
@@ -958,50 +1050,70 @@ class ListMaintainer(ContainerMaintainer):
         index: int = self.list_treeview.index(self.current_selected_item)
         items: Tuple[str, ...] = self.list_treeview.get_children()
 
-        assert 0 <= index <= len(self.editor_value), f"Index {index} out of range"
+        # 构建属性名称：{字典属性名称}[<new>]
+        item_attribute_name = f"{self.attribute_name}[<new>]"
 
         # 获取默认值
         type_args: Tuple[Any, ...] = get_args(self.attribute_type)
-        # List[T]
-        assert len(type_args) == 1, f"List must have only 1 argument"
-        default_value = self.item_maintainer_cls.get_default_value_static(target_type=type_args[0])
-
-        # 构建属性名称：{列表属性名称}[{此元素的下标序号}]
-        item_attribute_name = f"{self.attribute_name}[{index}]"
+        value_type = type_args[1]
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(value_type)
+        default_value = item_maintainer_cls.get_default_value_static(target_type=value_type)
 
         # 调用共用方法创建编辑窗口
         self._create_popup_inspector_window(
-            f"Edit New {self.attribute_name}[{index}]",
+            f"Add New {self.attribute_name}[<new>]",
             item_attribute_name,
-            type_args[0],
-            default_value
+            "",  # Empty key for new item
+            default_value,
+            True
         )
 
         # 如果用户确认，添加新值
         if self.popup_wnd_result['confirmed']:
-            # 在指定位置插入新元素
-            self.editor_value.insert(index, self.popup_wnd_result['value'])
+            new_key = self.popup_wnd_result['key']
+            new_value = self.popup_wnd_result['value']
 
-            # 从index开始重新填充Treeview
-            for idx in range(index, len(self.editor_value)):
-                self.list_treeview.item(items[idx], values=(idx, repr(self.editor_value[idx])))
+            # 转换为列表以保持顺序
+            dict_items = list(self.editor_value.items())
 
+            # 如果键已存在，先移除旧的
+            for i, (k, v) in enumerate(dict_items):
+                if k == new_key:
+                    dict_items.pop(i)
+                    # 调整插入位置，确保插入到正确位置
+                    if index > i:
+                        index -= 1
+                    break
+
+            # 插入新键值对到当前位置
+            dict_items.insert(index, (new_key, new_value))
+
+            # 重建字典以保持顺序
+            self.editor_value = {}
+            for k, v in dict_items:
+                self.editor_value[k] = v
+
+            # 更新Treeview
+            self.list_treeview.delete(*self.list_treeview.get_children())
+            for key, value in self.editor_value.items():
+                self.list_treeview.insert("", tk.END, values=(key, repr(value)))
             # 添加空白行
-            self.list_treeview.insert("", tk.END, values=(ListMaintainer.NEW_ITEM_INDICATOR, ""))
+            self.list_treeview.insert("", tk.END, values=(StrDictMaintainer.NEW_ITEM_INDICATOR, ""))
 
             # 选择新添加的项目
-            items = self.list_treeview.get_children()
-            assert index < len(items) - 1, f"Index {index} out of range"
+            new_items = self.list_treeview.get_children()
+            for item in new_items:
+                item_vals = self.list_treeview.item(item, "values")
+                if item_vals[0] == new_key:
+                    self.list_treeview.selection_set(item)
+                    self.current_selected_item = item
+                    # 确保新添加的项目在视野范围内
+                    self.list_treeview.see(item)
+                    break
 
-            self.current_selected_item = items[index]
-            # 确保新添加的项目在视野范围内
-            self.list_treeview.see(self.current_selected_item)
-            # 设置焦点回到Treeview并选中新插入的项
-            self.list_treeview.focus_set()
-            self.list_treeview.selection_set(self.current_selected_item)
-
-            # 调用_on_list_content_change传递更新
-            self._on_list_content_change(self.editor_value)
+            # 调用_on_dict_content_change传递更新
+            self._on_dict_content_change(self.editor_value)
 
     def _update_item_inspector(self) -> None:
         """更新弹出编辑窗口内部的Inspector面板，显示属性信息和编辑控件"""
@@ -1020,24 +1132,29 @@ class ListMaintainer(ContainerMaintainer):
         items: Tuple[str, ...] = self.list_treeview.get_children()
 
         # 检查选中的是否是最后一行（NEW_ITEM_INDICATOR）
-        if index == len(items) - 1:
+        item_values = self.list_treeview.item(self.current_selected_item, "values")
+        if item_values and item_values[0] == StrDictMaintainer.NEW_ITEM_INDICATOR:
             return
 
-        assert 0 <= index < len(self.editor_value), f"Index {index} out of range"
+        # 获取选中项的当前键值对
+        key = item_values[0]
+        dict_list = list(self.editor_value.items())
+        if 0 <= index < len(dict_list):
+            current_key, current_value = dict_list[index]
+        else:
+            return
 
-        # 获取选中项的当前值
-        current_value: Any = self.editor_value[index]
-
-        # 构建属性名称：{列表属性名称}[{此元素的下标序号}]
-        item_attribute_name: str = f"{self.attribute_name}[{index}]"
-        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
-        # List[T]
-        assert len(type_args) == 1, f"List must have only 1 argument"
+        # 构建属性名称：{字典属性名称}[{键}]
+        item_attribute_name: str = f"{self.attribute_name}[{key}]"
 
         # 使用 create_inspector 创建编辑控件，popup_canvas_inner_frame 作为父控件
-        self.item_maintainer = self.item_maintainer_cls(
-            item_attribute_name,
-            type_args[0],
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
+        value_type = type_args[1]
+        item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(value_type)
+        self.item_maintainer = item_maintainer_cls(
+            f"{item_attribute_name}",
+            value_type,
             current_value,
             self.logger
         )
@@ -1081,25 +1198,25 @@ class ListMaintainer(ContainerMaintainer):
         assert self.item_maintainer is not None
         assert self.current_selected_item is not None
 
-        # Detect currently selected item
-        # 获取选中项的索引
-        index: int = self.list_treeview.index(self.current_selected_item)
-        items: Tuple[str, ...] = self.list_treeview.get_children()
+        # 获取选中项的当前键值对
+        item_values = self.list_treeview.item(self.current_selected_item, "values")
+        key = item_values[0]
 
-        self.editor_value[index] = new_value
+        # 更新字典值
+        self.editor_value[key] = new_value
         self.item_maintainer.confirm_editor_change()
 
         # 更新Treeview中的显示
-        self.list_treeview.item(items[index], values=(index, repr(self.editor_value[index])))
+        self.list_treeview.item(self.current_selected_item, values=(key, repr(new_value)))
 
         # 确保选中项在视野范围内
         self.list_treeview.see(self.current_selected_item)
 
-        # 调用_on_list_content_change传递更新
-        self._on_list_content_change(self.editor_value)
+        # 调用_on_dict_content_change传递更新
+        self._on_dict_content_change(self.editor_value)
 
         # 记录日志
-        self.log_message(f"Updated attribute '{self.attribute_name}[{index}]' to {repr(new_value)}")
+        self.log_message(f"Updated attribute '{self.attribute_name}[{key!r}]' to {repr(new_value)}")
 
     @override
     def editor_enable(self):
@@ -1127,10 +1244,10 @@ class ListMaintainer(ContainerMaintainer):
                 self.list_treeview.delete(item)
             # 重新填充Treeview
             if new_value:
-                for i, item in enumerate(new_value):
-                    self.list_treeview.insert("", tk.END, values=(i, repr(item)))
+                for key, value in new_value.items():
+                    self.list_treeview.insert("", tk.END, values=(key, repr(value)))
             # 添加空白行
-            self.list_treeview.insert("", tk.END, values=(ListMaintainer.NEW_ITEM_INDICATOR, ""))
+            self.list_treeview.insert("", tk.END, values=(StrDictMaintainer.NEW_ITEM_INDICATOR, ""))
         super().editor_set_value(new_value)
 
     @override
@@ -1139,7 +1256,7 @@ class ListMaintainer(ContainerMaintainer):
 
     @override
     def editor_validate(self, input_value: Any) -> Tuple[bool, Any]:
-        if isinstance(input_value, list):
+        if isinstance(input_value, dict):
             return True, input_value
         return False, None
 
@@ -1149,46 +1266,53 @@ class ListMaintainer(ContainerMaintainer):
         sim_type: Type = simplify_type(target_type)
         # Assuming attribute_type is simplified
         origin: Type = get_origin(sim_type)
-        return origin in {list, List}
+        if origin not in {dict, Dict}:
+            return False
+        # Check if key type is str
+        type_args: Tuple[Any, ...] = get_args(sim_type)
+        if len(type_args) != 2:
+            return False
+        return type_args[0] is str
 
     @staticmethod
     @override
-    def is_value_compatible_static(value: Any, target_type: Type = List[Any]) -> bool:
+    def is_value_compatible_static(value: Any, target_type: Type = Dict[str, Any]) -> bool:
         sim_type: Type = simplify_type(target_type)
-        if not ListMaintainer.is_type_compatible_static(sim_type):
+        if not StrDictMaintainer.is_type_compatible_static(sim_type):
             return False
 
-        # Value is not a list, never compatible
-        if not isinstance(value, list):
+        # Value is not a dict, never compatible
+        if not isinstance(value, dict):
             return False
 
-        # Empty list [] is always compatible
-        if len(value) == 0:
-            return True
+        # Check all keys are strings
+        for key in value:
+            if not isinstance(key, str):
+                return False
+
+        # Check value compatibility
+        type_args: Tuple[Any, ...] = get_args(sim_type)
+        # Dict[str, T]
+        assert len(type_args) == 2, f"StrDict must have 2 arguments"
+        value_type = type_args[1]
 
         from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
-        type_args: Tuple[Any, ...] = get_args(sim_type)
-        # List[T]
-        assert len(type_args) == 1, f"List must have only 1 argument"
-        maintainer_cls: Type[BaseMaintainer] = MaintainerFactory.get_maintainer_cls_supported_type(type_args[0])
+        item_maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(value_type)
 
-        # Unsupported element type, never compatible, because there is no way to determine compatibility
-        if issubclass(maintainer_cls, UnsupportedMaintainer):
+        # Unsupported value type, never compatible
+        if issubclass(item_maintainer_cls, UnsupportedMaintainer):
             return False
 
-        # Check compatibility for each item
-        for item in value:
-            if not maintainer_cls.is_value_compatible_static(item, type_args[0]):
+        # Any value not compatible?
+        for val in value.values():
+            if not item_maintainer_cls.is_value_compatible_static(val, value_type):
                 return False
         return True
 
     @staticmethod
     @override
     def get_default_value_static(target_type: Type, *args, **kwargs) -> Any:
-        sim_type: Type = simplify_type(target_type)
-        if not ListMaintainer.is_type_compatible_static(sim_type):
-            return None
-        return list()
+        return dict()
 
     @staticmethod
     @override
@@ -1199,15 +1323,15 @@ class ListMaintainer(ContainerMaintainer):
     @override
     def get_simplest_type_name_static(target_type: Type, *args, **kwargs) -> str:
         sim_type: Type = simplify_type(target_type)
-        if not ListMaintainer.is_type_compatible_static(sim_type):
+        if not StrDictMaintainer.is_type_compatible_static(sim_type):
             return ""
 
         type_args: Tuple[Any, ...] = get_args(sim_type)
-        # List[T]
-        assert len(type_args) == 1, f"List must have only 1 argument"
-        item_type: Type = type_args[0]
+        # Dict[str, T]
+        assert len(type_args) == 2, f"StrDict must have 2 arguments"
+        value_type: Type = type_args[1]
 
         from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
-        subtype_name: str = MaintainerFactory.get_maintainer_cls_supported_type(item_type) \
-            .get_simplest_type_name_static(target_type=item_type, *args, **kwargs)
-        return f"List[{subtype_name}]"
+        subtype_name: str = MaintainerFactory.get_maintainer_cls_supported_type(value_type) \
+            .get_simplest_type_name_static(target_type=value_type, *args, **kwargs)
+        return f"Dict[str, {subtype_name}]"

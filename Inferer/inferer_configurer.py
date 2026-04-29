@@ -42,6 +42,7 @@ class ConfigInfererBase(ABC):
             *args: Any,
             **kwargs: Any,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, ...], Dict[Any, torch.Tensor]]:
+        self._assert_init_essentials(*args, **kwargs)
         return self.inferer(inputs, network, *args, **kwargs)
 
     def get_inferer_operator(self, *args, **kwargs) -> mI.Inferer:

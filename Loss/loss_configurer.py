@@ -37,7 +37,7 @@ class ConfigLossBase(ABC):
             *args,
             **kwargs
     ) -> 'ConfigLossBase':
-        self.loss = None  # Just placeholder
+        self.loss: nn.Module = nn.Module()  # Just placeholder
         return self
 
     def __call__(
@@ -49,6 +49,11 @@ class ConfigLossBase(ABC):
     ) -> torch.Tensor:
         self._assert_init_essentials()
         return self.loss(input, target, *args, **kwargs)
+
+    def to(self, device: torch.device, dtype: torch.dtype) -> 'ConfigLossBase':
+        self._assert_init_essentials()
+        self.loss.to(device=device, dtype=dtype)
+        return self
 
     def get_loss_operator(self, *args, **kwargs) -> nn.Module:
         self._assert_init_essentials(*args, **kwargs)

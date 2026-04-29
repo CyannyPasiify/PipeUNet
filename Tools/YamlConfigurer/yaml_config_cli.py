@@ -16,9 +16,7 @@ from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
 from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
 
 # 从foo.py中导入相关类
-spec = importlib.util.spec_from_file_location("foo", "d:\\CBIB\\Storages\\DevelopmentSoftwares\\Trae\\PipeUNet\\foo.py")
-foo = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(foo)
+import foo
 from foo import ParserABC
 
 
@@ -77,6 +75,33 @@ class YAMLConfigCLI:
             # 控件真正渲染完成了 → 此时宽度 100% 准确
             w = self.top_frame.winfo_width()
             self.top_frame.sashpos(0, w // 2)
+
+            # 分栏调整完成后，触发Treeview的列宽调整
+            def adjust_tree_columns(event: Optional[tk.Event] = None):
+                # 定义列宽比例
+                attribute_ratio = 0.2  # 20%
+                type_ratio = 0.3       # 30%
+                
+                # 获取Treeview的实际宽度
+                tree_width = self.tree.winfo_width()
+                
+                # 确保tree_width有有效值
+                if tree_width > 0:
+                    # 计算各列的宽度，预留一些空间给滚动条和边框
+                    available_width = tree_width - 2  # 减去滚动条和边框的宽度
+                    
+                    # 计算各列宽度
+                    attribute_width = max(70, int(available_width * attribute_ratio))
+                    type_width = max(70, int(available_width * type_ratio))
+                    value_width = max(70, available_width - attribute_width - type_width)
+                    
+                    # 设置列宽
+                    self.tree.column("attribute", minwidth=70, width=attribute_width, stretch=False, anchor=tk.W)
+                    self.tree.column("type", minwidth=70, width=type_width, stretch=False, anchor=tk.W)
+                    self.tree.column("value", minwidth=70, width=value_width, stretch=False, anchor=tk.W)
+            
+            # 绑定Treeview的Configure事件，当Treeview大小改变时调整列宽
+            self.tree.bind("<Configure>", adjust_tree_columns, add="+")
 
             # 只执行一次，执行完解绑，避免多次触发
             self.top_frame.unbind("<Map>")
@@ -190,6 +215,7 @@ class YAMLConfigCLI:
         self.tree.heading("value", text="Value")
 
         # 设置列宽（允许用户拖动调整）
+        # 初始设置最小宽度，实际宽度会在分栏调整后由adjust_tree_columns函数设置
         self.tree.column("attribute", minwidth=70, width=150, stretch=False, anchor=tk.W)
         self.tree.column("type", minwidth=70, width=180, stretch=False, anchor=tk.W)
         self.tree.column("value", minwidth=70, width=310, stretch=False, anchor=tk.W)
@@ -464,15 +490,14 @@ class YAMLConfigCLI:
 
     def on_tree_select(self, event: Optional[tk.Event] = None) -> None:
         """当TreeView选择发生变化时"""
+        self.clear_inspector()
         selected_items = self.tree.selection()
         if not selected_items:
-            self.clear_inspector()
             return
 
         item = selected_items[0]
         values = self.tree.item(item, "values")
         if not values or len(values) < 3:
-            self.clear_inspector()
             return
 
         attribute_name: str = values[0]
@@ -739,6 +764,10 @@ class YAMLConfigCLI:
         # 清空内部框架
         for widget in self.inspector_inner_frame.winfo_children():
             widget.destroy()
+        # 将内部框架的规格重置为0
+        self.inspector_canvas.itemconfig(self.inspector_inner_frame_id, width=0, height=0)
+        # 更新canvas的滚动区域
+        self.inspector_canvas.configure(scrollregion=self.inspector_canvas.bbox("all"))
         self.current_attribute = None
 
     def _on_inspector_inner_configure(self, event: Optional[tk.Event] = None) -> None:
@@ -771,12 +800,7 @@ class YAMLConfigCLI:
     def _update_inspector(self, attribute_name: str) -> None:
         """更新Inspector面板，显示属性信息和编辑控件"""
         if not self.current_parser:
-            self.clear_inspector()
             return
-
-        # 清空内部框架
-        for widget in self.inspector_inner_frame.winfo_children():
-            widget.destroy()
 
         self.current_attribute = attribute_name
 
