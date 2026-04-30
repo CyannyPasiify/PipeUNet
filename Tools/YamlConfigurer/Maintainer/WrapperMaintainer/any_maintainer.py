@@ -1,4 +1,5 @@
 import copy
+import traceback
 from typing import Any, List, Type, get_origin, get_args, Union, Tuple, Optional, Callable, Dict, Literal
 from typing_extensions import override
 import tkinter as tk
@@ -7,6 +8,9 @@ from Tools.YamlConfigurer.Maintainer.PrimitiveMaintainer.unsupported_maintainer 
 from Tools.YamlConfigurer.Maintainer.wrapper_maintainer import WrapperMaintainer
 from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
 from Tools.YamlConfigurer.auxiliary_functions import simplify_type, all_available_types
+import torch
+import typing
+import tensorboard
 
 
 class AnyMaintainer(WrapperMaintainer):
@@ -64,6 +68,12 @@ class AnyMaintainer(WrapperMaintainer):
                             f"type {repr(t)} can not be properly maintained",
                             level="warn",
                         )
+                        error_msg: str = f"{e}\nStack trace:\n{traceback.format_exc()}"
+                        self.logger.log_message(
+                            error_msg,
+                            level="debug",
+                        )
+
         # Vars
         self.view_mode: Literal["Standalone", "Packed"] = "Standalone"
         # Widgets
@@ -130,27 +140,33 @@ class AnyMaintainer(WrapperMaintainer):
         # Calculate max width based on longest type name
         max_length = max(len(name) for name in type_names) if type_names else 8
         buffer = 2  # Add buffer to avoid truncation
-        combobox_width = max_length + buffer
+        combobox_width = min(72, max_length + buffer)
 
         # Find the Maintainer that is compatible with the current value
         first_defined_maintainer_cls: Optional[Type[BaseMaintainer]] = None
+        first_defined_maintainer_subtype: Optional[Type] = None
         first_unsupported_maintainer_cls: Optional[Type[BaseMaintainer]] = None
-        for m in self.maintainer_cls:
+        first_unsupported_maintainer_subtype: Optional[Type] = None
+        for subtype, m in self.map_maintainer_cls.values():
             m.attribute_value = self.attribute_value
-            if m.is_value_compatible_static(self.attribute_value, self.attribute_type):
+            if m.is_value_compatible_static(self.attribute_value, subtype):
                 if issubclass(m, UnsupportedMaintainer):
                     if first_unsupported_maintainer_cls is None:
                         first_unsupported_maintainer_cls = m
+                        first_unsupported_maintainer_subtype = subtype
                 else:
                     if first_defined_maintainer_cls is None:
                         first_defined_maintainer_cls = m
+                        first_defined_maintainer_subtype = subtype
                 if first_unsupported_maintainer_cls is not None and first_defined_maintainer_cls is not None:
                     break
         valid_maintainer_cls: Optional[Type[BaseMaintainer]] = first_defined_maintainer_cls \
             if first_defined_maintainer_cls is not None else first_unsupported_maintainer_cls
+        valid_maintainer_subtype: Optional[Type] = first_defined_maintainer_subtype \
+            if first_defined_maintainer_subtype is not None else first_unsupported_maintainer_subtype
         if valid_maintainer_cls is not None:
             self.type_string_var.set(
-                valid_maintainer_cls.get_simplest_type_name_static(target_type=self.attribute_type)
+                valid_maintainer_cls.get_simplest_type_name_static(target_type=valid_maintainer_subtype)
             )
         else:  # Type not compatible
             self.type_string_var.set("<Not Compatible>")
@@ -258,23 +274,29 @@ class AnyMaintainer(WrapperMaintainer):
         if self.editor is not None:
             # Find compatible Maintainer
             first_defined_maintainer_cls: Optional[Type[BaseMaintainer]] = None
+            first_defined_maintainer_subtype: Optional[Type] = None
             first_unsupported_maintainer_cls: Optional[Type[BaseMaintainer]] = None
-            for m in self.maintainer_cls:
-                m.attribute_value = new_value
-                if m.is_value_compatible_static(new_value, self.attribute_type):
+            first_unsupported_maintainer_subtype: Optional[Type] = None
+            for subtype, m in self.map_maintainer_cls.values():
+                m.attribute_value = self.attribute_value
+                if m.is_value_compatible_static(self.attribute_value, subtype):
                     if issubclass(m, UnsupportedMaintainer):
                         if first_unsupported_maintainer_cls is None:
                             first_unsupported_maintainer_cls = m
+                            first_unsupported_maintainer_subtype = subtype
                     else:
                         if first_defined_maintainer_cls is None:
                             first_defined_maintainer_cls = m
+                            first_defined_maintainer_subtype = subtype
                     if first_unsupported_maintainer_cls is not None and first_defined_maintainer_cls is not None:
                         break
             valid_maintainer_cls: Optional[Type[BaseMaintainer]] = first_defined_maintainer_cls \
                 if first_defined_maintainer_cls is not None else first_unsupported_maintainer_cls
+            valid_maintainer_subtype: Optional[Type] = first_defined_maintainer_subtype \
+                if first_defined_maintainer_subtype is not None else first_unsupported_maintainer_subtype
             if valid_maintainer_cls is not None:
                 self.type_string_var.set(
-                    valid_maintainer_cls.get_simplest_type_name_static(target_type=self.attribute_type)
+                    valid_maintainer_cls.get_simplest_type_name_static(target_type=valid_maintainer_subtype)
                 )
                 self._update_editor()
         super().editor_set_value(new_value)

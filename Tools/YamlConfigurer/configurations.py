@@ -14,7 +14,7 @@ from Tools.YamlConfigurer.Maintainer.WrapperMaintainer.union_maintainer import U
 from Tools.YamlConfigurer.Maintainer.WrapperMaintainer.any_maintainer import AnyMaintainer
 from Tools.YamlConfigurer.Maintainer.ContainerMaintainer.list_maintainer import ListMaintainer
 from Tools.YamlConfigurer.Maintainer.ContainerMaintainer.tuple_maintainer import TupleMaintainer
-from Tools.YamlConfigurer.Maintainer.ContainerMaintainer.dataclass_maintainer import DataclassMaintainer
+from Tools.YamlConfigurer.Maintainer.ContainerMaintainer.dataclass_maintainer import DefaultFieldDataclassMaintainer
 from Tools.YamlConfigurer.Maintainer.PrimitiveMaintainer.unsupported_maintainer import UnsupportedMaintainer
 from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
 
@@ -59,7 +59,7 @@ class Configurations:
         ListMaintainer,
         TupleMaintainer,
         StrDictMaintainer,
-        DataclassMaintainer,
+        DefaultFieldDataclassMaintainer,
         UnsupportedMaintainer,
     ]
 

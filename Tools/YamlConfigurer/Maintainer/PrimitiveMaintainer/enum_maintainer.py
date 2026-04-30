@@ -1,5 +1,8 @@
 import copy
+import inspect
 from typing import Any, Tuple, Type, Callable, Optional, get_origin, get_args, List, Dict, cast
+
+from sympy import false
 from typing_extensions import override
 import tkinter as tk
 from tkinter import ttk
@@ -44,7 +47,7 @@ class EnumMaintainer(PrimitiveMaintainer):
     @override
     def is_type_compatible(self) -> bool:
         # Check if it's an Enum subclass
-        return isinstance(self.attribute_type, type) and issubclass(self.attribute_type, enum.Enum)
+        return type(self.attribute_type) is type and issubclass(self.attribute_type, enum.Enum)
 
     @override
     def is_value_compatible(self) -> bool:
@@ -177,7 +180,7 @@ class EnumMaintainer(PrimitiveMaintainer):
     @staticmethod
     @override
     def is_type_compatible_static(target_type: Type) -> bool:
-        return isinstance(target_type, type) and issubclass(target_type, enum.Enum)
+        return type(target_type) is type and issubclass(target_type, enum.Enum)
 
     @staticmethod
     @override

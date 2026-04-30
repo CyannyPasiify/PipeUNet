@@ -146,7 +146,7 @@ class TypeMaintainer(PrimitiveMaintainer):
         # Calculate max width based on longest type name
         max_length = max(len(name) for name in type_names) if type_names else 8
         buffer = 2  # Add buffer to avoid truncation
-        combobox_width = max_length + buffer
+        combobox_width = min(80, max_length + buffer)
 
         # Find the first matched type
         first_valid_type_name: Optional[str] = None

@@ -1,14 +1,17 @@
 import torch
 from torch import Tensor
 import monai.transforms as mT
-from typing import Dict, Optional, Any, Union, List, Tuple, Hashable, Literal
+from typing import Type, Dict, Optional, Any, Union, List, Tuple, Hashable, Literal
+import numpy as np
 import pandas as pd
 import pathlib as pl
 from typing_extensions import override
 from dataclasses import dataclass
 from Operator.operator_configurer import ConfigOperatorBase, TLSeq, PathLike
-from pandas._typing import DtypeArg
 from abc import ABCMeta, abstractmethod
+
+Dtype = Union[str, np.dtype, Type[Union[str, complex, bool, object]]]
+DtypeArg = Union[Dtype, Dict[str, Dtype]]
 
 
 @dataclass

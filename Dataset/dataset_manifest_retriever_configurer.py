@@ -17,11 +17,11 @@ Key Features:
     - Creates MONAI datasets with specified transforms
 """
 import os
+import numpy as np
 import pandas as pd
 import pathlib as pl
 import monai.data as mD
 from typing import Dict, Any, Optional, List, Union, Sequence, Callable, Iterable, Set, Type, Tuple
-from pandas._typing import DtypeArg
 from Dataset.dataset_configurer import ConfigDatasetBase, ConfigDatasetPersistent
 from Operator.operator_configurer import ConfigOperatorIdentity
 from abc import ABC, abstractmethod
@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from typing_extensions import override
 
 PathLike = Union[str, os.PathLike]
+Dtype = Union[str, np.dtype, Type[Union[str, complex, bool, object]]]
+DtypeArg = Union[Dtype, Dict[str, Dtype]]
 
 
 @dataclass

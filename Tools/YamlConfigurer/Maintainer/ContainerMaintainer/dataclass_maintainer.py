@@ -1,5 +1,6 @@
 import copy
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, Field, MISSING
+from inspect import isabstract
 from typing import Any, Tuple, Type, Callable, Optional, List, Literal, Dict, get_origin, get_args
 from typing_extensions import override
 import tkinter as tk
@@ -9,7 +10,7 @@ from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
 from Tools.YamlConfigurer.Maintainer.container_maintainer import ContainerMaintainer
 
 
-class DataclassMaintainer(ContainerMaintainer):
+class DefaultFieldDataclassMaintainer(ContainerMaintainer):
     """Dataclass type Maintainer"""
 
     @classmethod
@@ -33,33 +34,28 @@ class DataclassMaintainer(ContainerMaintainer):
         self.current_dataclass_type: Optional[Type] = None
         self.dataclass_subtypes: List[Type] = []
         self.map_subtype_name: Dict[str, Type] = {}
-        
+
         if self.is_type_compatible():
-            from Tools.YamlConfigurer.configurations import Configurations
-            for maintainer_cls in Configurations.maintainer_collection:
-                if hasattr(maintainer_cls, 'is_type_compatible_static'):
-                    try:
-                        if maintainer_cls.is_type_compatible_static(self.attribute_type):
-                            pass
-                    except:
-                        pass
-        
+            self.dataclass_subtypes, self.map_subtype_name = \
+                DefaultFieldDataclassMaintainer._get_all_subclasses_non_abstract(self.attribute_type)
+
         self.view_mode: Literal["Standalone", "Packed"] = "Standalone"
         self.item_inspector_inner_frame_id: Optional[int] = None
         self.popup_canvas_inner_frame_id: Optional[int] = None
         self.popup_wnd_result: Optional[Dict[str, Any]] = None
         self.item_maintainer: Optional[BaseMaintainer] = None
         self.current_selected_item: Optional[str] = None
-        
+
         self.editor_label_frame: Optional[ttk.LabelFrame] = None
         self.type_combobox_frame: Optional[ttk.Frame] = None
+        self.type_label: Optional[ttk.Label] = None
         self.type_string_var: Optional[tk.StringVar] = None
         self.type_combobox: Optional[ttk.Combobox] = None
         self.tree_frame: Optional[ttk.Frame] = None
         self.list_treeview: Optional[ttk.Treeview] = None
         self.tree_frame_vscrollbar: Optional[ttk.Scrollbar] = None
         self.tree_frame_hscrollbar: Optional[ttk.Scrollbar] = None
-        
+
         self.popup_top_level: Optional[tk.Toplevel] = None
         self.popup_inspector_frame: Optional[ttk.Frame] = None
         self.popup_canvas: Optional[tk.Canvas] = None
@@ -70,7 +66,7 @@ class DataclassMaintainer(ContainerMaintainer):
         self.popup_wnd_button_container: Optional[ttk.Frame] = None
         self.popup_confirm_button: Optional[ttk.Button] = None
         self.popup_cancel_button: Optional[ttk.Button] = None
-        
+
         self.double_paned_wnd: Optional[ttk.PanedWindow] = None
         self.main_inspector_left_frame: Optional[ttk.Frame] = None
         self.item_inspector_right_frame: Optional[ttk.Frame] = None
@@ -80,26 +76,34 @@ class DataclassMaintainer(ContainerMaintainer):
         self.item_inspector_hscrollbar: Optional[ttk.Scrollbar] = None
         self.item_inspector_inner_frame: Optional[ttk.Frame] = None
 
+    @staticmethod
+    def _is_all_dataclass_fields_has_default(cls: Type) -> bool:
+        assert is_dataclass(cls)
+        fds: Tuple[Field, ...] = fields(cls)  # noqa
+        for f in fds:
+            has_def = (f.default is not MISSING) or (f.default_factory is not MISSING)
+            if not has_def:
+                return False
+        return True
+
     @override
     def is_type_compatible(self) -> bool:
-        return is_dataclass(self.attribute_type)
+        return is_dataclass(self.attribute_type) and \
+            DefaultFieldDataclassMaintainer._is_all_dataclass_fields_has_default(self.attribute_type)
 
     @override
     def is_value_compatible(self) -> bool:
         if not self.is_type_compatible():
             return False
-        if self.attribute_value is None:
-            return True
         return isinstance(self.attribute_value, self.attribute_type)
 
     @override
     def get_default_value(self, *args, **kwargs) -> Any:
         if not self.is_type_compatible():
             return None
-        try:
-            return self.attribute_type()
-        except:
-            return None
+        if self.dataclass_subtypes:
+            return self.dataclass_subtypes[0]()
+        return None
 
     @override
     def get_simplest_type(self, *args, **kwargs) -> Type:
@@ -111,19 +115,21 @@ class DataclassMaintainer(ContainerMaintainer):
             return ""
         return self.attribute_type.__name__
 
-    def _collect_dataclass_subtypes(self):
-        from Tools.YamlConfigurer.configurations import Configurations
-        self.dataclass_subtypes = []
-        self.map_subtype_name = {}
-        
-        for maintainer_cls in Configurations.maintainer_collection:
-            if hasattr(maintainer_cls, '__orig_bases__'):
-                for base in maintainer_cls.__orig_bases__:
-                    if get_origin(base) is BaseMaintainer:
-                        arg = get_args(base)[0]
-                        if is_dataclass(arg) and issubclass(arg, self.attribute_type):
-                            self.dataclass_subtypes.append(arg)
-                            self.map_subtype_name[arg.__name__] = arg
+    @staticmethod
+    def _get_all_subclasses_non_abstract(target_type: Type) -> Tuple[List[Type], Dict[str, Type]]:
+        dataclass_subtypes: List[Type] = []
+        map_subtype_name: Dict[str, Type] = {}
+
+        def traverse(c: Type):
+            if not isabstract(c):
+                dataclass_subtypes.append(c)
+                map_subtype_name[c.__name__] = c
+            for sub in c.__subclasses__():
+                if sub not in dataclass_subtypes:
+                    traverse(sub)
+
+        traverse(target_type)
+        return dataclass_subtypes, map_subtype_name
 
     @override
     def create_inspector(
@@ -275,31 +281,29 @@ class DataclassMaintainer(ContainerMaintainer):
     ) -> ttk.Widget:
         super().create_editor(parent, on_value_change)
 
-        self._collect_dataclass_subtypes()
-
         self.type_combobox_frame = ttk.Frame(self.editor)
         self.type_combobox_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.X)
 
         self.type_string_var = tk.StringVar(value="")
-        
-        type_names: List[str] = list(self.map_subtype_name.keys())
-        if type_names:
-            default_type_name = self.attribute_type.__name__
-            if default_type_name in type_names:
-                self.type_string_var.set(default_type_name)
-            else:
-                self.type_string_var.set(type_names[0])
-        else:
-            self.type_string_var.set(self.attribute_type.__name__)
 
-        self.type_label = ttk.Label(self.type_combobox_frame, text="Type:")
+        type_names: List[str] = list(self.map_subtype_name.keys())
+
+        # Calculate max width based on longest type name
+        max_length = max(len(name) for name in type_names) if type_names else 8
+        buffer = 2  # Add buffer to avoid truncation
+        combobox_width = max_length + buffer
+
+        if isinstance(self.attribute_value, self.attribute_type):
+            self.type_string_var.set(type(self.attribute_value).__name__)
+
+        self.type_label = ttk.Label(self.type_combobox_frame, text="Dataclass:")
         self.type_label.pack(side=tk.LEFT, padx=5, pady=5)
-        
+
         self.type_combobox = ttk.Combobox(
             self.type_combobox_frame,
             textvariable=self.type_string_var,
             values=type_names if type_names else [self.attribute_type.__name__],
-            width=20,
+            width=combobox_width,
             state="readonly" if self.can_edit() else "disabled"
         )
         self.type_combobox.pack(side=tk.LEFT, padx=5, pady=5)
@@ -310,7 +314,7 @@ class DataclassMaintainer(ContainerMaintainer):
                 self.current_dataclass_type = self.map_subtype_name[selected_type_name]
             else:
                 self.current_dataclass_type = self.attribute_type
-            
+
             self.editor_value = self.current_dataclass_type()
             self._update_treeview()
             self.on_value_change(copy.deepcopy(self.editor_value))
@@ -320,12 +324,12 @@ class DataclassMaintainer(ContainerMaintainer):
         self.tree_frame = ttk.Frame(self.editor)
         self.tree_frame.pack(anchor=tk.W, padx=10, pady=5, fill=tk.BOTH, expand=True)
 
-        self.list_treeview = ttk.Treeview(self.tree_frame, columns=("name", "type", "value"), show="headings")
-        self.list_treeview.heading("name", text="Name")
+        self.list_treeview = ttk.Treeview(self.tree_frame, columns=("attribute", "type", "value"), show="headings")
+        self.list_treeview.heading("attribute", text="Attribute")
         self.list_treeview.heading("type", text="Type")
         self.list_treeview.heading("value", text="Value")
 
-        self.list_treeview.column("name", minwidth=80, width=120, stretch=False, anchor=tk.W)
+        self.list_treeview.column("attribute", minwidth=80, width=120, stretch=False, anchor=tk.W)
         self.list_treeview.column("type", minwidth=80, width=150, stretch=False, anchor=tk.W)
         self.list_treeview.column("value", minwidth=100, width=200, stretch=False, anchor=tk.W)
 
@@ -333,18 +337,18 @@ class DataclassMaintainer(ContainerMaintainer):
             tree_width = self.list_treeview.winfo_width()
             if tree_width > 0:
                 available_width = tree_width - 2
-                name_ratio = 0.2
+                attribute_ratio = 0.2
                 type_ratio = 0.3
-                
-                name_width = max(80, int(available_width * name_ratio))
+
+                name_width = max(80, int(available_width * attribute_ratio))
                 type_width = max(80, int(available_width * type_ratio))
                 value_width = max(100, available_width - name_width - type_width)
-                
+
                 total_width = name_width + type_width + value_width
                 if total_width > available_width:
                     value_width = available_width - name_width - type_width
-                
-                self.list_treeview.column("name", minwidth=80, width=name_width, stretch=False, anchor=tk.W)
+
+                self.list_treeview.column("attribute", minwidth=80, width=name_width, stretch=False, anchor=tk.W)
                 self.list_treeview.column("type", minwidth=80, width=type_width, stretch=False, anchor=tk.W)
                 self.list_treeview.column("value", minwidth=100, width=value_width, stretch=False, anchor=tk.W)
 
@@ -375,10 +379,10 @@ class DataclassMaintainer(ContainerMaintainer):
 
         if self.current_dataclass_type is None:
             self.current_dataclass_type = self.attribute_type
-        
+
         if self.editor_value is None:
             self.editor_value = self.current_dataclass_type()
-        
+
         self._update_treeview()
 
         self.current_selected_item = None
@@ -399,24 +403,24 @@ class DataclassMaintainer(ContainerMaintainer):
 
     def _update_treeview(self):
         self.list_treeview.delete(*self.list_treeview.get_children())
-        
+
         if self.editor_value is None:
             return
-        
+
         from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
-        
+
         dataclass_fields = fields(self.editor_value)
         for field in dataclass_fields:
             field_value = getattr(self.editor_value, field.name)
             field_type = field.type
-            
+
             maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(field_type)
             type_name = maintainer_cls.get_simplest_type_name_static(target_type=field_type)
-            
+
             value_repr = repr(field_value)
             if len(value_repr) > 50:
                 value_repr = value_repr[:50] + "..."
-            
+
             self.list_treeview.insert("", tk.END, values=(field.name, type_name, value_repr))
 
     def _on_treeview_select(self, event: Optional[tk.Event] = None):
@@ -425,49 +429,66 @@ class DataclassMaintainer(ContainerMaintainer):
             self.current_selected_item = selected_items[0]
         else:
             self.current_selected_item = None
-        
+
         if self.view_mode == "Standalone":
             self._update_item_inspector()
 
     def _update_item_inspector(self):
+        if self.view_mode != "Standalone":
+            return
+
         for widget in self.item_inspector_inner_frame.winfo_children():
             widget.destroy()
-        
+
         if self.current_selected_item is None or self.editor_value is None:
             return
-        
+
         item_values = self.list_treeview.item(self.current_selected_item, "values")
         if not item_values or len(item_values) < 1:
             return
-        
+
         field_name = item_values[0]
-        
+
         dataclass_fields = fields(self.editor_value)
         field_type = None
         field_value = None
-        
+
         for field in dataclass_fields:
             if field.name == field_name:
                 field_type = field.type
                 field_value = getattr(self.editor_value, field.name)
                 break
-        
+
         if field_type is None:
             return
-        
+
         from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
-        
+
         maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(field_type)
         self.item_maintainer = maintainer_cls(field_name, field_type, field_value, self.logger)
         self.item_maintainer.config_view("Packed")
-        
-        def on_value_change(new_value: Any):
-            setattr(self.editor_value, field_name, new_value)
-            self._update_treeview()
-            self.on_value_change(copy.deepcopy(self.editor_value))
-        
-        inspector = self.item_maintainer.create_inspector(self.item_inspector_inner_frame, on_value_change)
+
+        inspector = self.item_maintainer.create_inspector(self.item_inspector_inner_frame, self._on_item_value_change)
         inspector.pack(fill=tk.BOTH, expand=True)
+
+    def _on_item_value_change(self, new_value: Any):
+        assert self.item_maintainer is not None
+        assert self.current_selected_item is not None
+
+        # 获取选中项的索引
+        item_values = self.list_treeview.item(self.current_selected_item, "values")
+        field_name: str = item_values[0]
+        field_type: str = item_values[1]
+
+        setattr(self.editor_value, field_name, new_value)
+        self.item_maintainer.confirm_editor_change()
+
+        self.list_treeview.item(self.current_selected_item, values=(field_name, field_type, repr(new_value)))
+
+        self._on_dataclass_content_change(copy.deepcopy(self.editor_value))
+
+        # 记录日志
+        self.log_message(f"Updated attribute '{self.attribute_name}.{field_name}' to {repr(new_value)}")
 
     def _on_dataclass_content_change(self, new_value: Any) -> None:
         is_valid, validated_value = self.editor_validate(new_value)
@@ -634,8 +655,8 @@ class DataclassMaintainer(ContainerMaintainer):
             return
 
         result = self._create_popup_inspector_window(
-            title=f"Edit {field_name}",
-            item_attribute_name=field_name,
+            title=f"Edit {self.attribute_name}.{field_name}",
+            item_attribute_name=f"{self.attribute_name}.{field_name}",
             item_attribute_type=field_type,
             item_attribute_value=field_value
         )
@@ -650,16 +671,14 @@ class DataclassMaintainer(ContainerMaintainer):
     def editor_enable(self):
         if self.editor is not None and self.type_combobox is not None:
             self.type_combobox.config(state="readonly")
-            if self.current_maintainer is not None:
-                self.current_maintainer.editor_enable()
+            self.list_treeview.state(['!disabled'])
         super().editor_enable()
 
     @override
     def editor_disable(self):
         if self.editor is not None and self.type_combobox is not None:
             self.type_combobox.config(state="disabled")
-            if self.current_maintainer is not None:
-                self.current_maintainer.editor_disable()
+            self.list_treeview.state(['disabled'])
         super().editor_disable()
 
     @override
@@ -680,26 +699,26 @@ class DataclassMaintainer(ContainerMaintainer):
     @staticmethod
     @override
     def is_type_compatible_static(target_type: Type) -> bool:
-        return is_dataclass(target_type)
+        return is_dataclass(target_type) and \
+            DefaultFieldDataclassMaintainer._is_all_dataclass_fields_has_default(target_type)
 
     @staticmethod
     @override
     def is_value_compatible_static(value: Any, target_type: Type = Any) -> bool:
-        if not DataclassMaintainer.is_type_compatible_static(target_type):
+        if not DefaultFieldDataclassMaintainer.is_type_compatible_static(target_type):
             return False
-        if value is None:
-            return True
         return isinstance(value, target_type)
 
     @staticmethod
     @override
     def get_default_value_static(target_type: Type, *args, **kwargs) -> Any:
-        if not DataclassMaintainer.is_type_compatible_static(target_type):
+        if not DefaultFieldDataclassMaintainer.is_type_compatible_static(target_type):
             return None
-        try:
-            return target_type()
-        except:
-            return None
+        dataclass_subtypes: List[Type]
+        dataclass_subtypes, _ = DefaultFieldDataclassMaintainer._get_all_subclasses_non_abstract(target_type)
+        if dataclass_subtypes:
+            return dataclass_subtypes[0]()
+        return None
 
     @staticmethod
     @override
@@ -709,6 +728,6 @@ class DataclassMaintainer(ContainerMaintainer):
     @staticmethod
     @override
     def get_simplest_type_name_static(target_type: Type, *args, **kwargs) -> str:
-        if not DataclassMaintainer.is_type_compatible_static(target_type):
+        if not DefaultFieldDataclassMaintainer.is_type_compatible_static(target_type):
             return ""
         return target_type.__name__

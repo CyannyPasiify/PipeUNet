@@ -1,6 +1,5 @@
-from dataclasses import dataclass, fields
-from enum import Enum
-from typing import Union, Optional, List, Type, Tuple, Dict, Set, Any, Iterable, Collection, Container, \
+from dataclasses import dataclass
+from typing import Union, Optional, List, Type, Tuple, Dict, Set, Any, Iterable, Collection, \
     get_origin, get_args
 import sys
 
@@ -94,6 +93,10 @@ def simplify_type(target_type: Type) -> Any:
         dict: Dict
     }
     if target_type in map_to_typing:
+        if target_type == dict:
+            return map_to_typing[target_type][Any, Any]
+        if target_type == tuple:
+            return map_to_typing[target_type][Any, ...]
         return map_to_typing[target_type][Any]
 
     # Optional will be Union, no bother processing Optional
@@ -207,7 +210,7 @@ def simplify_type(target_type: Type) -> Any:
                 return origin[()]
             # Simply simplify all args
             sim_args: List = [simplify_type(t) for t in type_args]
-            return origin[tuple(sim_args)]
+            return origin[tuple(sim_args)] if sim_args else origin
         except Exception as e:
             print(e)
 
