@@ -905,6 +905,7 @@ class StrDictMaintainer(ContainerMaintainer):
         self.popup_top_level.transient(self.editor.winfo_toplevel())
         self.popup_top_level.grab_set()
         self.editor.winfo_toplevel().wait_window(self.popup_top_level)
+        self.editor.winfo_toplevel().grab_set()
 
         return self.popup_wnd_result
 
@@ -970,6 +971,9 @@ class StrDictMaintainer(ContainerMaintainer):
         if item_values and item_values[0] == StrDictMaintainer.NEW_ITEM_INDICATOR:
             # 当焦点在<New Item>上时，调用add_item函数，等同于添加新元素
             self._add_item()
+            return
+
+        if self.view_mode != "Packed":
             return
 
         # 获取选中项的当前键值对
@@ -1221,7 +1225,15 @@ class StrDictMaintainer(ContainerMaintainer):
     @override
     def editor_enable(self):
         if self.editor is not None:
-            self.list_treeview.state(['!disabled'])
+            # 清空Treeview
+            for item in self.list_treeview.get_children():
+                self.list_treeview.delete(item)
+            # 重新填充Treeview
+            if self.attribute_value:
+                for key, value in self.attribute_value.items():
+                    self.list_treeview.insert("", tk.END, values=(key, repr(value)))
+            # 添加空白行
+            self.list_treeview.insert("", tk.END, values=(StrDictMaintainer.NEW_ITEM_INDICATOR, ""))
             for widget in self.buttons_frame.winfo_children():
                 if isinstance(widget, ttk.Button):
                     widget.config(state='normal')
@@ -1230,7 +1242,9 @@ class StrDictMaintainer(ContainerMaintainer):
     @override
     def editor_disable(self):
         if self.editor is not None:
-            self.list_treeview.state(['disabled'])
+            # 清空Treeview
+            for item in self.list_treeview.get_children():
+                self.list_treeview.delete(item)
             for widget in self.buttons_frame.winfo_children():
                 if isinstance(widget, ttk.Button):
                     widget.config(state='disabled')

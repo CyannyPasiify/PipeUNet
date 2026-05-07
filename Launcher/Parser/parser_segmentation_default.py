@@ -417,8 +417,8 @@ class ParserSegmentationDefault(ParserABC):
             param_tf_rand_crop_by_label_classes_ratios=[0.0] + [1.0] * (num_classes - 1),
             param_tf_rand_crop_by_label_classes_num_classes=num_classes,
             param_tf_rand_crop_by_label_classes_num_samples=crop_per_sample,
-            param_tf_scale_intensity_range_a_min=-1000,
-            param_tf_scale_intensity_range_a_max=1000,
+            param_tf_scale_intensity_range_a_min=-1000.0,
+            param_tf_scale_intensity_range_a_max=1000.0,
             param_tf_scale_intensity_range_b_min=0.0,
             param_tf_scale_intensity_range_b_max=1.0,
             param_tf_scale_intensity_range_clip=True,
@@ -499,8 +499,8 @@ class ParserSegmentationDefault(ParserABC):
             param_tf_spacing_mode_mask=GridSampleMode.NEAREST,
             param_tf_padding_mode_volume=GridSamplePadMode.BORDER,
             param_tf_padding_mode_mask=GridSamplePadMode.BORDER,
-            param_tf_scale_intensity_range_a_min=-1000,
-            param_tf_scale_intensity_range_a_max=1000,
+            param_tf_scale_intensity_range_a_min=-1000.0,
+            param_tf_scale_intensity_range_a_max=1000.0,
             param_tf_scale_intensity_range_b_min=0.0,
             param_tf_scale_intensity_range_b_max=1.0,
             param_tf_scale_intensity_range_clip=True
@@ -550,8 +550,8 @@ class ParserSegmentationDefault(ParserABC):
             param_tf_spacing_mode_mask=GridSampleMode.NEAREST,
             param_tf_padding_mode_volume=GridSamplePadMode.BORDER,
             param_tf_padding_mode_mask=GridSamplePadMode.BORDER,
-            param_tf_scale_intensity_range_a_min=-1000,
-            param_tf_scale_intensity_range_a_max=1000,
+            param_tf_scale_intensity_range_a_min=-1000.0,
+            param_tf_scale_intensity_range_a_max=1000.0,
             param_tf_scale_intensity_range_b_min=0.0,
             param_tf_scale_intensity_range_b_max=1.0,
             param_tf_scale_intensity_range_clip=True
@@ -595,8 +595,8 @@ class ParserSegmentationDefault(ParserABC):
             param_tf_spacing_pixdim=(1.0, 1.0, 1.0),
             param_tf_spacing_mode_volume=GridSampleMode.BILINEAR,
             param_tf_padding_mode_volume=GridSamplePadMode.BORDER,
-            param_tf_scale_intensity_range_a_min=-1000,
-            param_tf_scale_intensity_range_a_max=1000,
+            param_tf_scale_intensity_range_a_min=-1000.0,
+            param_tf_scale_intensity_range_a_max=1000.0,
             param_tf_scale_intensity_range_b_min=0.0,
             param_tf_scale_intensity_range_b_max=1.0,
             param_tf_scale_intensity_range_clip=True
@@ -973,7 +973,7 @@ class ParserSegmentationDefault(ParserABC):
             # Anyway, please specify it manually, it's your responsibility!
             steps_per_epoch=5,
             pct_start=0.3,  # Increasing part occupies the first 30% steps
-            div_factor=25,
+            div_factor=25.0,
             final_div_factor=1e4
         )
 

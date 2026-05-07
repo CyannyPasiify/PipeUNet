@@ -125,7 +125,7 @@ class ConfigCallbackModelCheckpoint(ConfigCallbackBase):
             >>>     filename='{epoch}-{val_loss:.2f}-{other_metric:.2f}'
             >>> )
         By default, filename is None and will be set to '{epoch}-{step}', where "epoch" and "step" match the number of finished epoch and optimizer steps respectively.
-        monitor: quantity to monitor. By default it is None which saves a checkpoint only for the last epoch.
+        monitor: quantity to monitor. By default, it is None which saves a checkpoint only for the last epoch.
         save_top_k: if save_top_k == k, the best k models according to the quantity monitored will be saved. If save_top_k == 0, no models are saved. If save_top_k == -1, all models are saved. Please note that the monitors are checked every every_n_epochs epochs. If save_top_k >= 2 and the callback is called multiple times inside an epoch, and the filename remains unchanged, the name of the saved file will be appended with a version count starting with v1 to avoid collisions. The version counter is unrelated to the top-k ranking of the checkpoint, and we recommend formatting the filename to include the monitored metric to avoid collisions.
         mode: one of {min, max}. If save_top_k != 0, the decision to overwrite the current save file is made based on either the maximization or the minimization of the monitored quantity. For 'val_acc', this should be 'max', for 'val_loss' this should be 'min', etc.
         save_last: When True, saves a last.ckpt copy whenever a checkpoint file gets saved. Can be set to 'link' on a local filesystem to create a symbolic link. This allows accessing the latest checkpoint in a deterministic manner. Default: None.

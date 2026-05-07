@@ -95,7 +95,17 @@ class DefaultFieldDataclassMaintainer(ContainerMaintainer):
     def is_value_compatible(self) -> bool:
         if not self.is_type_compatible():
             return False
-        return isinstance(self.attribute_value, self.attribute_type)
+        if not is_dataclass(self.attribute_value):
+            return False
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        dataclass_fields = fields(self.attribute_value)
+        for field in dataclass_fields:
+            field_value = getattr(self.attribute_value, field.name)
+            field_type = field.type
+            maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(field_type)
+            if not maintainer_cls.is_value_compatible_static(field_value, field_type):
+                return False
+        return True
 
     @override
     def get_default_value(self, *args, **kwargs) -> Any:
@@ -181,7 +191,7 @@ class DefaultFieldDataclassMaintainer(ContainerMaintainer):
             if not self.can_edit():
                 return self.inspector
 
-            self.editor_label_frame = ttk.LabelFrame(self.main_inspector_left_frame, text="Dataclass")
+            self.editor_label_frame = ttk.LabelFrame(self.main_inspector_left_frame, text="Editor")
             self.editor_label_frame.pack(
                 anchor=tk.N,
                 fill=tk.BOTH,
@@ -297,7 +307,7 @@ class DefaultFieldDataclassMaintainer(ContainerMaintainer):
             self.type_string_var.set(type(self.attribute_value).__name__)
 
         self.type_label = ttk.Label(self.type_combobox_frame, text="Dataclass:")
-        self.type_label.pack(side=tk.LEFT, padx=5, pady=5)
+        self.type_label.pack(side=tk.LEFT)
 
         self.type_combobox = ttk.Combobox(
             self.type_combobox_frame,
@@ -387,6 +397,7 @@ class DefaultFieldDataclassMaintainer(ContainerMaintainer):
 
         self.current_selected_item = None
         self.list_treeview.bind("<<TreeviewSelect>>", self._on_treeview_select)
+
         self.list_treeview.bind("<Double-1>", self._on_tree_double_click)
 
         def on_mouse_wheel(event: Optional[tk.Event] = None):
@@ -597,6 +608,7 @@ class DefaultFieldDataclassMaintainer(ContainerMaintainer):
         self.popup_top_level.transient(self.editor.winfo_toplevel())
         self.popup_top_level.grab_set()
         self.editor.winfo_toplevel().wait_window(self.popup_top_level)
+        self.editor.winfo_toplevel().grab_set()
 
         return self.popup_wnd_result
 
@@ -633,6 +645,9 @@ class DefaultFieldDataclassMaintainer(ContainerMaintainer):
         return "break"
 
     def _edit_item(self):
+        if self.view_mode != "Packed":
+            return
+
         if self.current_selected_item is None or self.editor_value is None:
             return
 
@@ -671,14 +686,19 @@ class DefaultFieldDataclassMaintainer(ContainerMaintainer):
     def editor_enable(self):
         if self.editor is not None and self.type_combobox is not None:
             self.type_combobox.config(state="readonly")
-            self.list_treeview.state(['!disabled'])
+            # 清空Treeview
+            for item in self.list_treeview.get_children():
+                self.list_treeview.delete(item)
+            self._update_treeview()
         super().editor_enable()
 
     @override
     def editor_disable(self):
         if self.editor is not None and self.type_combobox is not None:
             self.type_combobox.config(state="disabled")
-            self.list_treeview.state(['disabled'])
+            # 清空Treeview
+            for item in self.list_treeview.get_children():
+                self.list_treeview.delete(item)
         super().editor_disable()
 
     @override
@@ -707,6 +727,17 @@ class DefaultFieldDataclassMaintainer(ContainerMaintainer):
     def is_value_compatible_static(value: Any, target_type: Type = Any) -> bool:
         if not DefaultFieldDataclassMaintainer.is_type_compatible_static(target_type):
             return False
+        if not is_dataclass(value):
+            return False
+
+        from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
+        dataclass_fields = fields(value)
+        for field in dataclass_fields:
+            field_value = getattr(value, field.name)
+            field_type = field.type
+            maintainer_cls = MaintainerFactory.get_maintainer_cls_supported_type(field_type)
+            if not maintainer_cls.is_value_compatible_static(field_value, field_type):
+                return False
         return isinstance(value, target_type)
 
     @staticmethod

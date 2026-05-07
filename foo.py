@@ -48,7 +48,7 @@ def default_dict_tuple_int_float_str():
 
 
 def default_list_nested():
-    return [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    return [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]]
 
 
 def default_list_tuple_nested():
@@ -89,8 +89,8 @@ class ParserRealBeings(ParserABC):
     # un_1: Union[None, int] = None
     # un_2: Union[float, int, Type] = 1
     # un_3: Union[str, int, float] = "1.0"
-    un_4: Union[int, int, int] = 1.0
-    un_5: Union[int, Union[float, str]] = None
+    # un_4: Union[int, int, int] = 1.0
+    # un_5: Union[int, Union[float, str]] = None
     # any_1: Any = 1
     # lt_1: Literal[1, "b", "c"] = 1
     # lt_2: Literal[int, Union[str], "c"] = 1
@@ -107,14 +107,15 @@ class ParserRealBeings(ParserABC):
     # int_2_tuple: Tuple[int, float, str] = (1, 2.0, '3s')
     # int_many_tuple: Tuple[int, ...] = (1, 2, 3, 4, 5, 6)
     # any_many_tuple: Tuple = (1, '2', 3.0)
-    # tup_list_int_bool: Tuple[List[int], List[bool]] = ([1, 2, 3], [True, False, False, True])
+    tup_list_int_bool: Tuple[List[int], List[bool]] = ([1, 2, 3], [True, False, False, True])
     # list_tuple_str_int_list_bool: List[Tuple[str, int, List[bool]]] = field(default_factory=default_list_tuple_nested)
-    # int_list: List[int] = field(default_factory=default_list_int)
+    int_list: Optional[List[int]] = field(default_factory=default_list_int)
     # str_list: List[str] = field(default_factory=default_list_str)
     # any_list: List[Any] = field(default_factory=default_list_any)
-    # nested_list: List[List[int]] = field(default_factory=default_list_nested)
-    opt_hs1: ConfigOperatorHookStepBase = ConfigOperatorHookStepDisplayDictKeys()
-    list_opt_hs2: List[ConfigOperatorHookStepBase] = field(default_factory=list)
+    nested_list: List[List[List[int]]] = field(default_factory=default_list_nested)
+    # opt_hs1: ConfigOperatorHookStepBase = ConfigOperatorHookStepDisplayDictKeys()
+    # list_opt_hs2: List[ConfigOperatorHookStepBase] = field(default_factory=list)
+
 
 @dataclass
 class ParserBeings(ParserABC):
@@ -169,8 +170,4 @@ class footup:
 
 
 if __name__ == '__main__':
-    tp = Literal[1, "b", "c"]
-    tp_origin = get_origin(tp)
-    tp_args = get_args(tp)
-    print(tp_origin)
-    print(tp_args)
+    pass

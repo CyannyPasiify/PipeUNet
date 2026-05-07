@@ -75,8 +75,15 @@ class OptionalMaintainer(WrapperMaintainer):
             return True
         if not self.is_type_compatible():
             return False
-        return not issubclass(self.current_maintainer_cls, UnsupportedMaintainer) \
-            and self.current_maintainer_cls.is_value_compatible_static(self.attribute_value, self.attribute_type)
+        if issubclass(self.current_maintainer_cls, UnsupportedMaintainer):
+            return False
+
+        type_args: Tuple[Any, ...] = get_args(self.attribute_type)
+        # Optional[T] = Union[T, NoneType]
+        assert len(type_args) == 2 and any(
+            [t is not type(None) for t in type_args]), f"Optional must have only 1 argument"
+        not_none_type = type_args[0] if type_args[1] is type(None) else type_args[1]
+        return self.current_maintainer_cls.is_value_compatible_static(self.attribute_value, not_none_type)
 
     @override
     def get_default_value(self, *args, **kwargs) -> Any:

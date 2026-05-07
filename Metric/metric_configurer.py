@@ -1665,7 +1665,7 @@ class ConfigMetricBinaryF1Score(ConfigMetricBinaryStatScores, ConfigMetricTorchS
     """
     Wrapper class for binary F1Score metric, enhanced with additional plot control functionality.
     """
-    zero_division: float = 0
+    zero_division: float = 0.0
 
     @override
     def init_essentials(self) -> 'ConfigMetricBinaryF1Score':
@@ -1685,7 +1685,7 @@ class ConfigMetricMulticlassF1Score(ConfigMetricMulticlassStatScores, ConfigMetr
     """
     Wrapper class for multiclass F1Score metric, enhanced with additional plot control functionality.
     """
-    zero_division: float = 0
+    zero_division: float = 0.0
 
     @override
     def init_essentials(self) -> 'ConfigMetricMulticlassF1Score':
@@ -1707,7 +1707,7 @@ class ConfigMetricMultilabelF1Score(ConfigMetricMultilabelStatScores, ConfigMetr
     """
     Wrapper class for multilabel F1Score metric, enhanced with additional plot control functionality.
     """
-    zero_division: float = 0
+    zero_division: float = 0.0
 
     @override
     def init_essentials(self) -> 'ConfigMetricMultilabelF1Score':

@@ -87,10 +87,10 @@ class ConfigDatasetManifestRetrieverSegmentationDefault(ConfigDatasetManifestRet
     """
     root_dir: PathLike = ""
     manifest_file: PathLike = ""
+    column_dtype_map: Optional[DtypeArg] = None
     column_key_map: Dict[str, str] = field(default_factory=dict)
     column_key_relative_path: Union[Tuple[str, ...], List[str]] = ()
     column_group_map: Dict[str, Union[Tuple[str, ...], List[str]]] = field(default_factory=dict)
-    column_dtype_map: Optional[DtypeArg] = None
 
     @override
     def init_essentials(self) -> 'ConfigDatasetManifestRetrieverSegmentationDefault':
@@ -245,8 +245,8 @@ if __name__ == "__main__":
         'param_tf_rand_crop_by_label_classes_ratios': (0.0, 1.0),
         'param_tf_rand_crop_by_label_classes_num_classes': 2,
         'param_tf_rand_crop_by_label_classes_num_samples': 2,
-        'param_tf_scale_intensity_range_a_min': -1000,
-        'param_tf_scale_intensity_range_a_max': 1000,
+        'param_tf_scale_intensity_range_a_min': -1000.0,
+        'param_tf_scale_intensity_range_a_max': 1000.0,
         'param_tf_scale_intensity_range_b_min': 0.0,
         'param_tf_scale_intensity_range_b_max': 1.0,
         'param_tf_scale_intensity_range_clip': True,

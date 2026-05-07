@@ -110,7 +110,7 @@ class ConfigTransformSegmentationDefaultTrain(ConfigTransformBase):
 
     Initialize the training transform pipeline
 
-    Args:
+    Attributes:
         volume_key: Key for volume data in the input dictionary
         mask_key: Key for mask data in the input dictionary
         param_volume_tf_duplicate_items_dup_keys_volume: Key for duplicated volume data
@@ -292,7 +292,7 @@ class ConfigTransformSegmentationDefaultInferencePre(ConfigTransformBase):
 
     Initialize the inference preprocessing transform pipeline
 
-    Args:
+    Attributes:
         volume_key: Key for volume data in the input dictionary
         mask_key: Key for mask data in the input dictionary (optional)
         param_volume_tf_duplicate_items_dup_keys_volume: Key for duplicated volume data
@@ -386,7 +386,7 @@ class ConfigTransformSegmentationDefaultInferencePost(ConfigTransformBase):
 
     Initialize the inference postprocessing transform pipeline
 
-    Args:
+    Attributes:
         volume_key: Key for volume data in the input dictionary (optional)
         mask_key: Key for mask data in the input dictionary
         ref_key: Key for reference data used for resampling

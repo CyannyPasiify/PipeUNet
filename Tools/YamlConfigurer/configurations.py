@@ -18,28 +18,8 @@ from Tools.YamlConfigurer.Maintainer.ContainerMaintainer.dataclass_maintainer im
 from Tools.YamlConfigurer.Maintainer.PrimitiveMaintainer.unsupported_maintainer import UnsupportedMaintainer
 from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
 
-# Import all dataclass classes from Operator module
-from Operator.operator_configurer import (
-    ConfigOperatorBase,
-    ConfigOperatorIdentity,
-)
-from Operator.operator_configurer_hook_step import (
-    ConfigOperatorHookStepBase,
-    ConfigOperatorHookStepDisplayDictKeys,
-    ConfigOperatorHookStepExportMulticlassPredWithMaskResults,
-    ConfigOperatorHookStepExportMulticlassPredOnlyResults,
-)
-from Operator.operator_configurer_tensor_process import (
-    ConfigOperatorTensorProcessBase,
-    ConfigOperatorTensorProcessIdentity,
-    ConfigOperatorTensorProcessMonaiAsDiscrete,
-    ConfigOperatorTensorProcessTorchSoftmax,
-)
-from Operator.operator_configurer_tensor_remap import (
-    ConfigOperatorTensorRemapBase,
-    ConfigOperatorTensorRemapConfMat,
-    ConfigOperatorTensorRemapClassWise,
-)
+from Launcher.Parser import ParserABC, ParserSegmentationDefault
+from foo import ParserBeings, ParserRealBeings
 
 
 class Configurations:
@@ -61,6 +41,12 @@ class Configurations:
         StrDictMaintainer,
         DefaultFieldDataclassMaintainer,
         UnsupportedMaintainer,
+    ]
+
+    parser_collection: List[Type[ParserABC]] = [
+        ParserSegmentationDefault,
+        ParserRealBeings,
+        ParserBeings
     ]
 
 

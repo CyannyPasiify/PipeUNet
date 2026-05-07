@@ -46,10 +46,10 @@ class ConfigLightningModuleBase(ABC):
 
 @dataclass
 class ConfigLightningModuleSegmentationDefault(ConfigLightningModuleBase):
-    network_init_args: NamedNetworkInitArgs = NamedNetworkInitArgs(),
-    module_training_step_addition_args: Optional[ModuleTrainingStepAdditionArgs] = None,
-    module_validation_step_addition_args: Optional[ModuleValidationStepAdditionArgs] = None,
-    module_test_step_addition_args: Optional[ModuleTestStepAdditionArgs] = None,
+    network_init_args: NamedNetworkInitArgs = NamedNetworkInitArgs()
+    module_training_step_addition_args: Optional[ModuleTrainingStepAdditionArgs] = None
+    module_validation_step_addition_args: Optional[ModuleValidationStepAdditionArgs] = None
+    module_test_step_addition_args: Optional[ModuleTestStepAdditionArgs] = None
     module_predict_step_addition_args: Optional[ModulePredictStepAdditionArgs] = None
 
     @override

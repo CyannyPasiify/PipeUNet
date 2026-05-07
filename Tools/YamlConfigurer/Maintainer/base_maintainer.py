@@ -20,7 +20,7 @@ class BaseMaintainer(ABC):
     @classmethod
     def default_standalone_window_size(cls: Type) -> Tuple[int, int]:
         # W, H
-        return 500, 500
+        return 800, 500
 
     @classmethod
     def shall_hotkey_confirm_cancel(cls: Type) -> Tuple[bool, bool]:

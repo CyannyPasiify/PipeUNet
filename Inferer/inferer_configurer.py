@@ -192,11 +192,11 @@ class _MainWithAuxSlidingWindowInferer(mI.SlidingWindowInfererAdapt):
 
 @dataclass
 class ConfigInfererMainWithAuxSlidingWindow(ConfigInfererBase):
-    roi_size: Union[Sequence[int], int]
+    roi_size: Union[TLSeq[int], int]
     sw_batch_size: int = 1
-    overlap: Union[Sequence[float], float] = 0.25
+    overlap: Union[TLSeq[float], float] = 0.25
     mode: Union[BlendMode, str] = BlendMode.GAUSSIAN
-    sigma_scale: Union[Sequence[float], float] = 0.125
+    sigma_scale: Union[TLSeq[float], float] = 0.125
     padding_mode: Union[PytorchPadMode, str] = PytorchPadMode.CONSTANT
     cval: float = 0.0
     sw_device: Optional[Union[torch.device, str]] = None

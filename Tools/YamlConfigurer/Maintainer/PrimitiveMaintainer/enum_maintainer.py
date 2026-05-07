@@ -47,7 +47,7 @@ class EnumMaintainer(PrimitiveMaintainer):
     @override
     def is_type_compatible(self) -> bool:
         # Check if it's an Enum subclass
-        return type(self.attribute_type) is type and issubclass(self.attribute_type, enum.Enum)
+        return type(self.attribute_type) is enum.EnumMeta and issubclass(self.attribute_type, enum.Enum)
 
     @override
     def is_value_compatible(self) -> bool:
@@ -180,7 +180,7 @@ class EnumMaintainer(PrimitiveMaintainer):
     @staticmethod
     @override
     def is_type_compatible_static(target_type: Type) -> bool:
-        return type(target_type) is type and issubclass(target_type, enum.Enum)
+        return type(target_type) is enum.EnumMeta and issubclass(target_type, enum.Enum)
 
     @staticmethod
     @override

@@ -137,7 +137,6 @@ class ConfigOperatorHookStepExportMulticlassPredWithMaskResults(ConfigOperatorHo
             keys=self.mask_keys + [self.combined_mask_key],
             output_dir=self.export_root_dir,
             data_root_dir=self.dataset_root_dir,
-            output_ext="",
             output_postfix="",
             output_dtype=torch.uint8,
             separate_folder=False

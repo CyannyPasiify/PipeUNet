@@ -46,12 +46,12 @@ class DataModuleSegmentationDefaultInitArgs:
     Contains all parameters needed to initialize a DataModule for segmentation tasks
     """
     # Dataset Retriever
-    config_retriever: ConfigDatasetManifestRetrieverSegmentationDefault = ConfigDatasetManifestRetrieverSegmentationDefault()
+    config_retriever: ConfigDatasetManifestRetrieverSegmentationDefault = \
+        ConfigDatasetManifestRetrieverSegmentationDefault()
     # Runtime Dataset
     config_dataset: ConfigDatasetBase = ConfigDatasetCache()  # Wrapped MONAI dataset class to use
     # Transform
     config_transform: ConfigTransformBase = ConfigTransformSegmentationDefaultInferencePre  # Transform class to use
-    # Dataloader (We use original torch Dataloader)
     batch_size: Optional[int] = 1  # Batch size for dataloader
     shuffle: Optional[bool] = None  # Whether to shuffle data
     num_workers: int = 0  # Number of worker processes
@@ -468,8 +468,8 @@ if __name__ == "__main__":
             param_tf_rand_crop_by_label_classes_ratios=[0.0, 1.0],
             param_tf_rand_crop_by_label_classes_num_classes=2,
             param_tf_rand_crop_by_label_classes_num_samples=2,
-            param_tf_scale_intensity_range_a_min=-1000,
-            param_tf_scale_intensity_range_a_max=1000,
+            param_tf_scale_intensity_range_a_min=-1000.0,
+            param_tf_scale_intensity_range_a_max=1000.0,
             param_tf_scale_intensity_range_b_min=0.0,
             param_tf_scale_intensity_range_b_max=1.0,
             param_tf_scale_intensity_range_clip=True,
@@ -527,8 +527,8 @@ if __name__ == "__main__":
             param_tf_spacing_mode_mask=GridSampleMode.NEAREST,
             param_tf_padding_mode_volume=GridSamplePadMode.BORDER,
             param_tf_padding_mode_mask=GridSamplePadMode.BORDER,
-            param_tf_scale_intensity_range_a_min=-1000,
-            param_tf_scale_intensity_range_a_max=1000,
+            param_tf_scale_intensity_range_a_min=-1000.0,
+            param_tf_scale_intensity_range_a_max=1000.0,
             param_tf_scale_intensity_range_b_min=0.0,
             param_tf_scale_intensity_range_b_max=1.0,
             param_tf_scale_intensity_range_clip=True

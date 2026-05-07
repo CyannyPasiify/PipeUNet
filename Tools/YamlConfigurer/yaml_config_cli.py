@@ -3,21 +3,19 @@ import sys
 import datetime
 import traceback
 import dataclasses
-import importlib.util
 from typing import Dict, List, Optional, Any, Type, Tuple, cast
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, font
 from dataclasses import fields, Field
 import argparse
+import inspect
 
 from Tools.YamlConfigurer.Maintainer.PrimitiveMaintainer.unsupported_maintainer import UnsupportedMaintainer
 from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
 # 导入类型维护器
 from Tools.YamlConfigurer.maintainer_factory import MaintainerFactory
-
-# 从foo.py中导入相关类
-import foo
-from foo import ParserABC
+# 导入配置项
+from Tools.YamlConfigurer.configurations import Configurations
 
 
 class YAMLConfigCLI:
@@ -356,13 +354,20 @@ class YAMLConfigCLI:
 
     def init_parser_options(self) -> None:
         """初始化Parser下拉选项"""
-        # 获取所有继承ParserABC的类
         parser_classes: List[Tuple[str, Type]] = []
-        for name, obj in foo.__dict__.items():
-            if isinstance(obj, type) and issubclass(obj, ParserABC) and obj != ParserABC:
-                full_path = f"foo.{obj.__name__}"
-                display_text = f"{obj.__name__} ({full_path})"
-                parser_classes.append((display_text, obj))
+        for obj in Configurations.parser_collection:
+            if not isinstance(obj, type):
+                continue
+
+            # 必须是非抽象类
+            if inspect.isabstract(obj):
+                continue
+
+            # 拼接显示文本
+            full_path = f"{obj.__module__}.{obj.__name__}"
+            display_text = f"{obj.__name__} ({full_path})"
+
+            parser_classes.append((display_text, obj))
 
         # 添加空白选项
         self.parser_classes_dict = {"": None}
@@ -753,8 +758,8 @@ class YAMLConfigCLI:
                 setattr(parser_instance, field_name, default_value)
 
                 # 记录错误信息
-                error_msg = (f"Type mismatch for '{field_name}': expected {maintainer.get_simplest_type_name()}, "
-                             f"got {type(field_value).__name__} (reset to default: {default_value})")
+                error_msg = (f"Value not compatible with '{field_name}': expected {maintainer.get_simplest_type_name()}, "
+                             f"got {type(field_value).__name__}: {field_value} (reset to default: {default_value})")
                 errors.append(error_msg)
 
         return errors

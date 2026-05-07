@@ -1072,6 +1072,7 @@ class TupleMaintainer(ContainerMaintainer):
         self.popup_top_level.transient(self.editor.winfo_toplevel())
         self.popup_top_level.grab_set()
         self.editor.winfo_toplevel().wait_window(self.popup_top_level)
+        self.editor.winfo_toplevel().grab_set()
 
         return self.popup_wnd_result
 
@@ -1136,6 +1137,9 @@ class TupleMaintainer(ContainerMaintainer):
         if is_variable_length and index == len(items) - 1:
             # 当焦点在<New Item>上时，调用add_item函数，等同于添加新元素
             self._add_item()
+            return
+
+        if self.view_mode != "Packed":
             return
 
         assert 0 <= index < len(self.editor_value), f"Index {index} out of range"
@@ -1382,12 +1386,30 @@ class TupleMaintainer(ContainerMaintainer):
     @override
     def editor_enable(self):
         if self.editor is not None:
-            self.list_treeview.state(['!disabled'])
+            # 清空Treeview
+            for item in self.list_treeview.get_children():
+                self.list_treeview.delete(item)
+            type_args = get_args(self.attribute_type)
+            is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
+            # 重新填充Treeview
+            if self.attribute_value:
+                for i, item in enumerate(self.attribute_value):
+                    if is_variable_length:
+                        self.list_treeview.insert("", tk.END, values=(i, repr(item)))
+                    else:
+                        # For fixed length tuple, show type information
+                        type_name = "Any"
+                        if i < len(self.item_maintainer_cls_list):
+                            if i < len(type_args):
+                                type_name = self.item_maintainer_cls_list[i].get_simplest_type_name_static(
+                                    target_type=type_args[i])
+                        self.list_treeview.insert("", tk.END, values=(i, type_name, repr(item)))
+            # 添加空白行（仅对可变长度元组）
+            if is_variable_length:
+                self.list_treeview.insert("", tk.END, values=(TupleMaintainer.NEW_ITEM_INDICATOR, ""))
             for widget in self.buttons_frame.winfo_children():
                 if isinstance(widget, ttk.Button):
                     # For fixed length tuple, only enable edit button
-                    type_args = get_args(self.attribute_type)
-                    is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
                     if not is_variable_length and widget != self.edit_button:
                         widget.config(state='disabled')
                     else:
@@ -1397,7 +1419,9 @@ class TupleMaintainer(ContainerMaintainer):
     @override
     def editor_disable(self):
         if self.editor is not None:
-            self.list_treeview.state(['disabled'])
+            # 清空Treeview
+            for item in self.list_treeview.get_children():
+                self.list_treeview.delete(item)
             for widget in self.buttons_frame.winfo_children():
                 if isinstance(widget, ttk.Button):
                     widget.config(state='disabled')
@@ -1409,11 +1433,10 @@ class TupleMaintainer(ContainerMaintainer):
             # 清空Treeview
             for item in self.list_treeview.get_children():
                 self.list_treeview.delete(item)
+            type_args = get_args(self.attribute_type)
+            is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
             # 重新填充Treeview
             if new_value:
-                type_args = get_args(self.attribute_type)
-                is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
-
                 for i, item in enumerate(new_value):
                     if is_variable_length:
                         self.list_treeview.insert("", tk.END, values=(i, repr(item)))
@@ -1426,8 +1449,6 @@ class TupleMaintainer(ContainerMaintainer):
                                     target_type=type_args[i])
                         self.list_treeview.insert("", tk.END, values=(i, type_name, repr(item)))
             # 添加空白行（仅对可变长度元组）
-            type_args = get_args(self.attribute_type)
-            is_variable_length = len(type_args) == 2 and type_args[1] == Ellipsis
             if is_variable_length:
                 self.list_treeview.insert("", tk.END, values=(TupleMaintainer.NEW_ITEM_INDICATOR, ""))
         super().editor_set_value(new_value)
