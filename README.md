@@ -38,7 +38,7 @@
 
 ![yaml_config](Assets/yaml_config.png)
 
-### **⭐YAML图形化配置工具为你提供更好的校验和辅助**
+### **⭐YAML图形界面配置工具为你提供更好的校验和辅助**
 
 ![tool_yaml_main](Assets/tool_yaml_main.png)
 
@@ -55,25 +55,25 @@
 </div>
 
 
-| 数据存档（<u>预处理细节</u>）                                | 对象                    | 任务                         | 样本量 | 体积图像类型      |
-| ------------------------------------------------------------ | ----------------------- | ---------------------------- | ------ | ----------------- |
-| [ACDC](DataArchive/ACDC/ACDC_data_preprocess.md)             | Heart Anatomy           | Segmentation, Classification | 300    | 4D Cine-MRI Frame |
-| [AMOS22](DataArchive/AMOS22/AMOS22_data_preprocess.md)       | Abdomen Organ           | Segmentation                 | 360    | CT & MRI          |
-| [VerSe](DataArchive/VerSe/VerSe_data_preprocess.md)          | Vertebra                | Segmentation                 | 374    | CT                |
-| [Duke-Breast-FGT-Segmentation-2025.4.10](DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10/Duke-Breast-FGT-Segmentation_data_preprocess.md) | Breast Anatomy          | Segmentation                 | 100    | MRI-T1CE          |
-| [NME-Seg-2025.8.25](DataArchive/NME-Seg-2025.8.25/NME-Seg-2025.8.25_data_preprocess.md) | Breast NME Lesion       | Segmentation                 | 1316   | MRI-DCE           |
-| [ESO-2025.10.31](DataArchive/ESO-2025.10.31/ESO-2025.10.31_data_preprocess.md) | Esophagus Cancer Lesion | Segmentation, Classification | 548    | CT & CECT         |
+| 数据存档（<u>预处理细节</u>）                                | 对象                     | 任务       | 样本量 | 体积图像类型      |
+| ------------------------------------------------------------ | ------------------------ | ---------- | ------ | ----------------- |
+| [ACDC](DataArchive/ACDC/ACDC_data_preprocess.md)             | 心脏解剖                 | 分割，分类 | 300    | 4D Cine-MRI Frame |
+| [AMOS22](DataArchive/AMOS22/AMOS22_data_preprocess.md)       | 腹部器官                 | 分割       | 360    | CT & MRI          |
+| [VerSe](DataArchive/VerSe/VerSe_data_preprocess.md)          | 椎骨                     | 分割       | 374    | CT                |
+| [Duke-Breast-FGT-Segmentation-2025.4.10](DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10/Duke-Breast-FGT-Segmentation_data_preprocess.md) | 乳腺解剖                 | 分割       | 100    | MRI-T1CE          |
+| [NME-Seg-2025.8.25](DataArchive/NME-Seg-2025.8.25/NME-Seg-2025.8.25_data_preprocess.md) | 乳腺非肿块强化灶（损伤） | 分割       | 1316   | MRI-DCE           |
+| [ESO-2025.10.31](DataArchive/ESO-2025.10.31/ESO-2025.10.31_data_preprocess.md) | 食管癌（损伤）           | 分割，分类 | 548    | CT & CECT         |
 
 来源信息：
 
-| 数据存档                               | 公开性  | 下载                                                         | 官方网站                                                     |
-| -------------------------------------- | ------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| ACDC                                   | Public  | [[Baidu Drive](https://pan.baidu.com/s/1YklrSzE9W2FKbd65wzgOXQ?pwd=7jm3)] | https://www.creatis.insa-lyon.fr/Challenge/acdc/databases.html<br />https://humanheart-project.creatis.insa-lyon.fr/database/#collection/637218c173e9f0047faa00fb |
-| AMOS22                                 | Public  | [[Baidu Drive](https://pan.baidu.com/s/1owJdUTH5--NhuHHEI2QhMg?pwd=qu5p)] | https://amos22.grand-challenge.org<br />https://era-ai-biomed.github.io/amos/dataset.html<br />https://dataset.sribd.cn/amos.html<br />https://zenodo.org/records/7262581 |
-| VerSe                                  | Public  | [[Baidu Drive](https://pan.baidu.com/s/18AORpIDLnTYMI1VHOn6vxw?pwd=r6qa)] | https://github.com/anjany/verse.git                          |
-| Duke-Breast-FGT-Segmentation-2025.4.10 | Public  | [[Baidu Drive](https://pan.baidu.com/s/1Xx_6o4KzTK61zRUo2KAA4Q?pwd=vugf)] | https://doi.org/10.7937/TCIA.e3sv-re93                       |
-| NME-Seg-2025.8.25                      | Private | [[Baidu Drive](https://pan.baidu.com/s/1ZRMRcmym64zsGWPsJ1fitw)] (password required) | Not Publicly Available (Contact d202481651@hust.edu.cn)      |
-| ESO-2025.10.31                         | Private | [[Baidu Drive](https://pan.baidu.com/s/12vgxqKR-QhsBbdMN-6WooA)] (password required) | Not Publicly Available (Contact d202481651@hust.edu.cn)      |
+| 数据存档                               | 公开性 | 下载                                                         | 官方网站                                                     |
+| -------------------------------------- | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| ACDC                                   | 公开   | [[Baidu Drive](https://pan.baidu.com/s/1YklrSzE9W2FKbd65wzgOXQ?pwd=7jm3)] | https://www.creatis.insa-lyon.fr/Challenge/acdc/databases.html<br />https://humanheart-project.creatis.insa-lyon.fr/database/#collection/637218c173e9f0047faa00fb |
+| AMOS22                                 | 公开   | [[Baidu Drive](https://pan.baidu.com/s/1owJdUTH5--NhuHHEI2QhMg?pwd=qu5p)] | https://amos22.grand-challenge.org<br />https://era-ai-biomed.github.io/amos/dataset.html<br />https://dataset.sribd.cn/amos.html<br />https://zenodo.org/records/7262581 |
+| VerSe                                  | 公开   | [[Baidu Drive](https://pan.baidu.com/s/18AORpIDLnTYMI1VHOn6vxw?pwd=r6qa)] | https://github.com/anjany/verse.git                          |
+| Duke-Breast-FGT-Segmentation-2025.4.10 | 公开   | [[Baidu Drive](https://pan.baidu.com/s/1Xx_6o4KzTK61zRUo2KAA4Q?pwd=vugf)] | https://doi.org/10.7937/TCIA.e3sv-re93                       |
+| NME-Seg-2025.8.25                      | 私有   | [[Baidu Drive](https://pan.baidu.com/s/1ZRMRcmym64zsGWPsJ1fitw)] （需要密码） | 未公开（请联系 d202481651@hust.edu.cn）                      |
+| ESO-2025.10.31                         | 私有   | [[Baidu Drive](https://pan.baidu.com/s/12vgxqKR-QhsBbdMN-6WooA)] （需要密码） | 未公开（请联系 d202481651@hust.edu.cn）                      |
 
 ## 环境配置
 
