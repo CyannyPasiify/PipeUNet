@@ -25,6 +25,7 @@ This repository contains wrapping pipelines for 3D medical image data archives. 
 <div align="left">
   <img height=143 src="../Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=143 src="../Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=143 src="../Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=143 src="../Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
 </div>
+
 ## Wrapped Data Archives Overview
 
 Detailed script usage instructions for each data archive are provided in their respective corresponding directories (please refer to the <u>links</u> in the first column of the table below).
