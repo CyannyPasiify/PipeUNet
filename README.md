@@ -14,24 +14,25 @@
 ### **⭐使用最流行的工具包库作为预设**
 
 <div align="center">
-  <img height=70 src="https://raw.githubusercontent.com/pytorch/pytorch/main/docs/source/_static/img/pytorch-logo-dark.png"> <img height=70 src="https://docs.monai.org.cn/en/stable/_static/MONAI-logo-color.png">
+  <img height=85 src="https://raw.githubusercontent.com/pytorch/pytorch/main/docs/source/_static/img/pytorch-logo-dark.png"> <img height=85 src="https://docs.monai.org.cn/en/stable/_static/MONAI-logo-color.png">
 </div>
 <p></p>
 <div align="center">
-  <img height=90 src="https://raw.githubusercontent.com/Lightning-AI/torchmetrics/master/docs/source/_static/images/logo.png"> <img height=90 src="https://tensorflow.google.cn/static/site-assets/images/project-logos/tensorboard-logo-social.png"> 
+  <img height=120 src="https://raw.githubusercontent.com/Lightning-AI/torchmetrics/master/docs/source/_static/images/logo.png"> <img height=90 src="https://tensorflow.google.cn/static/site-assets/images/project-logos/tensorboard-logo-social.png"> 
 </div>
 <p></p>
 <div align="center">
-  <img height=180 src="https://lightning.ai/docs/pytorch/stable/_images/mov.gif">
+  <img height=220 src="https://lightning.ai/docs/pytorch/stable/_images/mov.gif">
 </div>
 <p></p>
-<div align="center" style="background-color: black;">
-  <img height=105 src="https://site.wandb.ai/wp-content/uploads/2023/05/wb-cw.svg">
+<div align="center">
+  <img height=70 src="https://mintcdn.com/wb-21fd5541/NC1-xMMdE5yuKjPX/icons/logo_light.svg?fit=max&auto=format&n=NC1-xMMdE5yuKjPX&q=85&s=22c8691af763b43d16edf3e59dc1693e">
 </div>
+
 
 ### **⭐一个充分模块化和低耦合的管线框架**
 
-![model_pipeline](Assets/model_pipeline.png)
+<img src="Assets/model_pipeline.png" alt="model_pipeline" style="zoom:48%;" />
 
 ### **⭐用YAML配置一切你所需要的（Config Everything）**
 
@@ -51,6 +52,7 @@
 <div align="left">
   <img height=143 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=143 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=143 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=143 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
 </div>
+
 | 数据存档（<u>预处理细节</u>）                                | 对象                    | 任务                         | 样本量 | 体积图像类型      |
 | ------------------------------------------------------------ | ----------------------- | ---------------------------- | ------ | ----------------- |
 | [ACDC](DataArchive/ACDC/ACDC_data_preprocess.md)             | Heart Anatomy           | Segmentation, Classification | 300    | 4D Cine-MRI Frame |
