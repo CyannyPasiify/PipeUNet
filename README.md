@@ -22,11 +22,11 @@
 </div>
 <p></p>
 <div align="center">
-  <img height=260 src="https://lightning.ai/docs/pytorch/stable/_images/mov.gif">
+  <img height=200 src="https://lightning.ai/docs/pytorch/stable/_images/mov.gif">
 </div>
 <p></p>
 <div align="center">
-  <img height=100 src="https://tensorflow.google.cn/static/site-assets/images/project-logos/tensorboard-logo-social.png"> <img height=200 src="https://mintcdn.com/wb-21fd5541/NC1-xMMdE5yuKjPX/icons/logo_light.svg?fit=max&auto=format&n=NC1-xMMdE5yuKjPX&q=85&s=22c8691af763b43d16edf3e59dc1693e">
+  <img height=70 src="https://tensorflow.google.cn/static/site-assets/images/project-logos/tensorboard-logo-social.png"> <img height=70 src="https://mintcdn.com/wb-21fd5541/NC1-xMMdE5yuKjPX/icons/logo_light.svg?fit=max&auto=format&n=NC1-xMMdE5yuKjPX&q=85&s=22c8691af763b43d16edf3e59dc1693e">
 </div>
 
 
@@ -51,7 +51,7 @@
   <img height=180 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/AMOS22-Glimpse.gif">
 </div>
 <div align="left">
-  <img height=175 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=175 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=175 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=175 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
+  <img height=170 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=170 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=170 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=170 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
 </div>
 
 
