@@ -1,7 +1,7 @@
-# YamlConfigurer：YAML图形界面配置工具
+# YamlConfigurer — YAML图形界面配置工具
 
 <div align="left">
-  <img height=190 src="../../Assets/tool_yaml_main.png"> <img height=190 src="../../Assets/tool_yaml_obj.png">
+  <img height=240 src="../../Assets/tool_yaml_main.png"> <img height=240 src="../../Assets/tool_yaml_obj.png">
 </div>
 
 ## 主要功能
