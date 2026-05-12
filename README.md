@@ -18,7 +18,7 @@
 </div>
 <p></p>
 <div align="center">
-  <img height=120 src="https://raw.githubusercontent.com/Lightning-AI/torchmetrics/master/docs/source/_static/images/logo.png"> <img height=90 src="https://tensorflow.google.cn/static/site-assets/images/project-logos/tensorboard-logo-social.png"> 
+  <img height=120 src="https://raw.githubusercontent.com/Lightning-AI/torchmetrics/master/docs/source/_static/images/logo.png">
 </div>
 <p></p>
 <div align="center">
@@ -26,7 +26,7 @@
 </div>
 <p></p>
 <div align="center">
-  <img height=100 src="https://mintcdn.com/wb-21fd5541/NC1-xMMdE5yuKjPX/icons/logo_light.svg?fit=max&auto=format&n=NC1-xMMdE5yuKjPX&q=85&s=22c8691af763b43d16edf3e59dc1693e">
+  <img height=70 src="https://tensorflow.google.cn/static/site-assets/images/project-logos/tensorboard-logo-social.png"> <img height=70 src="https://mintcdn.com/wb-21fd5541/NC1-xMMdE5yuKjPX/icons/logo_light.svg?fit=max&auto=format&n=NC1-xMMdE5yuKjPX&q=85&s=22c8691af763b43d16edf3e59dc1693e">
 </div>
 
 
@@ -48,10 +48,10 @@
 ### **⭐若干仔细清洗和整理过的3D医学图像数据集（它们都按照统一的格式存储）**
 
 <div align="left">
-  <img height=150 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=150 src="Assets/DataArchive/AMOS22-Glimpse.gif">
+  <img height=160 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=160 src="Assets/DataArchive/AMOS22-Glimpse.gif">
 </div>
 <div align="left">
-  <img height=143 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=143 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=143 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=143 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
+  <img height=150 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=150 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=150 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=150 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
 </div>
 
 | 数据存档（<u>预处理细节</u>）                                | 对象                    | 任务                         | 样本量 | 体积图像类型      |
