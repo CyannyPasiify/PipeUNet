@@ -1,68 +1,8 @@
-from dataclasses import dataclass
-from typing import Union, Optional, List, Type, Tuple, Dict, Set, Any, Iterable, Collection, \
-    get_origin, get_args
 import sys
-
-"""
-Wrapper Types:
-    Type
-    · Type
-    · Type[T]
-    · Type[Union[T1, T2, ...]]
-    Union
-    · Union = Union[Any]
-    · Union[T1, T2, ...]
-    · Union[T1, T2, ... (Contains None)]
-    · Union[T1, T2, ... (Contains Type[*])]
-    Optional
-    · Optional = Optional[Any]
-    · Optional[T]
-    · Optional[Union[T1, T2, ...]]
-"""
-
-test_types: List[Type] = [
-    None,
-    Type,
-    Type[Any],
-    type(None),
-    Type[int],
-    Type[Union[int, float, str]],
-    Union,
-    Union[int, float, str],
-    Union[Any, float, str],
-    Union[None, int, float, str],
-    Union[Type[int], Type[Union[float, str]]],
-    Optional,
-    Optional[Any],
-    Optional[int],
-    Optional[Union[int]],
-    Optional[Union[int, str]],
-    Optional[Optional[int]]
-]
-
-
-@dataclass
-class TestClass:
-    m0: None = None
-    m1: Type = int
-    m2: Type[Any] = int
-    m3: Union[None] = None
-    m4: Type[int] = 1
-    m5: Type[Union[int, float, str]] = 1
-    m6: Union = 1
-    m7: Union[int, float, str] = 1
-    m8: Union[Any, float, str] = 1
-    m9: Union[None, int, float, str] = 1
-    m10: Union[Type[int], Type[Union[float, None]], str, None, int] = int
-    m11: Optional[None] = 1
-    m12: Optional[Any] = 1
-    m13: Optional[int] = 1
-    m14: Optional[Union[int]] = 1
-    m15: Optional[Union[int, str]] = 1
-    m16: Optional[Optional[int]] = 1
-    m17: Optional[Union[List[Union[int, str]], str, Tuple[Union[Type[int], Type[Union[float, str]]]]]] = 1
-    m18: Optional[Union[Iterable[Union[int, str]], str, Collection[Union[Type[int], Type[Union[float, str]]]]]] = 1
-    m19: Optional[Type] = 1
+from typing import (
+    Union, Optional, List, Type, Tuple, Dict, Set, Any,
+    get_origin, get_args
+)
 
 
 def simplify_type(target_type: Type) -> Any:
@@ -273,9 +213,3 @@ def all_available_types() -> list[Type[Any]]:
     sorted_types = sorted(unique_types, key=lambda x: (type_priorities[x], str(x)))
 
     return sorted_types
-
-
-if __name__ == "__main__":
-    import torch
-
-    print(torch.IntType is torch.int)

@@ -1,24 +1,24 @@
 # DataModule
 
-**DataModule（数据模型）**负责调度数据集和变换模组协同工作，针对多种实验例程（训练、验证等）创建不同的数据装载器。负责配置参数和运行状态的记录和恢复，尤其是变换模组的随机状态。扩展自定义于Lightning。
+**DataModule（数据模型）** 负责调度数据集和变换模组协同工作，针对多种实验例程（训练、验证等）创建不同的数据装载器。负责配置参数和运行状态的记录和恢复，尤其是变换模组的随机状态。扩展自定义于Lightning。
 
-**DataModule（数据模型）**部分包含2个预设代码文件：
+**DataModule（数据模型）** 部分包含2个预设代码文件：
 
-- `data_module_configurer`：**关键代码**。定义了`ConfigDataModuleBase`**数据模型配置包装器**基类，其中预设了1个用于分割任务的`ConfigDataModuleSegmentationDefault`数据模型配置包装器。数据模型配置包装器本身只负责保存初始化配置和实例化数据模型，并提供内部数据模型实例的获取方法。
+- [`data_module_configurer`](data_module_configurer.py)：**关键代码**。定义了`ConfigDataModuleBase`**数据模型配置包装器**基类，其中预设了1个用于分割任务的`ConfigDataModuleSegmentationDefault`数据模型配置包装器。数据模型配置包装器本身只负责保存初始化配置和实例化数据模型，并提供内部数据模型实例的获取方法。
 
-| 数据模型配置包装器                  | 功能                                                         |
-| ----------------------------------- | ------------------------------------------------------------ |
-| ConfigDataModuleSegmentationDefault | 此包装器主要负责保存配置和延迟实例化数据模型，而并无实际功能，关键功能都在数据模型本体中定义。 |
+  | 数据模型配置包装器                  | 功能                                                         |
+  | ----------------------------------- | ------------------------------------------------------------ |
+  | ConfigDataModuleSegmentationDefault | 此包装器主要负责保存配置和延迟实例化数据模型，而并无实际功能，关键功能都在数据模型本体中定义。 |
 
-- `data_module_segmentation_default`：**关键代码**。定义了1个用于分割任务的`DataModuleSegmentationDefault`数据模型预设，此数据模型派生自`Lightning.LightningDataModule`并重写了其中与数据准备、初始化、数据加载器实例化以及状态管理相关的接口。此外，还定义了用于表示数据模型各例程（训练、验证、测试、预测）参数的数据类`DataModuleSegmentationDefaultInitArgs`。
+- [`data_module_segmentation_default`](data_module_segmentation_default.py)：**关键代码**。定义了1个用于分割任务的`DataModuleSegmentationDefault`数据模型预设，此数据模型派生自`Lightning.LightningDataModule`并重写了其中与数据准备、初始化、数据加载器实例化以及状态管理相关的接口。此外，还定义了用于表示数据模型各例程（训练、验证、测试、预测）参数的数据类`DataModuleSegmentationDefaultInitArgs`。
 
 ## 快速测试
 
-可以使用`data_module_segmentation_default`的主例程和本项目提供的示例样本（样本在`Samples`目录中）进行快速测试或调试以观察执行细节。示例程序提供3项测试，包括在训练和测试例程中使用数据模型，以及数据模型可复现性验证。请从项目根启动主例程以确保相对路径的正确性。
+可以使用[`data_module_segmentation_default`](data_module_segmentation_default.py)的主例程和本项目提供的示例样本（样本在[`Samples`](../Samples)目录中）进行快速测试或调试以观察执行细节。示例程序提供3项测试，包括在训练和测试例程中使用数据模型，以及数据模型可复现性验证。请从项目根启动主例程以确保相对路径的正确性。
 
 ## 使用指南
 
-数据模型配置包装器本身并无实际功能，应从中获取`DataModuleSegmentationDefault`数据模型实例进行使用。`DataModuleSegmentationDefault`数据模型派生自`Lightning.LightningDataModule`。它使用至多4套`DataModuleSegmentationDefaultInitArgs`用于配置各例程（训练、验证、测试、预测）的数据加载功能，此数据类的属性描述见下表，每个例程的配置可以不同。
+**数据模型配置包装器**本身并无实际功能，应从中获取`DataModuleSegmentationDefault`数据模型实例进行使用。`DataModuleSegmentationDefault`数据模型派生自`Lightning.LightningDataModule`。它使用至多4套`DataModuleSegmentationDefaultInitArgs`用于配置各例程（训练、验证、测试、预测）的数据加载功能，此数据类的属性描述见下表，每个例程的配置可以不同。
 
 | 属性                  | 描述                                                         |
 | --------------------- | ------------------------------------------------------------ |
@@ -46,7 +46,7 @@
 | state_dict         | 返回数据模型的状态参数字典，通常包括变换的RNG状态、数据加载器的状态。此字典应当包含所有需要保存至检查点的参数。 |
 | load_state_dict    | 与state_dict相对的，从字典中载入数据模型的状态。             |
 
-上表所述方法仅是`Lightning.LightningDataModule`的一部分，完整的使用指南请参阅[LightningDataModule — PyTorch Lightning documentation](https://lightning.ai/docs/pytorch/stable/data/datamodule.html)。
+上表所述方法仅是`lightning.LightningDataModule`的一部分，完整的使用指南请参阅[LightningDataModule — PyTorch Lightning documentation](https://lightning.ai/docs/pytorch/stable/data/datamodule.html)。
 
 通过`ConfigDataModuleSegmentationDefault`获取`DataModuleSegmentationDefault`实例可通过调用`ConfigDataModuleBase`基类方法`get_data_module`实现。
 
@@ -55,6 +55,25 @@
 def get_data_module(self) -> L.LightningDataModule:
     self._assert_init_essentials()
     return self.data_module
+```
+
+**数据模型配置包装器**的典型使用方式如下：以`DataModuleSegmentationDefault`为例。
+
+```python
+# 实例化ConfigDataModuleBase
+config_data_module = DataModuleSegmentationDefault()
+# 设置配置项，以准备用于fit例程为例，准备训练集和验证集
+train_init_args = SomeArgs()
+val_init_args = SomeArgs()
+...
+# 实例化内部DataModule
+data_module = config_data_module.get_data_module()
+# 进行数据准备
+data_module.prepare_data()
+data_module.setup(stage='fit')
+# 实例化和获取加载器
+train_loader = data_module.train_dataloader()
+val_loader = data_module.val_dataloader()
 ```
 
 ## 自定义指南
@@ -72,11 +91,10 @@ def get_data_module(self) -> L.LightningDataModule:
 基类声明以下方法：
 
 - **`is_ready`**：判断这个类是否已被初始化过。
-- **`init_essentials`**：初始化逻辑。它相当于常规类__init__的功能，但只在必要时才需要初始化。
+- **`init_essentials`**：初始化逻辑。它相当于常规类**`__init__`**的功能，但只在必要时才需要初始化。
 - **`_assert_init_essentials`**：校验执行方法。确保执行过初始化，一般在功能性方法中首先调用。
 - **`get_data_module`**：获取包装器内部所包装的数据模型实例。
 
 在定义数据模型配置包装器前需先完成`Lightning.LightningDataModule`的定义，请参阅：
 
 - [LightningDataModule — PyTorch Lightning documentation](https://lightning.ai/docs/pytorch/stable/data/datamodule.html)
-- 

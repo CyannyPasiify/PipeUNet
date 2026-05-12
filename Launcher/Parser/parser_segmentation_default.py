@@ -126,6 +126,32 @@ from Launcher.Parser.parser_ABC import ParserABC
 PhaseLike = Literal['train', 'val', 'test', 'predict']
 
 
+class YamlLoaderSegmentationDefault(yaml.Loader):
+    def __init__(self, stream):
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        Constructor.__init__(self)
+        Resolver.__init__(self)
+
+    def construct_torch_dtype(self, suffix: str, node: ScalarNode) -> ScalarNode:
+        value: str = self.construct_scalar(node)
+        if value:
+            raise ConstructorError("while constructing a Torch dtype", node.start_mark,
+                                   "expected the empty value, but found %r" % value, node.start_mark)
+        if not hasattr(torch, suffix):
+            raise ConstructorError("while constructing a Torch dtype", node.start_mark,
+                                   "type %r is not supported" % suffix, node.start_mark)
+        return getattr(torch, suffix)
+
+
+YamlLoaderSegmentationDefault.add_multi_constructor(
+    'tag:yaml.org,2002:torch/dtype:',
+    YamlLoaderSegmentationDefault.construct_torch_dtype  # noqa
+)
+
+
 class YamlDumperSegmentationDefault(yaml.Dumper):
     def __init__(
             self, stream,
@@ -163,32 +189,6 @@ class YamlDumperSegmentationDefault(yaml.Dumper):
 YamlDumperSegmentationDefault.add_representer(
     torch.dtype,
     YamlDumperSegmentationDefault.represent_torch_dtype  # noqa
-)
-
-
-class YamlLoaderSegmentationDefault(yaml.Loader):
-    def __init__(self, stream):
-        Reader.__init__(self, stream)
-        Scanner.__init__(self)
-        Parser.__init__(self)
-        Composer.__init__(self)
-        Constructor.__init__(self)
-        Resolver.__init__(self)
-
-    def construct_torch_dtype(self, suffix: str, node: ScalarNode) -> ScalarNode:
-        value: str = self.construct_scalar(node)
-        if value:
-            raise ConstructorError("while constructing a Torch dtype", node.start_mark,
-                                   "expected the empty value, but found %r" % value, node.start_mark)
-        if not hasattr(torch, suffix):
-            raise ConstructorError("while constructing a Torch dtype", node.start_mark,
-                                   "type %r is not supported" % suffix, node.start_mark)
-        return getattr(torch, suffix)
-
-
-YamlLoaderSegmentationDefault.add_multi_constructor(
-    'tag:yaml.org,2002:torch/dtype:',
-    YamlLoaderSegmentationDefault.construct_torch_dtype  # noqa
 )
 
 

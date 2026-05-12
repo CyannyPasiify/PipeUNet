@@ -1547,14 +1547,14 @@ class UNetEncoderAdvancedExtractorDownsample(nn.Module, IODescriptive):
 #              (*)  │ UNet-Repeater  │  (*)
 #                   │ -Bridge        │
 #                   └────────────────┘
-#                   ┌───────────────────────┐
-#     {input_feat} ─│ 00-03-01              │─ {output_feat}
-# input_feats[S-1]  │ UNet-Encoder-Advanced │  output_feats[0]
-#    (B,Cin,X,Y,Z)  │ Extractor-Stage       │  (B,Cout,X,Y,Z)
-#                   │                       │
-#   ×{inject_feat} ─│                       │
-#         (Unused)  │                       │
-#                   └───────────────────────┘
+#                   ┌────────────────┐
+#     {input_feat} ─│ 00-03-01       │─ {output_feat}
+# input_feats[S-1]  │ UNet-Repeater  │  output_feats[0]
+#              (*)  │ Bottleneck     │  (*)
+#                   │                │
+#   ×{inject_feat} ─│                │
+#         (Unused)  │                │
+#                   └────────────────┘
 class UNetRepeater(nn.Module, IODescriptive):
     """
     UNet Repeater Module - Stage Feature Processing and Bottleneck
@@ -1738,12 +1738,12 @@ class UNetRepeaterBridge(nn.Module, IODescriptive):
 # 00-03-01 UNet-Repeater-Bottleneck
 # The most advanced semantic feature delivery path from Encoder to Decoder at the bottom
 # Pinout Diagram: [Valid]
-#                ┌───────────────────────┐
-#    input_feat ─│ 00-03-01              │─ output_feat
-# (B,Cin,X,Y,Z)  │ UNet-Encoder-Advanced │  (B,Cout,X,Y,Z)
-#   inject_feat ─│ Extractor-Stage       │
-#      (Unused)  │                       │
-#                └───────────────────────┘
+#                ┌───────────────┐
+#    input_feat ─│ 00-03-01      │─ output_feat
+# (B,Cin,X,Y,Z)  │ UNet-Repeater │  (B,Cout,X,Y,Z)
+#   inject_feat ─│ Bottleneck    │
+#      (Unused)  │               │
+#                └───────────────┘
 # Expanded Diagram:
 #                ┌──────────────┐                              ┌──────────────┐                              ┌──────────────┐
 #    input_feat ─│ [0]          │───────────── ··· ────────────│ [d]          │──────────────────────────────│ [D-1]        │─ output_feat

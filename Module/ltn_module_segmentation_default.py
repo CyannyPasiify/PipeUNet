@@ -401,7 +401,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
     def training_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Tensor]:
         assert 'train' in self.get_available_phases(), f'train phase is not available in {self.get_available_phases()}'
         step_args: ModuleTrainingStepAdditionArgs = self.module_training_step_addition_args
-        register_for_hook: Dict[str, Any] = {"batch_idx": batch_idx}
+        ret: Dict[str, Any] = {"batch_idx": batch_idx}
 
         volume: Tensor = batch[step_args.volume_key]
         mask: Tensor = batch[step_args.mask_key]
@@ -428,7 +428,9 @@ class LightningModuleSegmentationDefault(L.LightningModule):
 
         # Calculate loss
         loss: Tensor = self.training_config_loss(logits, mask)
-        register_for_hook.update({
+        ret.update({
+            'loss': loss,  # This is required by Lightning
+            self.network.__name__: self.network,
             step_args.main_logits_key: cls_logits.detach(),
             step_args.auxiliary_logits_key: [lt.detach() for lt in aux_cls_logits],
             step_args.volume_key: volume.detach(),
@@ -436,13 +438,13 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         })
 
         loss_init_args: NamedLossInitArgs = self.module_training_step_addition_args.loss_init_args
-        loss_post: Union[Tensor, Dict[str, Tensor]] = loss_init_args.postprocess_func(loss.detach())
+        loss_post: Union[Tensor, Dict[str, Tensor]] = loss_init_args.postprocess_func(self.training_config_loss)
         if isinstance(loss, dict):
             self.log_dict(loss_post, **loss_init_args.get_logging_args(dict_logging=True))
-            register_for_hook.update(loss_post)
+            ret.update(loss_post)
         else:
             self.log(value=loss_post, **loss_init_args.get_logging_args())
-            register_for_hook[step_args.loss_post_key] = loss_post
+            ret[step_args.loss_post_key] = loss_post
 
         # Calculate and log metrics
         metrics_desc: Dict[str, NamedMetricInitArgs] = self.training_metrics_desc
@@ -469,26 +471,24 @@ class LightningModuleSegmentationDefault(L.LightningModule):
                 metrics[name] = value
                 self.log(value=value, **desc.get_logging_args())
 
-        register_for_hook.update(metrics)
+        ret.update(metrics)
 
         for hook in self.training_hook_funcs:
-            hook(register_for_hook)
+            hook(ret)
 
         # There may be issues with memory leak, explicit gc is required
         # It is confirmed that monai Metric without cucim support needs gc
-        # while cuda cache is not a core problem
+        # while cuda cache may not a core problem
         torch.cuda.empty_cache()
         gc.collect()
 
-        return {
-            'loss': loss  # This is required by Lightning
-        }
+        return ret
 
     def validation_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Tensor]:
         assert 'val' in self.get_available_phases(), \
             f'val phase is not available in {self.get_available_phases()}'
         step_args: ModuleValidationStepAdditionArgs = self.module_validation_step_addition_args
-        register_for_hook: Dict[str, Any] = {"batch_idx": batch_idx}
+        ret: Dict[str, Any] = {"batch_idx": batch_idx}
 
         volume: Tensor = batch[step_args.volume_key]
         mask: Tensor = batch[step_args.mask_key]
@@ -522,7 +522,9 @@ class LightningModuleSegmentationDefault(L.LightningModule):
 
         # Calculate loss
         loss: Tensor = self.validation_config_loss(logits, mask)
-        register_for_hook.update({
+        ret.update({
+            'loss': loss,  # This is required by Lightning
+            self.network.__name__: self.network,
             step_args.main_logits_key: cls_logits.detach(),
             step_args.auxiliary_logits_key: [lt.detach() for lt in aux_cls_logits],
             step_args.volume_key: volume.detach(),
@@ -534,14 +536,14 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         loss_post: Union[Tensor, Dict[str, Tensor]] = loss_init_args.postprocess_func(loss.detach())
         if isinstance(loss, dict):
             self.log_dict(loss_post, **loss_init_args.get_logging_args(dict_logging=True))
-            register_for_hook.update(loss_post)
+            ret.update(loss_post)
         else:
             self.log(value=loss_post, **loss_init_args.get_logging_args())
-            register_for_hook[step_args.loss_post_key] = loss_post
+            ret[step_args.loss_post_key] = loss_post
 
         # Calculate and log metrics
         pred_to_raw = F.interpolate(logits[0].detach(), raw_spatial_size, mode="trilinear", align_corners=False)
-        register_for_hook[step_args.pred_key] = pred_to_raw
+        ret[step_args.pred_key] = pred_to_raw
         metrics_desc: Dict[str, NamedMetricInitArgs] = self.validation_metrics_desc
         for name, metric_func in self.validation_config_metrics.items():
             print(f"val step: Calculating {name}")
@@ -575,25 +577,23 @@ class LightningModuleSegmentationDefault(L.LightningModule):
 
             print(f"val step: Calculation DONE {name}: {value}")
 
-        register_for_hook.update(metrics)
+        ret.update(metrics)
 
         for hook in self.validation_hook_funcs:
-            hook(register_for_hook)
+            hook(ret)
 
         # There may be issues with memory leak, explicit gc is required
         # It is confirmed that monai Metric without cucim support needs gc
-        # while cuda cache is not a core problem
+        # while cuda cache may not a core problem
         torch.cuda.empty_cache()
         gc.collect()
 
-        return {
-            'loss': loss  # This is required by Lightning
-        }
+        return ret
 
-    def test_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Tensor]:
+    def test_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Any]:
         assert 'test' in self.get_available_phases(), f'test phase is not available in {self.get_available_phases()}'
         step_args: ModuleTestStepAdditionArgs = self.module_test_step_addition_args
-        ret: Dict[str, Tensor] = {"batch_idx": torch.tensor(batch_idx, dtype=torch.int)}
+        ret: Dict[str, Any] = {"batch_idx": torch.tensor(batch_idx, dtype=torch.int)}
 
         volume: Tensor = batch[step_args.volume_key]
         mask: Tensor = batch[step_args.mask_key]
@@ -629,6 +629,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         loss: Tensor = self.test_config_loss(logits, mask)
         ret.update({
             'loss': loss,  # This is required by Lightning
+            self.network.__name__: self.network,
             step_args.main_logits_key: cls_logits.detach(),
             step_args.auxiliary_logits_key: {lt.detach() for lt in aux_cls_logits},
             step_args.volume_key: volume.detach(),
@@ -681,13 +682,11 @@ class LightningModuleSegmentationDefault(L.LightningModule):
 
         # There may be issues with memory leak, explicit gc is required
         # It is confirmed that monai Metric without cucim support needs gc
-        # while cuda cache is not a core problem
+        # while cuda cache may not a core problem
         torch.cuda.empty_cache()
         gc.collect()
 
-        return {
-            'loss': loss  # This is required by Lightning
-        }
+        return ret
 
     def predict_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Tensor]:
         assert 'predict' in self.get_available_phases(), \
@@ -718,6 +717,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         # Reordered logits
         logits: List[Tensor] = [cls_logits] + list(reversed(aux_cls_logits))
         ret.update({
+            self.network.__name__: self.network,
             step_args.main_logits_key: cls_logits,
             step_args.auxiliary_logits_key: aux_cls_logits,
             step_args.volume_key: volume,
@@ -754,7 +754,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
 
         # There may be issues with memory leak, explicit gc is required
         # It is confirmed that monai Metric without cucim support needs gc
-        # while cuda cache is not a core problem
+        # while cuda cache may not a core problem
         torch.cuda.empty_cache()
         gc.collect()
 

@@ -1,32 +1,32 @@
 # Dataset
 
-**Dataset（数据集）**模组负责定义例程控制和表现相关的自定义功能，通过例程中的钩子进行调用。常用回调功能包括早停策略介入、模型检查点持久化、模型预览和进度条渲染。包装自Lightning。
+**Dataset（数据集）** 模组负责定义例程控制和表现相关的自定义功能，通过例程中的钩子进行调用。常用回调功能包括早停策略介入、模型检查点持久化、模型预览和进度条渲染。包装自Lightning。
 
-**Dataset（数据集）**部分包含2个预设代码文件：
+**Dataset（数据集）** 部分包含2个预设代码文件：
 
-- `dataset_configurer`：**关键代码**。定义了`ConfigDatasetBase`**数据集配置包装器**基类，以及来自Monai的3个常用预设数据集类的配置包装器。这些数据集能够按照一定策略加速数据的载入和处理流程，完成样本索引和变换（需要绑定Transform）操作。
+- [`dataset_configurer`](dataset_configurer.py)：**关键代码**。定义了`ConfigDatasetBase`**数据集配置包装器**基类，以及来自Monai的3个常用预设数据集类的配置包装器。这些数据集能够按照一定策略加速数据的载入和处理流程，完成样本索引和变换（需要绑定Transform）操作。
 
-| 数据集配置包装器        | 功能                                                         |
-| ----------------------- | ------------------------------------------------------------ |
-| ConfigDatasetCache      | 缓存数据集。模拟缓存方式，在内存中保存一定数量的已完成所有非随机变换后的数据样本，以提高后续重复取用数据的效率。 |
-| ConfigDatasetPersistent | 持久化数据集。利用文件系统，在外存中持久化保存已完成所有非随机变换后的数据样本，以提高后续重复取用数据的效率。 |
-| ConfigDatasetLMDB       | LMDB持久化数据集。采用LMDB协议，持久化保存已完成所有非随机变换后的数据样本，以提高后续重复取用数据的效率。 |
+  | 数据集配置包装器        | 功能                                                         |
+  | ----------------------- | ------------------------------------------------------------ |
+  | ConfigDatasetCache      | 缓存数据集。模拟缓存方式，在内存中保存一定数量的已完成所有非随机变换后的数据样本，以提高后续重复取用数据的效率。 |
+  | ConfigDatasetPersistent | 持久化数据集。利用文件系统，在外存中持久化保存已完成所有非随机变换后的数据样本，以提高后续重复取用数据的效率。 |
+  | ConfigDatasetLMDB       | LMDB持久化数据集。采用LMDB协议，持久化保存已完成所有非随机变换后的数据样本，以提高后续重复取用数据的效率。 |
 
-- `dataset_manifest_retriever_configurer`：**关键代码**。定义了`ConfigDatasetManifestRetrieverBase`**数据清单检索配置包装器**基类，以及1个默认预设。
+- [`dataset_manifest_retriever_configurer`](dataset_manifest_retriever_configurer.py)：**关键代码**。定义了`ConfigDatasetManifestRetrieverBase`**数据清单检索配置包装器**基类，以及1个默认预设。
 
-| 数据清单检索配置包装器                            | 功能                                                         |
-| ------------------------------------------------- | ------------------------------------------------------------ |
-| ConfigDatasetManifestRetrieverSegmentationDefault | 此包装器主要负责载入和解析数据集随附的清单文件，从中提取所需字段和样本索引信息，转换绝对路径，完成样本文件的并组（如果存在多序列，多类蒙版），以及绑定Dataset和Transform并构造Monai的Dataset实例。 |
+  | 数据清单检索配置包装器                            | 功能                                                         |
+  | ------------------------------------------------- | ------------------------------------------------------------ |
+  | ConfigDatasetManifestRetrieverSegmentationDefault | 此包装器主要负责载入和解析数据集随附的清单文件，从中提取所需字段和样本索引信息，转换绝对路径，完成样本文件的并组（如果存在多序列，多类蒙版），以及绑定Dataset和Transform并构造Monai的Dataset实例。 |
 
 ## 快速测试
 
-可以使用`dataset_manifest_retriever_configurer`的主例程和本项目提供的示例样本（样本在`Samples`目录中）进行快速测试或调试以观察执行细节。示例程序测试了多次数据加载的可复现性。请从项目根启动主例程以确保相对路径的正确性。
+可以使用[`dataset_manifest_retriever_configurer`](dataset_manifest_retriever_configurer.py)的主例程和本项目提供的示例样本（样本在[`Samples`](../Samples)目录中）进行快速测试或调试以观察执行细节。示例程序测试了多次数据加载的可复现性。请从项目根启动主例程以确保相对路径的正确性。
 
 ## 使用指南
 
-数据集配置包装器的使用并无特殊性，按照签名传递恰当的缓存率或持久化保存目录，绑定一个Transform实例，即可按照一般Dataset使用。由数据集配置包装器内部的Dataset实例提供样本路径索引，通过Transform完成单个样本的加载和预处理。
+**数据集配置包装器**的使用并无特殊性，按照签名传递恰当的缓存率或持久化保存目录，绑定一个Transform实例，即可按照一般Dataset使用。由数据集配置包装器内部的Dataset实例提供样本路径索引，通过Transform完成单个样本的加载和预处理。
 
-数据清单检索配置包装器`ConfigDatasetManifestRetrieverSegmentationDefault`是PipeUNet特设的模组，它负责将外部清单文件内容转换到Dataset所需的索引格式。其主要目的是**隔离数据存档处理时的存储协议以及Dataset的内存记录格式协议**。二者经由数据清单检索配置包装器转换中介，能够提高两端代码的可扩展性。预设的数据清单检索配置包装器参数描述见下表。
+**数据清单检索配置包装器**`ConfigDatasetManifestRetrieverSegmentationDefault`是PipeUNet特设的模组，它负责将外部清单文件内容转换到Dataset所需的索引格式。其主要目的是**隔离数据存档处理时的存储协议以及Dataset的内存记录格式协议**。二者经由数据清单检索配置包装器转换中介，能够提高两端代码的可扩展性。预设的数据清单检索配置包装器参数描述见下表。
 
 | 属性                     | 描述                                                         | 示例                                                         |
 | ------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -59,6 +59,42 @@ def get_assembled_dataset(
     return dataset
 ```
 
+**数据集配置包装器**的典型使用方式如下：以通过`ConfigDatasetManifestRetrieverSegmentationDefault`获取`ConfigDatasetPersistent`持久化数据集为例。
+
+```python
+# 实例化ConfigDatasetBase
+config_retriever = ConfigDatasetManifestRetrieverSegmentationDefault()
+# 设置配置项
+config_retriever.root_dir='./Samples',
+config_retriever.manifest_file=manifest_file,
+config_retriever.column_key_map={
+    'volume_CT': 'volume_0',
+    'volume_MR': 'volume_1',
+    ...  # 如有更多序列，根据实际情况添加
+    'mask_00_Bg': 'mask_0',
+    'mask_01_ROI': 'mask_1',
+    ...  # 如有更多类别，根据实际情况添加
+},
+config_retriever.column_key_relative_path=['volume_0', 'volume_1', 'mask_0', 'mask_1'],
+config_retriever.column_group_map={'volume_0': ['volume_0', 'volume_1'], 'mask': ['mask_0', 'mask_1']},
+config_retriever.column_dtype_map=None
+
+# 实例化数据集配置包装器
+config_dataset = ConfigDatasetPersistent()
+# 设置配置项
+config_dataset.cache_dir='./Samples/cache'
+
+# 实例化变换算子，亦可通过ConfigTransformBase进行实例化
+transform = SomeTransform()
+
+# 获取数据集实例，这是一个Monai Persistent Dataset
+dataset = get_assembled_dataset(config_dataset, transform).get_dataset()
+
+# 使用dataset进行迭代或构建Dataloader
+for item in dataset: ...
+loader = Dataloader(dataset, ...)
+```
+
 ## 自定义指南
 
 进行**自定义**时可参考现有的**数据集配置包装器**和**数据清单检索配置包装器**。数据集配置包装器应总是从`ConfigDatasetBase`派生。数据清单检索配置包装器应总是从`ConfigDatasetManifestRetrieverBase`派生。预设包装器已经能够应对绝大多数场景，并且具有更好的配套支持，建议尽量使用预设以充分利用Monai的加速特性。
@@ -78,7 +114,7 @@ def get_assembled_dataset(
 - **`_assert_init_essentials`**：校验执行方法。确保执行过初始化，一般在功能性方法中首先调用。
 - **`get_dataset`**：获取包装器内部所包装的数据集实例。
 
-`dataset_configurer`已经对最常用的3个Monai Dataset进行了包装，可查阅以下文档以了解细节。
+[`dataset_configurer`](dataset_configurer.py)已经对最常用的3个Monai Dataset进行了包装，可查阅以下文档以了解细节。
 
 - [数据 — MONAI 框架](https://docs.monai.org.cn/en/stable/data.html)
 
@@ -93,6 +129,6 @@ def get_assembled_dataset(
 基类声明以下方法：
 
 - **`is_ready`**：判断这个类是否已被初始化过。
-- **`init_essentials`**：初始化逻辑。它相当于常规类__init__的功能，但只在必要时才需要初始化。
+- **`init_essentials`**：初始化逻辑。它相当于常规类**`__init__`**的功能，但只在必要时才需要初始化。
 - **`_assert_init_essentials`**：校验执行方法。确保执行过初始化，一般在功能性方法中首先调用。
 - **`get_assembled_dataset`**：工厂方法，传入一个**数据集配置包装器**实例和一个变换算子（例如，Transform变换类实例或变换配置包装器实例），检索器将变换算子注册到数据集中，执行数据集初始化并返回数据集配置包装器实例。

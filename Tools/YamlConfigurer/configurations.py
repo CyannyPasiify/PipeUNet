@@ -19,7 +19,6 @@ from Tools.YamlConfigurer.Maintainer.PrimitiveMaintainer.unsupported_maintainer 
 from Tools.YamlConfigurer.Maintainer.base_maintainer import BaseMaintainer
 
 from Launcher.Parser import ParserABC, ParserSegmentationDefault
-from foo import ParserBeings, ParserRealBeings
 
 
 class Configurations:
@@ -44,11 +43,5 @@ class Configurations:
     ]
 
     parser_collection: List[Type[ParserABC]] = [
-        ParserSegmentationDefault,
-        ParserRealBeings,
-        ParserBeings
+        ParserSegmentationDefault
     ]
-
-
-if __name__ == '__main__':
-    pass

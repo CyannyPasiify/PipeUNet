@@ -3,7 +3,7 @@
 Learning Rate Scheduler Configurer
 
 Overview:
-    Provides five learning rate scheduler creation functions:
+    Provides learning rate scheduler creation functions:
     1. LinearLR: Creates a configured linear learning rate scheduler with parameter validation
     2. CosineAnnealingLR: Creates a configured cosine annealing learning rate scheduler with parameter validation
     3. CosineAnnealingWarmRestarts: Creates a configured cosine annealing with warm restarts learning rate scheduler with parameter validation

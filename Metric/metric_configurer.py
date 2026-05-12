@@ -210,7 +210,7 @@ class ConfigMetricBase(ABC):
         return self.metric
 
 
-# region Torchmetrics
+# region TorchMetrics
 def assert_input_torchmetrics(
         task_type: Literal["binary", "multiclass", "multilabel"],
         y_pred: Tensor,

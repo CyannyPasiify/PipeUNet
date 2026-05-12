@@ -11,23 +11,65 @@
 - **低耦合度和扩展性**：nnUNetv2的封装过于完整，因此对应用研究和工程使用友好，而对需要频繁修改预处理、后处理、模型架构、训练方法管线控制代码以及可视化的研究任务十分不利，因为用户总是需要按照复杂协议重新编写代码，有时甚至难以检索所必须重新实现的组件来源，从而难以调试。PipeUNet则提供更直观的组件划分形式以便于用户对各种组件进行”**低成本**“的直接修改。
 - **主流支持库的再结合**：Monai作为一个成熟的3D医学图像处理和深度学习库虽然具有许多相关研究工作，但它们大多与PyTorch直接结合使用，使得管线定义变得原始或者复杂，例程监控也显得相对原始而不充分。因此，PipeUNet致力于将Monai与在例程和监控方面发展比较成熟的Lightning框架进行**结合**，从而构建一个更加**有利于科研用途的协作模板**。
 
-**⭐使用最流行的工具包库作为预设**
+### **⭐使用最流行的工具包库作为预设**
 
-PyTorch Monai Lightning TorchMetrics Tensorboard WandB
+<div align="center">
+  <img height=70 src="https://raw.githubusercontent.com/pytorch/pytorch/main/docs/source/_static/img/pytorch-logo-dark.png"> <img height=70 src="https://docs.monai.org.cn/en/stable/_static/MONAI-logo-color.png">
+</div>
+<p></p>
+<div align="center">
+  <img height=90 src="https://raw.githubusercontent.com/Lightning-AI/torchmetrics/master/docs/source/_static/images/logo.png"> <img height=90 src="https://tensorflow.google.cn/static/site-assets/images/project-logos/tensorboard-logo-social.png"> 
+</div>
+<p></p>
+<div align="center">
+  <img height=180 src="https://lightning.ai/docs/pytorch/stable/_images/mov.gif">
+</div>
+<p></p>
+<div align="center" style="background-color: black;">
+  <img height=105 src="https://site.wandb.ai/wp-content/uploads/2023/05/wb-cw.svg">
+</div>
 
-**⭐一个充分模块化和低耦合的管线框架**
+### **⭐一个充分模块化和低耦合的管线框架**
 
-![model_pipeline](Reference/model_pipeline.png)
+![model_pipeline](Assets/model_pipeline.png)
 
-**⭐用YAML配置一切你所需要的（Config Everything）**
+### **⭐用YAML配置一切你所需要的（Config Everything）**
 
-![yaml_config](Reference/yaml_config.png)
+![yaml_config](Assets/yaml_config.png)
 
-**⭐不只是YAML，还有图形化配置工具提供更直观的校验**
+### **⭐YAML图形化配置工具为你提供更好的校验和辅助**
 
-![tool_yaml_main](Reference/tool_yaml_main.png)
+<div align="left">
+  <img height=190 src="Assets/tool_yaml_main.png"> <img height=190 src="Assets/tool_yaml_obj.png">
+</div>
 
-![tool_yaml_obj](Reference/tool_yaml_obj.png)
+### **⭐若干仔细清洗和整理过的3D医学图像数据集（它们都按照统一的格式存储）**
+
+<div align="left">
+  <img height=150 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=150 src="Assets/DataArchive/AMOS22-Glimpse.gif">
+</div>
+<div align="left">
+  <img height=143 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=143 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=143 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=143 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
+</div>
+| 数据存档（<u>预处理细节</u>）                                | 对象                    | 任务                         | 样本量 | 体积图像类型      |
+| ------------------------------------------------------------ | ----------------------- | ---------------------------- | ------ | ----------------- |
+| [ACDC](DataArchive/ACDC/ACDC_data_preprocess.md)             | Heart Anatomy           | Segmentation, Classification | 300    | 4D Cine-MRI Frame |
+| [AMOS22](DataArchive/AMOS22/AMOS22_data_preprocess.md)       | Abdomen Organ           | Segmentation                 | 360    | CT & MRI          |
+| [VerSe](DataArchive/VerSe/VerSe_data_preprocess.md)          | Vertebra                | Segmentation                 | 374    | CT                |
+| [Duke-Breast-FGT-Segmentation-2025.4.10](DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10/Duke-Breast-FGT-Segmentation_data_preprocess.md) | Breast Anatomy          | Segmentation                 | 100    | MRI-T1CE          |
+| [NME-Seg-2025.8.25](DataArchive/NME-Seg-2025.8.25/NME-Seg-2025.8.25_data_preprocess.md) | Breast NME Lesion       | Segmentation                 | 1316   | MRI-DCE           |
+| [ESO-2025.10.31](DataArchive/ESO-2025.10.31/ESO-2025.10.31_data_preprocess.md) | Esophagus Cancer Lesion | Segmentation, Classification | 548    | CT & CECT         |
+
+来源信息：
+
+| 数据存档                               | 公开性  | 下载                                                         | 官方网站                                                     |
+| -------------------------------------- | ------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| ACDC                                   | Public  | [[Baidu Drive](https://pan.baidu.com/s/1YklrSzE9W2FKbd65wzgOXQ?pwd=7jm3)] | https://www.creatis.insa-lyon.fr/Challenge/acdc/databases.html<br />https://humanheart-project.creatis.insa-lyon.fr/database/#collection/637218c173e9f0047faa00fb |
+| AMOS22                                 | Public  | [[Baidu Drive](https://pan.baidu.com/s/1owJdUTH5--NhuHHEI2QhMg?pwd=qu5p)] | https://amos22.grand-challenge.org<br />https://era-ai-biomed.github.io/amos/dataset.html<br />https://dataset.sribd.cn/amos.html<br />https://zenodo.org/records/7262581 |
+| VerSe                                  | Public  | [[Baidu Drive](https://pan.baidu.com/s/18AORpIDLnTYMI1VHOn6vxw?pwd=r6qa)] | https://github.com/anjany/verse.git                          |
+| Duke-Breast-FGT-Segmentation-2025.4.10 | Public  | [[Baidu Drive](https://pan.baidu.com/s/1Xx_6o4KzTK61zRUo2KAA4Q?pwd=vugf)] | https://doi.org/10.7937/TCIA.e3sv-re93                       |
+| NME-Seg-2025.8.25                      | Private | [[Baidu Drive](https://pan.baidu.com/s/1ZRMRcmym64zsGWPsJ1fitw)] (password required) | Not Publicly Available (Contact d202481651@hust.edu.cn)      |
+| ESO-2025.10.31                         | Private | [[Baidu Drive](https://pan.baidu.com/s/12vgxqKR-QhsBbdMN-6WooA)] (password required) | Not Publicly Available (Contact d202481651@hust.edu.cn)      |
 
 ## 环境配置
 
@@ -74,14 +116,14 @@ mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel 
 
 ## 架构
 
-**PipeUNet**是一个用于3D医学图像分割科学问题研究的编程框架，是一个系统性的深度学习实验管线模板。
+**PipeUNet**是一个用于3D医学图像分割科学问题研究的编程框架，是一个系统性的深度学习实验管线模板。其中**主程序入口**位于[监控模组](#监控模组)的<u>启动器Launcher</u>中。
 
 它主要由以下4大部分构成：
 
-- **数据模组**：定义如何管理、解析、读取和转换数据。
-- **网络模组**：定义神经网络模型的计算流和IO，性能评估和参数优化策略。
-- **监控模组**：定义如何统筹调度模组协同工作和监控工作情况。
-- **工具模组**：定义各种零杂算子和便捷实验工具。
+- **[数据模组](#数据模组)**：定义如何管理、解析、读取和转换数据。
+- **[网络模组](#网络模组)**：定义神经网络模型的计算流和IO，性能评估和参数优化策略。
+- **[监控模组](#监控模组)**：定义如何统筹调度模组协同工作和监控工作情况。
+- **[工具模组](#工具模组)**：定义各种零杂算子和便捷实验工具。
 
 ***<u>为何要做这样的分工？</u>***
 
@@ -98,7 +140,9 @@ mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel 
 
 数据模组负责承担与数据存档、已封装数据集和缓存数据集进行从外存到内存的交互，执行在内存中的数据变换，以及将数据按照规范结构写入外存的任务。包括以下细分子模组（详询各子模组内部说明书）：
 
-- **数据存档 DataArchive**：负责对结构散乱、携带错误的原始数据存档进行清洗和结构化数据集导出，并负责扫描数据集生成符合统一协议的索引和划分清单文件。包括离线预处理。
+- **[数据存档 DataArchive](DataArchive/README_DataArchive.md)**：负责对结构散乱、携带错误的原始数据存档进行清洗和结构化数据集导出，并负责扫描数据集生成符合统一协议的索引和划分清单文件。包括离线预处理。
+
+  **注意**：数据存档由一个独立工程维护，PipeUNet保存了其代码仓库的一个副本。详见[Med3DDataArchive](https://github.com/CyannyPasiify/Med3DDataArchive)。
 - **[数据集 Dataset](Dataset/README_Dataset.md)**：负责解析清单文件内容，定位数据样本位置和将数据样本载入内存。包装自Monai和自定义。
 - **[变换 Transform](Transform/README_Transform.md)**：负责对已载入内存的数据样本进行在线预处理、数据增强变换。也包括部分在线后处理变换。扩展自定义于和包装自Monai。
 - **[数据模型 DataModule](DataModule/README_DataModule.md)**：负责调度数据集和变换模组协同工作，针对多种实验例程（训练、验证等）创建不同的数据装载器。负责配置参数和运行状态的记录和恢复，尤其是变换模组的随机状态。扩展自定义于Lightning。
@@ -116,8 +160,8 @@ mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel 
 - **[优化器 Optimizer](Optimizer/README_Optimizer.md)**：负责定义网络参数优化器。包装自PyTorch。
 - **[学习率调度器 LRScheduler](LRScheduler/README_LRScheduler.md)**：负责定义学习率调度器。包装自PyTorch。
 - **[网络 Network](Network/README_Network.md)**：负责定义神经网络架构和前馈计算流。扩展自定义于PyTorch。
-- **推断器 Inferer**：负责定义网络针对复杂输入数据的调用方式和网络输出的统筹方式。通常用于针对需要分片处理的大型单个样本的推断任务中。包装自Monai。
-- **主模型 Module**：负责调度网络模组中的各模组在多种实验例程（训练、验证等）下协同工作，定义在每个例程的单个步骤中所需执行的逻辑。负责配置参数和运行状态的记录和恢复。扩展自定义于Lightning。
+- **[推断器 Inferer](Inferer/README_Inferer.md)**：负责定义网络针对复杂输入数据的调用方式和网络输出的统筹方式。通常用于针对需要分片处理的大型单个样本的推断任务中。包装自Monai。
+- **[主模型 Module](Module/README_Module.md)**：负责调度网络模组中的各模组在多种实验例程（训练、验证等）下协同工作，定义在每个例程的单个步骤中所需执行的逻辑。负责配置参数和运行状态的记录和恢复。扩展自定义于Lightning。
 
 ***<u>网络模组为何需要单独的指标计算和推断器模块？</u>***
 
@@ -130,16 +174,16 @@ mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel 
 监控模组负责链接数据模组和网络模组，解析配置文件为其它模组提供恰当的初始化和维护实验日志。包括以下细分子模组（详询各子模组内部说明书）：
 
 - [**回调 Callback**](Callback/README_Callback.md)：负责定义例程控制和表现相关的自定义功能，通过例程中的钩子进行调用。常用回调功能包括早停策略介入、模型检查点持久化、模型预览和进度条渲染。包装自Lightning。
-- **日志器 Logger**：负责逐步骤持久化主模型状态记录，提供日志信息的结构化和可视化。例如CSV和Tensorboard日志器。包装自Lightning。
-- **训练器 Trainer**：负责定义多种例程管线。称作训练器只是一种命名传统，实际上是例程管理器（Routine Manager）。其中定义了针对训练、验证、测试、预测例程的可编程管线。包装自Lightning。
-- **启动器 Launcher**：负责解析命令行或YAML配置文件参数，对各模组执行初始化并启动目标例程。包括配置参数解析器。
+- **[日志器 Logger](Logger/README_Logger.md)**：负责逐步骤持久化主模型状态记录，提供日志信息的结构化和可视化。例如CSV和Tensorboard日志器。包装自Lightning。
+- **[训练器 Trainer](Trainer/README_Trainer.md)**：负责定义多种例程管线。称作训练器只是一种命名传统，实际上是例程管理器（Routine Manager）。其中定义了针对训练、验证、测试、预测例程的可编程管线。包装自Lightning。
+- **[启动器 Launcher](Launcher/README_Launcher.md)**：负责解析命令行或YAML配置文件参数，对各模组执行初始化并启动目标例程。包括配置参数解析器。
 
 ### 工具模组
 
 工具模组负责定义各种零杂算子和便捷实验工具。
 
-- **算子 Operator**：负责定义各种零杂的可配置和持久化的算子类，用于打印日志、在损失函数或指标计算中提供自定义的附加预处理和后处理。
-- **工具 Tools**：包含一些用于实验辅助用途的效率工具或可视化工具。当前包含一个支持输入验证的YAML图形化编辑工具。
+- **[算子 Operator](Operator/README_Operator.md)**：负责定义各种零杂的可配置和持久化的算子类，用于打印日志、在损失函数或指标计算中提供自定义的附加预处理和后处理。
+- **[工具 Tools](Tools/README_Tools.md)**：包含一些用于实验辅助用途的效率工具或可视化工具。当前包含一个支持输入验证的YAML图形界面编辑工具。
 
 ## 已知问题
 

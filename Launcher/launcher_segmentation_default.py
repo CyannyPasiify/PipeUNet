@@ -148,12 +148,19 @@ if __name__ == "__main__":
     import argparse
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(
+        title='subcommands',
+        description='valid subcommands',
+        help='additional help',
+        dest='routine'
+    )
+
     # Common: Experiment
     parser.add_argument('-r', '--experiment_root_dir', type=str, required=True, help='experiment_root_dir')
     parser.add_argument('-e', '--experiment_name', type=str, required=True, help='experiment_name')
     parser.add_argument('-v', '--experiment_version', type=str, required=True, help='experiment_version')
     # Common: Routine
-    parser.add_argument('--accelerator', type=str, required=True, help='accelerator')
+    parser.add_argument('--accelerator', type=str, choices=['cpu', 'gpu'], required=True, help='accelerator')
     parser.add_argument('--devices', type=int, nargs='+', required=True, help='devices, gpu [multi], cpu single num')
     parser.add_argument('--deterministic', choices=['none', 'warn', 'true', 'false'], default='warn',
                         help='deterministic, \'warn\' try it best to be deterministic')
@@ -182,13 +189,6 @@ if __name__ == "__main__":
     # Common: Network
     parser.add_argument('--num_sequence', '--num_modality', type=int, required=True, help='num_sequence')
     parser.add_argument('--num_classes', type=int, required=True, help='num_classes')
-
-    subparsers = parser.add_subparsers(
-        title='subcommands',
-        description='valid subcommands',
-        help='additional help',
-        dest='routine'
-    )
 
     # region Fit
     parser_fit: argparse.ArgumentParser = subparsers.add_parser('fit', help='fit help')

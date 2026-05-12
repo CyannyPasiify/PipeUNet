@@ -79,6 +79,9 @@ class ConfigLossDeepSupervision(ConfigLossBase, metaclass=ABCMeta):
             AssertionError: When input and target (after one hot transform if set)
                 have different shapes.
         """
+        # Note that all deep supervision Monai losses have only 2 args for __call__,
+        # so we move args, kwargs for initialization.
+        # You may also add custom processes here.
         self._assert_init_essentials(*args, **kwargs)
         return self.loss(input=input, target=target)
 
