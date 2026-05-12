@@ -51,7 +51,7 @@
   <img height=180 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/AMOS22-Glimpse.gif">
 </div>
 <div align="left">
-  <img height=170 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=170 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=170 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=170 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
+  <img height=172 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=172 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=172 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=172 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
 </div>
 
 
