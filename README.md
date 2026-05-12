@@ -1,15 +1,15 @@
 # PipeUNet
 **PipeUNet** is a framework for 3D medical segmentation research, template for deep learning experiment projects.
 
-**PipeUNet**是一个用于3D医学图像分割科学问题研究的编程框架，适用于具有一定编程基础的科研人员使用。此框架主要提供高层封装和对自定义高层封装的编程框架，具有更加明确的类型系统、较低的耦合度和数据-模型-管线-配置的高度可自定义性。如果您主要从事医学图像模型的应用研究，通常不需要对模型或管线本身进行大量修改，则推荐选择nnUNetv2和Monai框架，而非选择本框架。
+**PipeUNet**是一个用于3D医学图像分割科学问题研究的编程框架，适用于具有一定编程基础的科研人员使用。此框架主要提供高层封装和对自定义高层封装的编程框架，具有更加明确的类型系统、较低的耦合度和数据-模型-管线-配置的高度可自定义性。如果您主要从事医学图像模型的应用研究，通常不需要对模型或管线本身进行大量修改，则推荐选择[nnUNet](https://github.com/MIC-DKFZ/nnUNet)和[Monai](https://github.com/project-monai/monai)框架，而非选择本框架。
 
 **PipeUNet**的主要用途是作为一个编程模板使用，虽然其中定义了一些预设的算子、网络和管线，但此框架不对预设模型的实际性能做出任何保证。因为，针对实际科研问题的优化应当完全取决于您的巧思与深度设计。
 
 ## ***<u>为何选择PipeUNet？</u>***
 
-- **更明确的类型**：以使用和阅读nnUNetv2框架代码为例，由于其缺乏类型注解而导致代码中的一些变量操作难以理解，有时甚至必须开启调试进行观察。PipeUNet尝试尽可能规避此问题，利用**Typing类型注解和Dataclass**包装强化了类型系统概念，使得弱类型Python代码更容易被理解。
-- **低耦合度和扩展性**：nnUNetv2的封装过于完整，因此对应用研究和工程使用友好，而对需要频繁修改预处理、后处理、模型架构、训练方法管线控制代码以及可视化的研究任务十分不利，因为用户总是需要按照复杂协议重新编写代码，有时甚至难以检索所必须重新实现的组件来源，从而难以调试。PipeUNet则提供更直观的组件划分形式以便于用户对各种组件进行”**低成本**“的直接修改。
-- **主流支持库的再结合**：Monai作为一个成熟的3D医学图像处理和深度学习库虽然具有许多相关研究工作，但它们大多与PyTorch直接结合使用，使得管线定义变得原始或者复杂，例程监控也显得相对原始而不充分。因此，PipeUNet致力于将Monai与在例程和监控方面发展比较成熟的Lightning框架进行**结合**，从而构建一个更加**有利于科研用途的协作模板**。
+- **更明确的类型**：以使用和阅读[nnUNet](https://github.com/MIC-DKFZ/nnUNet)框架代码为例，由于其缺乏类型注解而导致代码中的一些变量操作难以理解，有时甚至必须开启调试进行观察。PipeUNet尝试尽可能规避此问题，利用**Typing类型注解和Dataclass**包装强化了类型系统概念，使得弱类型Python代码更容易被理解。
+- **低耦合度和扩展性**：[nnUNet](https://github.com/MIC-DKFZ/nnUNet)的封装过于完整，因此对应用研究和工程使用友好，而对需要频繁修改预处理、后处理、模型架构、训练方法管线控制代码以及可视化的研究任务十分不利，因为用户总是需要按照复杂协议重新编写代码，有时甚至难以检索所必须重新实现的组件来源，从而难以调试。PipeUNet则提供更直观的组件划分形式以便于用户对各种组件进行”**低成本**“的直接修改。
+- **主流支持库的再结合**：[Monai](https://github.com/project-monai/monai)作为一个成熟的3D医学图像处理和深度学习库虽然具有许多相关研究工作，但它们大多与[PyTorch](https://pytorch.org/)直接结合使用，使得管线定义变得原始或者复杂，例程监控也显得相对原始而不充分。因此，PipeUNet致力于将Monai与在例程和监控方面发展比较成熟的Lightning框架进行**结合**，从而构建一个更加**有利于科研用途的协作模板**。
 
 ### **⭐使用最流行的工具包库作为预设**
 
@@ -51,7 +51,7 @@
   <img height=180 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/AMOS22-Glimpse.gif">
 </div>
 <div align="left">
-  <img height=180 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
+  <img height=175 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=175 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=175 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=175 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
 </div>
 
 
@@ -111,12 +111,12 @@ mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel 
 
 此框架使用了一系列深度学习和医学图像处理相关工具包提供基础支持。由于在所涉及工具包中包含大量概念和接口定义，此文档只提供这些工具包在线文档或指南页面的引用，而无力提供更加具体的编程使用指导。因此，请在开始使用此框架前确保对下列工具包足够熟悉：
 
-- **PyTorch**：深度学习的基础支持库之一，其中提供了大量预定义的张量算子和模组，以及数据集、数据加载器、优化器、学习率调度器、损失函数组件。
-- **Lightning**：基于PyTorch开发的中间层深度学习库，其中提供了大量的核心组件抽象、封装结构定义和埋设有大量预设钩子的例程定义。也是此框架模组划分的主要参考对象。
-- **TorchMetrics**：Lightning关于指标计算方法的扩展库之一，提供了几乎所有主流分类指标的计算与制图类定义。
-- **Monai**：另一个基于PyTorch开发的中间层和高层深度学习库，同时也是中间层图像处理库，此支持库是专门针对3D医学图像任务而设计的，包含了大量3D图像处理算子、医学图像常用损失函数与指标的计算类定义以及3D大规格图像特需的缓存加载器、滑动窗口推断器等附加组件。此框架主要使用Monai的中间层支持库。
-- **Typing和Dataclass**：系统库，主要提供类型注解支持和数据类封装。此框架广泛使用自定义类型对各种组件参数进行了封装，并尽量避免不明确元素类型的复合字典及列表的使用，许多组件类依赖dataclass提供初始化。此举主要是为了提高配置参数的可验证性和代码的可读性，同时便于配置信息的序列化与持久化保存。
-- **[建议了解] SimpleITK和Nibabel**：3D医学图像处理库，其地位相当于医学图像处理领域中的OpenCV。虽然Monai所提供的封装已经能够代理大多数3D医学图像处理需求，但仍建议了解用于支持Monai完成图像处理的基础支持库，它们可能在处理数据存档时被直接使用。
+- **[PyTorch](https://pytorch.org/)**：深度学习的基础支持库之一，其中提供了大量预定义的张量算子和模组，以及数据集、数据加载器、优化器、学习率调度器、损失函数组件。
+- **[Lightning](https://lightning.ai/docs/pytorch/stable/)**：基于PyTorch开发的中间层深度学习库，其中提供了大量的核心组件抽象、封装结构定义和埋设有大量预设钩子的例程定义。也是此框架模组划分的主要参考对象。
+- **[TorchMetrics](https://lightning.ai/docs/torchmetrics/stable/)**：Lightning关于指标计算方法的扩展库之一，提供了几乎所有主流分类指标的计算与制图类定义。
+- **[Monai](https://docs.monai.org.cn/en/stable/index.html)**：另一个基于PyTorch开发的中间层和高层深度学习库，同时也是中间层图像处理库，此支持库是专门针对3D医学图像任务而设计的，包含了大量3D图像处理算子、医学图像常用损失函数与指标的计算类定义以及3D大规格图像特需的缓存加载器、滑动窗口推断器等附加组件。此框架主要使用Monai的中间层支持库。
+- **[Typing](https://docs.python.org/3/library/typing.html)和[Dataclasses](https://docs.python.org/3/library/dataclasses.html)**：系统库，主要提供类型注解支持和数据类封装。此框架广泛使用自定义类型对各种组件参数进行了封装，并尽量避免不明确元素类型的复合字典及列表的使用，许多组件类依赖dataclass提供初始化。此举主要是为了提高配置参数的可验证性和代码的可读性，同时便于配置信息的序列化与持久化保存。
+- **[建议了解] [SimpleITK](https://simpleitk.org/)和[NiBabel](https://nipy.org/nibabel/)**：3D医学图像处理库，其地位相当于医学图像处理领域中的OpenCV。虽然Monai所提供的封装已经能够代理大多数3D医学图像处理需求，但仍建议了解用于支持Monai完成图像处理的基础支持库，它们可能在处理数据存档时被直接使用。
 
 ## 架构
 
@@ -213,4 +213,4 @@ mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel 
 
    **解决方案1**：在资源许可的条件下，可选用更大存储容量的GPU设备进行实验；如果资源紧缺，也可全部映射到CPU上利用较大的内存执行。
 
-   **解决方案2**：采用先预测再计算指标的分步模式，即参照nnUNet模式，但是这需要自行实现单独的计算例程。
+   **解决方案2**：采用先预测再计算指标的分步模式，即参照[nnUNet](https://github.com/MIC-DKFZ/nnUNet)模式，但是这需要自行实现单独的计算例程。
