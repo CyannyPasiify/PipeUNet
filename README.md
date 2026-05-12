@@ -22,17 +22,17 @@
 </div>
 <p></p>
 <div align="center">
-  <img height=220 src="https://lightning.ai/docs/pytorch/stable/_images/mov.gif">
+  <img height=260 src="https://lightning.ai/docs/pytorch/stable/_images/mov.gif">
 </div>
 <p></p>
 <div align="center">
-  <img height=70 src="https://mintcdn.com/wb-21fd5541/NC1-xMMdE5yuKjPX/icons/logo_light.svg?fit=max&auto=format&n=NC1-xMMdE5yuKjPX&q=85&s=22c8691af763b43d16edf3e59dc1693e">
+  <img height=100 src="https://mintcdn.com/wb-21fd5541/NC1-xMMdE5yuKjPX/icons/logo_light.svg?fit=max&auto=format&n=NC1-xMMdE5yuKjPX&q=85&s=22c8691af763b43d16edf3e59dc1693e">
 </div>
 
 
 ### **⭐一个充分模块化和低耦合的管线框架**
 
-<img src="Assets/model_pipeline.png" alt="model_pipeline" style="zoom:48%;" />
+![Pipeline](Assets/model_pipeline.png)
 
 ### **⭐用YAML配置一切你所需要的（Config Everything）**
 
@@ -40,9 +40,10 @@
 
 ### **⭐YAML图形化配置工具为你提供更好的校验和辅助**
 
-<div align="left">
-  <img height=190 src="Assets/tool_yaml_main.png"> <img height=190 src="Assets/tool_yaml_obj.png">
-</div>
+![tool_yaml_main](Assets/tool_yaml_main.png)
+
+![tool_yaml_obj](Assets/tool_yaml_obj.png)
+
 
 ### **⭐若干仔细清洗和整理过的3D医学图像数据集（它们都按照统一的格式存储）**
 
