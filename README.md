@@ -26,7 +26,7 @@
 </div>
 <p></p>
 <div align="center">
-  <img height=100 src="https://tensorflow.google.cn/static/site-assets/images/project-logos/tensorboard-logo-social.png"> <img height=100 src="https://mintcdn.com/wb-21fd5541/NC1-xMMdE5yuKjPX/icons/logo_light.svg?fit=max&auto=format&n=NC1-xMMdE5yuKjPX&q=85&s=22c8691af763b43d16edf3e59dc1693e">
+  <img height=100 src="https://tensorflow.google.cn/static/site-assets/images/project-logos/tensorboard-logo-social.png"> <img height=200 src="https://mintcdn.com/wb-21fd5541/NC1-xMMdE5yuKjPX/icons/logo_light.svg?fit=max&auto=format&n=NC1-xMMdE5yuKjPX&q=85&s=22c8691af763b43d16edf3e59dc1693e">
 </div>
 
 
@@ -51,7 +51,7 @@
   <img height=180 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/AMOS22-Glimpse.gif">
 </div>
 <div align="left">
-  <img height=160 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=160 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=160 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=160 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
+  <img height=180 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=180 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
 </div>
 
 
@@ -81,7 +81,7 @@
 
 请确保系统安装了CUDA 11.8或更高版本的内核及系统驱动，在测试环境里，我们使用NVIDIA GeForce 1080 Ti GPU。
 
-推荐使用[Miniforge](https://conda-forge.org/)提供的Mamba包管理器进行环境配置，它可能比Conda包管理器效率更高。如果您使用Conda包管理器，请将以下命令中的`mamba`替换为`conda`。
+推荐使用[Miniforge](https://conda-forge.org/download)提供的Mamba包管理器进行环境配置，它可能比Conda包管理器效率更高。如果您使用Conda包管理器，请将以下命令中的`mamba`替换为`conda`。
 
 **创建虚拟环境**
 
