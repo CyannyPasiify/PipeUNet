@@ -47,7 +47,7 @@
 
 ![Pipeline](Assets/model_pipeline.png)
 
-### 🕹️用YAML配置一切你所需要的（Config Everything for Pipeline in One）
+### 🕹️用YAML配置一切你所需要的（Configuring Everything for Pipeline in One）
 
 ![yaml_config](Assets/yaml_config.png)
 
@@ -58,7 +58,7 @@
 ![tool_yaml_obj](Assets/tool_yaml_obj.png)
 
 
-### **🕹️若干仔细清洗和整理过的3D医学图像数据集（All in One Standardized Format）**
+### **🕹️若干仔细清洗和整理过的3D医学图像数据集（Clean Datasets in One Standardized Format）**
 
 <div align="left">
   <img height=181 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=181 src="Assets/DataArchive/AMOS22-Glimpse.gif">
