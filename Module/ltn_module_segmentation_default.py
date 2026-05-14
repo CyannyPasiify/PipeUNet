@@ -549,12 +549,6 @@ class LightningModuleSegmentationDefault(L.LightningModule):
             print(f"val step: Calculating {name}")
             desc: NamedMetricInitArgs = metrics_desc[name]
             pred, gt = pred_to_raw.detach(), mask_raw.detach()
-            # OOM is overwhelming, I surrender
-            # A single 1080 ti GPU is all I'd offer
-            # Calculating on CPU
-            # pred = pred.cpu()
-            # gt = gt.cpu()
-            # metric_func.to(device='cpu')
             if desc.preprocess_pred_func is not None:
                 pred: Tensor = desc.preprocess_pred_func(pred)
             if desc.preprocess_gt_func is not None:
@@ -653,8 +647,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         metrics_desc: Dict[str, NamedMetricInitArgs] = self.test_metrics_desc
         for name, metric_func in self.test_config_metrics.items():
             desc: NamedMetricInitArgs = metrics_desc[name]
-            pred, gt = pred_to_raw.detach().cpu(), mask_raw.detach().cpu()
-            metric_func = metric_func.to(device='cpu')
+            pred, gt = pred_to_raw.detach(), mask_raw.detach()
             if desc.preprocess_pred_func is not None:
                 pred: Tensor = desc.preprocess_pred_func(pred)
             if desc.preprocess_gt_func is not None:

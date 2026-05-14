@@ -1,9 +1,20 @@
-# PipeUNet
-**PipeUNet** is a framework for 3D medical segmentation research, template for deep learning experiment projects.
+<div align="center">
 
-**PipeUNet**是一个用于3D医学图像分割科学问题研究的编程框架，适用于具有一定编程基础的科研人员使用。此框架主要提供高层封装和对自定义高层封装的编程框架，具有更加明确的类型系统、较低的耦合度和数据-模型-管线-配置的高度可自定义性。如果您主要从事医学图像模型的应用研究，通常不需要对模型或管线本身进行大量修改，则推荐选择[nnUNet](https://github.com/MIC-DKFZ/nnUNet)和[Monai](https://github.com/project-monai/monai)框架，而非选择本框架。
+# Pipelining Ur(Your) Network - PipeUNet
 
-**PipeUNet**的主要用途是作为一个编程模板使用，虽然其中定义了一些预设的算子、网络和管线，但此框架不对预设模型的实际性能做出任何保证。因为，针对实际科研问题的优化应当完全取决于您的巧思与深度设计。
+![Author](https://img.shields.io/badge/Primary%20Author-CyannyPasiify-green)
+![GitHub contributors](https://img.shields.io/github/contributors/CyannyPasiify/PipeUNet)
+![Visitors](https://visitor-badge.laobi.icu/badge?page_id=CyannyPasiify/PipeUNet)
+![GitHub last commit](https://img.shields.io/github/last-commit/CyannyPasiify/PipeUNet)
+![GitHub Repo stars](https://img.shields.io/github/stars/CyannyPasiify/PipeUNet)
+
+</div>
+
+**PipeUNet** is a framework for general deep learning and specified 3D medical segmentation research, template for experiment oriented projects.
+
+**PipeUNet**是一个用于深度学习科学问题研究的编程框架，同时也是一个3D医学图像分割管线的预设，适合具有一定编程基础的科研人员使用。此框架主要提供高层封装和对自定义高层封装的编程框架，具有更加明确的类型系统、较低的耦合度和数据-模型-管线-配置的高度可自定义性。如果您主要从事医学图像模型的应用研究，通常不需要对模型或管线本身进行大量修改，则推荐选择[nnUNet](https://github.com/MIC-DKFZ/nnUNet)和[Monai](https://github.com/project-monai/monai)框架，而非选择本框架。
+
+**PipeUNet**的主要用途是作为一个编程模板使用，虽然其中定义了一些预设的算子、网络和管线，但此框架不对预设模型的实际性能做出任何保证。因为，针对实际科研问题的优化应当完全取决于您的巧思与深度设计。另外，PipeUNet并非只是一个UNet特化框架，其同样适用于搭建任意其他深度学习模型的管线。
 
 ## ***<u>为何选择PipeUNet？</u>***
 
@@ -53,7 +64,6 @@
 <div align="left">
   <img height=172 src="Assets/DataArchive/VerSe-Glimpse.jpg"> <img height=172 src="Assets/DataArchive/Duke-Breast-FGT-Segmentation-2025.4.10-Glimpse.jpg"> <img height=172 src="Assets/DataArchive/NME-Seg-2025.8.25-Glimpse.jpg"> <img height=172 src="Assets/DataArchive/ESO-2025.10.31-Glimpse.jpg">
 </div>
-
 
 | 数据存档（<u>预处理细节</u>）                                | 对象                     | 任务       | 样本量 | 体积图像类型      |
 | ------------------------------------------------------------ | ------------------------ | ---------- | ------ | ----------------- |
