@@ -22,9 +22,9 @@
 - **低耦合度和扩展性**：[nnUNet](https://github.com/MIC-DKFZ/nnUNet)的封装过于完整，因此对应用研究和工程使用友好，而对需要频繁修改预处理、后处理、模型架构、训练方法管线控制代码以及可视化的研究任务十分不利，因为用户总是需要按照复杂协议重新编写代码，有时甚至难以检索所必须重新实现的组件来源，从而难以调试。PipeUNet则提供更直观的组件划分形式以便于用户对各种组件进行”**低成本**“的直接修改。
 - **主流支持库的再结合**：[Monai](https://github.com/project-monai/monai)作为一个成熟的3D医学图像处理和深度学习库虽然具有许多相关研究工作，但它们大多与[PyTorch](https://pytorch.org/)直接结合使用，使得管线定义变得原始或者复杂，例程监控也显得相对原始而不充分。因此，PipeUNet致力于将Monai与在例程和监控方面发展比较成熟的Lightning框架进行**结合**，从而构建一个更加**有利于科研用途的协作模板**。
 
-## 🚀*为您助力 All PipeUNet could offer *
+## 🚀*为您助力 All PipeUNet could offer*
 
-### **🕹️使用最流行的工具包库作为预设**
+### 🕹️使用最流行的工具包库作为预设（Developing with Popular Packages）
 
 <div align="center">
   <img height=85 src="https://raw.githubusercontent.com/pytorch/pytorch/main/docs/source/_static/img/pytorch-logo-dark.png"> <img height=85 src="https://docs.monai.org.cn/en/stable/_static/MONAI-logo-color.png">
@@ -43,22 +43,22 @@
 </div>
 
 
-### **🕹️一个充分模块化和低耦合的管线框架**
+### 🕹️一个充分模块化和低耦合的管线框架（Modularized and Low Coupling）
 
 ![Pipeline](Assets/model_pipeline.png)
 
-### **🕹️用YAML配置一切你所需要的（Config Everything）**
+### 🕹️用YAML配置一切你所需要的（Config Everything for Pipeline in One）
 
 ![yaml_config](Assets/yaml_config.png)
 
-### **🕹️YAML图形界面配置工具为你提供更好的校验和辅助**
+### 🕹️通过图形界面配置您想要的YAML（Configuring with Hints and Rectification）
 
 ![tool_yaml_main](Assets/tool_yaml_main.png)
 
 ![tool_yaml_obj](Assets/tool_yaml_obj.png)
 
 
-### **🕹️若干仔细清洗和整理过的3D医学图像数据集（它们都按照统一的格式存储）**
+### **🕹️若干仔细清洗和整理过的3D医学图像数据集（All in One Standardized Format）**
 
 <div align="left">
   <img height=181 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=181 src="Assets/DataArchive/AMOS22-Glimpse.gif">
