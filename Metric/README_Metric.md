@@ -150,7 +150,7 @@ config_metric.plot(...)
 基类声明以下方法：
 
 - **`is_ready`**：判断这个类是否已被初始化过。
-- **`init_essentials`**：初始化逻辑。它相当于常规类**`__init__`**的功能，但只在必要时才需要初始化。
+- **`init_essentials`**：初始化逻辑。它相当于常规类 **`__init__`** 的功能，但只在必要时才需要初始化。
 - **`_assert_init_essentials`**：校验执行方法。确保执行过初始化，一般在功能性方法中首先调用。
 - **`__call__`**：调用方法。内部调用指标计算器实例，基于输入和参照值计算指标。
 - **`to`**：转换设备和数据类型方法。内部调用`torch.nn.Module`（如果从此基类派生）的`to`方法将指标计算器实例迁移至指定设备和转换为指定数据类型。一般只用于迁移设备。
@@ -167,6 +167,6 @@ config_metric.plot(...)
 
 ### ConfigMetricTorch
 
-对于带有制图支持的指标计算器（例如`torchmetrics.metric.Metric`，包装于`ConfigMetricTorch`以及`ConfigMetricTorchScalar`），还可以额外实现**`plot`**方法以便更加精细地或自定义地控制制图过程。
+对于带有制图支持的指标计算器（例如`torchmetrics.metric.Metric`，包装于`ConfigMetricTorch`以及`ConfigMetricTorchScalar`），还可以额外实现 **`plot`** 方法以便更加精细地或自定义地控制制图过程。
 
-如果指标计算器派生自`torch.nn.Module`，还应重写**`to`**方法以迁移指标计算器到指定设备。
+如果指标计算器派生自`torch.nn.Module`，还应重写 **`to`** 方法以迁移指标计算器到指定设备。

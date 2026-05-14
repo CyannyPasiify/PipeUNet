@@ -1,8 +1,8 @@
 # Transform
 
-**Transform（变换）**模组负责对已载入内存的数据样本进行在线预处理、数据增强变换。也包括部分在线后处理变换。扩展自定义于和包装自Monai。
+**Transform（变换）** 模组负责对已载入内存的数据样本进行在线预处理、数据增强变换。也包括部分在线后处理变换。扩展自定义于和包装自Monai。
 
-**Transform（变换）**部分包含2个预设代码文件：
+**Transform（变换）** 部分包含2个预设代码文件：
 
 - [`transform_configurer`](transform_configurer.py)：**关键代码**。定义了`ConfigTransformBase`**变换配置包装器**基类，一个基础性的训练预处理变换配置包装器`ConfigTransformSegmentationDefaultTrain`，以及适用于推断时使用的推断预处理变换配置包装器`ConfigTransformSegmentationDefaultInferencePre`和推断后处理变换配置包装器`ConfigTransformSegmentationDefaultInferencePost`。
 

@@ -69,7 +69,7 @@ trainer = lightning.pytorch.trainer.trainer.Trainer(callbacks=[callback_ckpt])
 基类声明以下方法：
 
 - **`is_ready`**：判断这个类是否已被初始化过。
-- **`init_essentials`**：初始化逻辑。它相当于常规类__init__的功能，但只在必要时才需要初始化。
+- **`init_essentials`**：初始化逻辑。它相当于常规类 **`__init__`** 的功能，但只在必要时才需要初始化。
 - **`_assert_init_essentials`**：校验执行方法。确保执行过初始化，一般在功能性方法中首先调用。
 - **`get_callback_hooker`**：获取包装器内部所包装的回调实例。
 
