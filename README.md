@@ -16,13 +16,15 @@
 
 **PipeUNet**的主要用途是作为一个编程模板使用，虽然其中定义了一些预设的算子、网络和管线，但此框架不对预设模型的实际性能做出任何保证。因为，针对实际科研问题的优化应当完全取决于您的巧思与深度设计。另外，PipeUNet并非只是一个UNet特化框架，其同样适用于搭建任意其他深度学习模型的管线。
 
-## ***<u>为何选择PipeUNet？</u>***
+## ***<u>为何选择 PipeUNet？</u>***
 
 - **更明确的类型**：以使用和阅读[nnUNet](https://github.com/MIC-DKFZ/nnUNet)框架代码为例，由于其缺乏类型注解而导致代码中的一些变量操作难以理解，有时甚至必须开启调试进行观察。PipeUNet尝试尽可能规避此问题，利用**Typing类型注解和Dataclass**包装强化了类型系统概念，使得弱类型Python代码更容易被理解。
 - **低耦合度和扩展性**：[nnUNet](https://github.com/MIC-DKFZ/nnUNet)的封装过于完整，因此对应用研究和工程使用友好，而对需要频繁修改预处理、后处理、模型架构、训练方法管线控制代码以及可视化的研究任务十分不利，因为用户总是需要按照复杂协议重新编写代码，有时甚至难以检索所必须重新实现的组件来源，从而难以调试。PipeUNet则提供更直观的组件划分形式以便于用户对各种组件进行”**低成本**“的直接修改。
 - **主流支持库的再结合**：[Monai](https://github.com/project-monai/monai)作为一个成熟的3D医学图像处理和深度学习库虽然具有许多相关研究工作，但它们大多与[PyTorch](https://pytorch.org/)直接结合使用，使得管线定义变得原始或者复杂，例程监控也显得相对原始而不充分。因此，PipeUNet致力于将Monai与在例程和监控方面发展比较成熟的Lightning框架进行**结合**，从而构建一个更加**有利于科研用途的协作模板**。
 
-### **⭐使用最流行的工具包库作为预设**
+## 🚀*为您助力 All PipeUNet could offer *
+
+### **🕹️使用最流行的工具包库作为预设**
 
 <div align="center">
   <img height=85 src="https://raw.githubusercontent.com/pytorch/pytorch/main/docs/source/_static/img/pytorch-logo-dark.png"> <img height=85 src="https://docs.monai.org.cn/en/stable/_static/MONAI-logo-color.png">
@@ -41,22 +43,22 @@
 </div>
 
 
-### **⭐一个充分模块化和低耦合的管线框架**
+### **🕹️一个充分模块化和低耦合的管线框架**
 
 ![Pipeline](Assets/model_pipeline.png)
 
-### **⭐用YAML配置一切你所需要的（Config Everything）**
+### **🕹️用YAML配置一切你所需要的（Config Everything）**
 
 ![yaml_config](Assets/yaml_config.png)
 
-### **⭐YAML图形界面配置工具为你提供更好的校验和辅助**
+### **🕹️YAML图形界面配置工具为你提供更好的校验和辅助**
 
 ![tool_yaml_main](Assets/tool_yaml_main.png)
 
 ![tool_yaml_obj](Assets/tool_yaml_obj.png)
 
 
-### **⭐若干仔细清洗和整理过的3D医学图像数据集（它们都按照统一的格式存储）**
+### **🕹️若干仔细清洗和整理过的3D医学图像数据集（它们都按照统一的格式存储）**
 
 <div align="left">
   <img height=181 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=181 src="Assets/DataArchive/AMOS22-Glimpse.gif">
@@ -115,7 +117,7 @@ mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel 
 
 **特殊：用于数据存档处理的环境配置**
 
-由于各类数据存档所需的处理方法不同，它们可能依赖某些特定的工具包，因此请参照数据存档目录下的说明书进行单独配置。请特别注意不要将数据存档处理所使用的环境与此框架的主要环境合并到一起安装，这可能导致严重的工具包不兼容性问题。
+由于各类数据存档所需的处理方法不同，它们可能依赖某些特定的工具包，因此请参照**[数据存档DataArchive](DataArchive)**目录下的说明书进行单独配置。请特别注意不要将数据存档处理所使用的环境与此框架的主要环境合并到一起安装，这可能导致严重的工具包不兼容性问题。
 
 ## 关键工具包
 
