@@ -104,9 +104,9 @@ class ParserAnExample(ParserABC):
 | get_default_value                           | 获取实例中的属性类型的默认值。                               |
 | get_simplest_type                           | 获取经过化简后的实例中的属性类型。                           |
 | get_simplest_type_name                      | 获取经过化简后的实例中的属性类型名称。                       |
-| can_edit                                    | 判断当前维护器是否允许编辑。这通常要求is_type_compatible返回值为True。 |
+| can_edit                                    | 判断当前维护器是否允许编辑。这通常要求`is_type_compatible`返回值为`True`。 |
 | confirm_editor_change                       | 确认来自交互编辑器的修改，并修改实例中记录的属性值。         |
-| create_inspector                            | 创建监视器控件面板。监视器一般负责创建预览框，并配置属性名和属性类型显示控件。然后调用create_editor创建编辑器控件面板。 |
+| create_inspector                            | 创建监视器控件面板。监视器一般负责创建预览框，并配置属性名和属性类型显示控件。然后调用`create_editor`创建编辑器控件面板。 |
 | create_editor                               | 创建编辑器控件面板。编辑器一般负责创建属性值显示控件和多种交互式编辑控件，从而展示和修改属性值。 |
 | editor_enable                               | 激活编辑器。使得编辑器可以与用户交互。                       |
 | editor_disable                              | 禁用编辑器。阻止编辑器与用户交互，通常会禁用控件或将控件设置为只读。 |
