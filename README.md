@@ -114,7 +114,7 @@ mamba install pytorch=2.5.1 torchvision=0.20.1 torchaudio=2.5.1  pytorch-cuda=11
 **安装Lightning，Monai等工具包**
 
 ```sh
-mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel simpleitk scipy scikit-learn pyyaml tqdm rich pandas openpyxl
+mamba install lightning=2.5.3 monai=1.5.1 wandb matplotlib tensorboard tensorboardx nibabel simpleitk scipy scikit-learn pyyaml tqdm rich pandas openpyxl
 ```
 
 **特殊：用于数据存档处理的环境配置**
@@ -138,7 +138,7 @@ mamba create -n pipeunet python=3.14.4
 **注意**：Monai截至2026-05-16尚不支持PyTorch 2.12.0 + cu13.2最新版。
 
 ```sh
-mamba install pytorch=2.11=gpu_cuda130* monai=1.5.2 lightning=2.5.5 wandb matplotlib tensorboard tensorboardx nibabel simpleitk scipy scikit-learn pyyaml tqdm rich pandas openpyxl
+mamba install pytorch=2.11=gpu_cuda130* lightning=2.5.5 monai=1.5.2 wandb matplotlib tensorboard tensorboardx nibabel simpleitk scipy scikit-learn pyyaml tqdm rich pandas openpyxl
 ```
 
 可以考虑同时安装`cuCIM`图像计算加速包（使用GPU）。
