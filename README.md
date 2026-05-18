@@ -19,7 +19,7 @@
 ## ***<u>为何选择 PipeUNet？</u>***
 
 - **更明确的类型**：以使用和阅读[nnUNet](https://github.com/MIC-DKFZ/nnUNet)框架代码为例，由于其缺乏类型注解而导致代码中的一些变量操作难以理解，有时甚至必须开启调试进行观察。PipeUNet尝试尽可能规避此问题，利用**Typing类型注解和Dataclass**包装强化了类型系统概念，使得弱类型Python代码更容易被理解。
-- **低耦合度和扩展性**：[nnUNet](https://github.com/MIC-DKFZ/nnUNet)的封装过于完整，因此对应用研究和工程使用友好，而对需要频繁修改预处理、后处理、模型架构、训练方法管线控制代码以及可视化的研究任务十分不利，因为用户总是需要按照复杂协议重新编写代码，有时甚至难以检索所必须重新实现的组件来源，从而难以调试。PipeUNet则提供更直观的组件划分形式以便于用户对各种组件进行”**低成本**“的直接修改。
+- **低耦合度和扩展性**：[nnUNet](https://github.com/MIC-DKFZ/nnUNet)的封装过于完整，因此对应用研究和工程使用友好，而对需要频繁修改预处理、后处理、模型架构、训练方法管线控制代码以及可视化的研究任务十分不利，因为用户总是需要按照复杂协议重新编写代码，有时甚至难以检索所必须重新实现的组件来源，从而难以调试。PipeUNet则提供更直观的组件划分形式以便于用户对各种组件进行“**低成本**”的直接修改。
 - **主流支持库的再结合**：[Monai](https://github.com/project-monai/monai)作为一个成熟的3D医学图像处理和深度学习库虽然具有许多相关研究工作，但它们大多与[PyTorch](https://pytorch.org/)直接结合使用，使得管线定义变得原始或者复杂，例程监控也显得相对原始而不充分。因此，PipeUNet致力于将Monai与在例程和监控方面发展比较成熟的Lightning框架进行**结合**，从而构建一个更加**有利于科研用途的协作模板**。
 
 ## 🚀*为您助力 All PipeUNet could offer*
@@ -49,16 +49,16 @@
 
 ### 🕹️用YAML配置一切你所需要的（Configuring Everything for Pipeline in One）
 
-![yaml_config](Assets/yaml_config.png)
+![yaml_config](Assets/Tools/yaml_config.png)
 
-### 🕹️通过图形界面配置您想要的YAML（Configuring with Hints and Rectification）
+### 🕹️通过图形界面交互式配置您想要的YAML（Configuring with Hints and Rectification）
 
-![tool_yaml_main](Assets/tool_yaml_main.png)
+![tool_yaml_main](Assets/Tools/tool_yaml_main.png)
 
-![tool_yaml_obj](Assets/tool_yaml_obj.png)
+![tool_yaml_obj](Assets/Tools/tool_yaml_obj.png)
 
 
-### **🕹️若干仔细清洗和整理过的3D医学图像数据集（Clean Datasets in One Standardized Format）**
+### 🕹️若干仔细清洗和整理过的3D医学图像数据集（Clean Datasets in One Standardized Format）
 
 <div align="left">
   <img height=181 src="Assets/DataArchive/ACDC-Glimpse.jpg"> <img height=181 src="Assets/DataArchive/AMOS22-Glimpse.gif">
@@ -91,25 +91,27 @@
 
 此框架目前只在非常有限的设备环境中进行了测试。以下为推荐的运行环境安装引导。
 
-请确保系统安装了CUDA 11.8或更高版本的内核及系统驱动，在测试环境里，我们使用NVIDIA GeForce 1080 Ti GPU。
+关于包管理器，推荐使用[Miniforge](https://conda-forge.org/download)提供的Mamba包管理器进行环境配置，它可能比Conda包管理器效率更高。如果您使用Conda包管理器，请将以下命令中的`mamba`替换为`conda`。
 
-推荐使用[Miniforge](https://conda-forge.org/download)提供的Mamba包管理器进行环境配置，它可能比Conda包管理器效率更高。如果您使用Conda包管理器，请将以下命令中的`mamba`替换为`conda`。
+### 已测试环境1
+
+**注意**：此测试环境尝试安装一个较早稳定版本的工具包集合。
+
+请确保系统安装了CUDA 11.8或更高版本的内核及系统驱动，在测试环境里，我们使用NVIDIA GeForce 1080 Ti GPU。
 
 **创建虚拟环境**
 
 ```sh
-mamba create -n pipeunet python==3.9.23
+mamba create -n pipeunet python=3.9.23
 ```
 
-**安装PyTorch 2.5.1**
+**安装PyTorch 2.5.1 + cu11.8**
 
 ```sh
-mamba install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1  pytorch-cuda=11.8 -c pytorch -c nvidia
+mamba install pytorch=2.5.1 torchvision=0.20.1 torchaudio=2.5.1  pytorch-cuda=11.8 -c pytorch -c nvidia
 ```
 
 **安装Lightning，Monai等工具包**
-
-**注意**：由于依赖关系较为复杂，逐次安装可能消耗大量时间（>5h）用于计算依赖。推荐在一条命令中同时安装全部工具包从而一次性检索依赖。
 
 ```sh
 mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel simpleitk scipy scikit-learn pyyaml tqdm rich pandas openpyxl
@@ -117,7 +119,35 @@ mamba install lightning monai wandb matplotlib tensorboard tensorboardx nibabel 
 
 **特殊：用于数据存档处理的环境配置**
 
-由于各类数据存档所需的处理方法不同，它们可能依赖某些特定的工具包，因此请参照**[数据存档DataArchive](DataArchive)**目录下的说明书进行单独配置。请特别注意不要将数据存档处理所使用的环境与此框架的主要环境合并到一起安装，这可能导致严重的工具包不兼容性问题。
+由于各类数据存档所需的处理方法不同，它们可能依赖某些特定的工具包，因此请参照 **[数据存档DataArchive](DataArchive)** 目录下的说明书进行单独配置。请特别注意不要将数据存档处理所使用的环境与此框架的主要环境合并到一起安装，这可能导致严重的工具包不兼容性问题。
+
+### 已测试环境2
+
+**注意**：此测试环境尝试安装截至2026-05-16可整体安装的最新版本工具包集合。
+
+请确保系统安装了CUDA 13.0或更高版本的内核及系统驱动，在测试环境里，我们使用CUDA 13.2和NVIDIA GeForce 4090 GPU。
+
+**创建虚拟环境**
+
+```sh
+mamba create -n pipeunet python=3.14.4
+```
+
+**安装工具包**
+
+**注意**：Monai截至2026-05-16尚不支持PyTorch 2.12.0 + cu13.2最新版。
+
+```sh
+mamba install pytorch=2.11=gpu_cuda130* monai=1.5.2 lightning=2.5.5 wandb matplotlib tensorboard tensorboardx nibabel simpleitk scipy scikit-learn pyyaml tqdm rich pandas openpyxl
+```
+
+可以考虑同时安装`cuCIM`图像计算加速包（使用GPU）。
+
+```
+mamba install cucim -c rapidsai
+```
+
+**⚠警告**：由于依赖较新版本的Numpy和Protobuf包库，Tensorboard日志器可能无法兼容工作。
 
 ## 关键工具包
 

@@ -82,12 +82,12 @@ class NamedInitArgs:
 
 @dataclass
 class NamedNetworkInitArgs(NamedInitArgs):
-    config_network: ConfigNetworkBase = ConfigNetworkUNet()
+    config_network: ConfigNetworkBase = field(default_factory=ConfigNetworkUNet)
 
 
 @dataclass
 class NamedLossInitArgs(NamedInitArgs):
-    config_loss: ConfigLossBase = ConfigLossDice()
+    config_loss: ConfigLossBase = field(default_factory=ConfigLossDice)
     postprocess_func: Optional[Union[ConfigOperatorTensorProcessBase, ConfigOperatorTensorRemapBase]] = None
     logger: Optional[bool] = True
     on_step: Optional[bool] = True
@@ -118,7 +118,7 @@ class NamedLossInitArgs(NamedInitArgs):
 
 @dataclass
 class NamedOptimizerInitArgs(NamedInitArgs):
-    config_optimizer: ConfigOptimizerBase = ConfigOptimizerAdamW()
+    config_optimizer: ConfigOptimizerBase = field(default_factory=ConfigOptimizerAdamW)
 
 
 @dataclass
@@ -145,8 +145,8 @@ class LRSchedulerLightningConfig:
 
 @dataclass
 class NamedLRSchedulerInitArgs(NamedInitArgs):
-    config_lr_scheduler: ConfigLRSchedulerBase = ConfigLRSchedulerCosineAnnealing()
-    config_lr_scheduler_ltn_control: LRSchedulerLightningConfig = LRSchedulerLightningConfig()
+    config_lr_scheduler: ConfigLRSchedulerBase = field(default_factory=ConfigLRSchedulerCosineAnnealing)
+    config_lr_scheduler_ltn_control: LRSchedulerLightningConfig = field(default_factory=LRSchedulerLightningConfig)
 
     def __post_init__(self):
         pass
@@ -154,7 +154,7 @@ class NamedLRSchedulerInitArgs(NamedInitArgs):
 
 @dataclass
 class NamedMetricInitArgs(NamedInitArgs):
-    config_metric: ConfigMetricBase = Dice()
+    config_metric: ConfigMetricBase = field(default_factory=Dice)
     # The preprocess function to apply to logits/gt-mask to generate valid prediction input,
     # may be identity, sigmoid, softmax, argmax or any other functions
     preprocess_pred_func: Optional[ConfigOperatorTensorProcessBase] = None
@@ -194,7 +194,7 @@ class NamedMetricInitArgs(NamedInitArgs):
 
 @dataclass
 class ModuleStepAdditionArgs:
-    config_inferer: ConfigInfererBase = ConfigInfererSimple()
+    config_inferer: ConfigInfererBase = field(default_factory=ConfigInfererSimple)
     metric_init_args_collection: TLSeq[NamedMetricInitArgs] = ()
     # Hook functions will leverage return dict in module steps for custom purposes
     hook_functions: TLSeq[ConfigOperatorHookStepBase] = field(default_factory=list)
@@ -202,14 +202,14 @@ class ModuleStepAdditionArgs:
 
 @dataclass
 class ModuleStepWithLossAdditionArgs(ModuleStepAdditionArgs):
-    loss_init_args: NamedLossInitArgs = NamedLossInitArgs()
+    loss_init_args: NamedLossInitArgs = field(default_factory=NamedLossInitArgs)
     loss_post_key: str = 'loss_post'  # loss key after post-processing
 
 
 @dataclass
 class ModuleTrainingStepAdditionArgs(ModuleStepWithLossAdditionArgs):
-    optimizer_init_args: NamedOptimizerInitArgs = NamedOptimizerInitArgs()
-    lr_scheduler_init_args: NamedLRSchedulerInitArgs = NamedLRSchedulerInitArgs()
+    optimizer_init_args: NamedOptimizerInitArgs = field(default_factory=NamedOptimizerInitArgs)
+    lr_scheduler_init_args: NamedLRSchedulerInitArgs = field(default_factory=NamedLRSchedulerInitArgs)
     # Train special keys
     volume_key: str = 'volume'  # The resampled cropped volume feed to network
     mask_key: str = 'mask'  # The resampled cropped mask to supervise
@@ -363,15 +363,15 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         device, dtype = torch._C._nn._parse_to(*args, **kwargs)[:2]
         for phase in self.get_available_phases():
             if phase == 'train':
-                self.training_config_loss.to(device=device, dtype=dtype)
+                self.training_config_loss.to(device=device)
                 for metric in self.training_config_metrics.values():
                     metric.to(device=device, dtype=dtype)
             elif phase == 'val':
-                self.validation_config_loss.to(device=device, dtype=dtype)
+                self.validation_config_loss.to(device=device)
                 for metric in self.validation_config_metrics.values():
                     metric.to(device=device, dtype=dtype)
             elif phase == 'test':
-                self.test_config_loss.to(device=device, dtype=dtype)
+                self.test_config_loss.to(device=device)
                 for metric in self.test_config_metrics.values():
                     metric.to(device=device, dtype=dtype)
             elif phase == 'predict':
@@ -396,7 +396,8 @@ class LightningModuleSegmentationDefault(L.LightningModule):
             - main_logits: Final segmentation output (B, num_classes, X, Y, Z)
             - auxiliary_logits_list: List of auxiliary outputs for deep supervision
         """
-        return self.network(input_source)
+        cls_logits, aux_cls_logits = self.network(input_source)
+        return cls_logits, aux_cls_logits
 
     def training_step(self, batch: Dict[str, Tensor], batch_idx: int) -> Dict[str, Tensor]:
         assert 'train' in self.get_available_phases(), f'train phase is not available in {self.get_available_phases()}'
@@ -430,7 +431,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         loss: Tensor = self.training_config_loss(logits, mask)
         ret.update({
             'loss': loss,  # This is required by Lightning
-            self.network.__name__: self.network,
+            'network': self.network,
             step_args.main_logits_key: cls_logits.detach(),
             step_args.auxiliary_logits_key: [lt.detach() for lt in aux_cls_logits],
             step_args.volume_key: volume.detach(),
@@ -438,7 +439,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         })
 
         loss_init_args: NamedLossInitArgs = self.module_training_step_addition_args.loss_init_args
-        loss_post: Union[Tensor, Dict[str, Tensor]] = loss_init_args.postprocess_func(self.training_config_loss)
+        loss_post: Union[Tensor, Dict[str, Tensor]] = loss_init_args.postprocess_func(loss.detach())
         if isinstance(loss, dict):
             self.log_dict(loss_post, **loss_init_args.get_logging_args(dict_logging=True))
             ret.update(loss_post)
@@ -479,7 +480,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         # There may be issues with memory leak, explicit gc is required
         # It is confirmed that monai Metric without cucim support needs gc
         # while cuda cache may not a core problem
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
         gc.collect()
 
         return ret
@@ -517,14 +518,17 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         cls_logits: Tensor
         aux_cls_logits: List[Tensor]
         cls_logits, aux_cls_logits = self.validation_config_inferer(volume, self)
+        print(cls_logits.size())
+        print([x.size() for x in aux_cls_logits])
         # Reordered logits
         logits: List[Tensor] = [cls_logits] + list(reversed(aux_cls_logits))
 
         # Calculate loss
-        loss: Tensor = self.validation_config_loss(logits, mask)
+        self.validation_config_loss.to(device=cls_logits.device)
+        loss: Tensor = self.validation_config_loss(logits, mask.to(device=cls_logits.device))
         ret.update({
             'loss': loss,  # This is required by Lightning
-            self.network.__name__: self.network,
+            'network': self.network,
             step_args.main_logits_key: cls_logits.detach(),
             step_args.auxiliary_logits_key: [lt.detach() for lt in aux_cls_logits],
             step_args.volume_key: volume.detach(),
@@ -543,12 +547,14 @@ class LightningModuleSegmentationDefault(L.LightningModule):
 
         # Calculate and log metrics
         pred_to_raw = F.interpolate(logits[0].detach(), raw_spatial_size, mode="trilinear", align_corners=False)
+        print(f"pred_to_raw: on device {pred_to_raw.device}")
         ret[step_args.pred_key] = pred_to_raw
         metrics_desc: Dict[str, NamedMetricInitArgs] = self.validation_metrics_desc
         for name, metric_func in self.validation_config_metrics.items():
             print(f"val step: Calculating {name}")
             desc: NamedMetricInitArgs = metrics_desc[name]
             pred, gt = pred_to_raw.detach(), mask_raw.detach()
+            gt = gt.to(device=pred.device)
             if desc.preprocess_pred_func is not None:
                 pred: Tensor = desc.preprocess_pred_func(pred)
             if desc.preprocess_gt_func is not None:
@@ -559,6 +565,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
                     pred: Tensor = pred.as_tensor()
                 if isinstance(gt, MetaTensor):
                     gt: Tensor = gt.as_tensor()
+            metric_func.to(device=pred.device)
             value = metric_func(pred, gt)
             if desc.postprocess_metric_func is not None:
                 value = desc.postprocess_metric_func(value)
@@ -579,7 +586,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         # There may be issues with memory leak, explicit gc is required
         # It is confirmed that monai Metric without cucim support needs gc
         # while cuda cache may not a core problem
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
         gc.collect()
 
         return ret
@@ -620,10 +627,11 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         logits: List[Tensor] = [cls_logits] + list(reversed(aux_cls_logits))
 
         # Calculate loss
-        loss: Tensor = self.test_config_loss(logits, mask)
+        self.test_config_loss.to(device=cls_logits.device)
+        loss: Tensor = self.test_config_loss(logits, mask.to(device=cls_logits.device))
         ret.update({
             'loss': loss,  # This is required by Lightning
-            self.network.__name__: self.network,
+            'network': self.network,
             step_args.main_logits_key: cls_logits.detach(),
             step_args.auxiliary_logits_key: {lt.detach() for lt in aux_cls_logits},
             step_args.volume_key: volume.detach(),
@@ -648,6 +656,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         for name, metric_func in self.test_config_metrics.items():
             desc: NamedMetricInitArgs = metrics_desc[name]
             pred, gt = pred_to_raw.detach(), mask_raw.detach()
+            gt = gt.to(device=pred.device)
             if desc.preprocess_pred_func is not None:
                 pred: Tensor = desc.preprocess_pred_func(pred)
             if desc.preprocess_gt_func is not None:
@@ -658,6 +667,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
                     pred: Tensor = pred.as_tensor()
                 if isinstance(gt, MetaTensor):
                     gt: Tensor = gt.as_tensor()
+            metric_func.to(device=pred.device)
             value = metric_func(pred, gt)
             if desc.postprocess_metric_func is not None:
                 value = desc.postprocess_metric_func(value)
@@ -676,7 +686,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         # There may be issues with memory leak, explicit gc is required
         # It is confirmed that monai Metric without cucim support needs gc
         # while cuda cache may not a core problem
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
         gc.collect()
 
         return ret
@@ -710,7 +720,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         # Reordered logits
         logits: List[Tensor] = [cls_logits] + list(reversed(aux_cls_logits))
         ret.update({
-            self.network.__name__: self.network,
+            'network': self.network,
             step_args.main_logits_key: cls_logits,
             step_args.auxiliary_logits_key: aux_cls_logits,
             step_args.volume_key: volume,
@@ -730,6 +740,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
             if not isinstance(metric_func, ConfigMetricMonai):
                 if isinstance(pred, MetaTensor):
                     pred: Tensor = pred.as_tensor()
+            metric_func.to(device=pred.device)
             value = metric_func(pred)
             if desc.postprocess_metric_func is not None:
                 value = desc.postprocess_metric_func(value)
@@ -748,7 +759,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         # There may be issues with memory leak, explicit gc is required
         # It is confirmed that monai Metric without cucim support needs gc
         # while cuda cache may not a core problem
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
         gc.collect()
 
         return ret

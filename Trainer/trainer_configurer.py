@@ -25,7 +25,7 @@ from Callback.callback_configurer import (
     ConfigCallbackTQDMProgressBar
 )
 from lightning.pytorch.strategies import Strategy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from Module.ltn_module_segmentation_default import LightningModuleSegmentationDefault
 
@@ -248,16 +248,18 @@ class ConfigTrainerSegmentationDefault(ConfigTrainerBase):
     experiment_root_dir: Union[str, os.PathLike, Path] = 'Experiments'
     experiment_name: str = 'pipeunet'
     experiment_version: str = '001'
-    trainer_init_args: TrainerInitArgs = TrainerInitArgs(
-        accelerator='cpu',  # or 'gpu'
-        # if 'cpu', specify an int device count for usage
-        # if 'gpu', specify a CUDA device list, such as [0], [0,1,2,3]
-        devices=1,
-        precision=32,
-        max_epochs=100
+    trainer_init_args: TrainerInitArgs = field(
+        default_factory=lambda: TrainerInitArgs(
+            accelerator='cpu',  # or 'gpu'
+            # if 'cpu', specify an int device count for usage
+            # if 'gpu', specify a CUDA device list, such as [0], [0,1,2,3]
+            devices=1,
+            precision=32,
+            max_epochs=100
+        )
     )
-    callback_init_args: CallbackInitArgs = CallbackInitArgs()
-    logger_init_args: LoggerInitArgs = LoggerInitArgs()
+    callback_init_args: CallbackInitArgs = field(default_factory=CallbackInitArgs)
+    logger_init_args: LoggerInitArgs = field(default_factory=LoggerInitArgs)
 
     @override
     def init_essentials(self) -> 'ConfigTrainerSegmentationDefault':

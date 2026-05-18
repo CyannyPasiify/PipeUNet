@@ -1,8 +1,8 @@
 # YamlConfigurer - YAML图形界面配置工具
 
-![tool_yaml_main](../../Assets/tool_yaml_main.png)
+![tool_yaml_main](../../Assets/Tools/tool_yaml_main.png)
 
-![tool_yaml_obj](../../Assets/tool_yaml_obj.png)
+![tool_yaml_obj](../../Assets/Tools/tool_yaml_obj.png)
 
 
 ## 主要功能
@@ -14,6 +14,14 @@
 工具界面布局采用**属性表（左）-监视器（右）-编辑器**形式，为用户提供基础性的属性检查和编辑功能。对于元组、列表、嵌套数据类等复合类型属性，还可以打开链式窗口进行内部元素编辑。
 
 当前所支持的数据类型包括`NoneType`, `bool`, `int`, `float`, `str`, `Enum`, `Type`, `Literal`, `Optional`, `Union`, `Any`, `List`, `Tuple`, `Dict[str, *]`, `dataclass`。此工具在Python 3.9.23环境中开发和运行测试，除了原生类型`NoneType`, `bool`, `int`, `float`, `str`外，主要面向`typing`中的注解类型提供支持以确保向下兼容性，而对于Python 3.9+新特性中标准库泛型容器（如`list`、`dict`、`tuple`）直接用于类型注解的情况的支持度尚不明确，因此请尽量使用`typing`注解（如`List`、`Dict`、`Tuple`）。
+
+### 启动工具
+
+请从[YamlConfigurer/yaml_config_cli.py](yaml_config_cli.py)主程序启动，您可以通过指定一个可选参数`-d` `--debug_level`来控制日志等级（默认值为`3=INFO`），程序将只会打印等级大于等于日志等级的信息。如果您需要进行调试或需要查看更多信息，可将日志等级设置为更高。
+
+```python
+Debug level (0-5): 0=OFF, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=TRACE
+```
 
 ## 特性
 
@@ -201,7 +209,7 @@ class ParserAnExample(ParserABC):
 
 [YamlConfigurer/yaml_config_cli.py](yaml_config_cli.py)中定义了`YAMLConfigCLI`主客户端类。主客户端类负责创建顶级窗口对象，并在其中布局Parser解析器数据类的选择、显示、导入、导出、编辑功能面板。如下图所示，左上角为解析器选择及导入导出功能区，左中为当前解析器的成员一览；当选中某一项属性时，右侧监视器面板将显示当前选中属性的细节信息，以及交互式编辑器。程序执行过程中的分级日志信息将打印与下方的日志面板中，其中包含5个信息等级预设，即`ERROR`, `WARN`, `INFO`, `DEBUG` `TRACE`，以及特殊信息等级（其指示词可任意自定义，不限数量，例如`SPECIAL`）。
 
-![tool_yaml_main](../../Assets/tool_yaml_main.png)
+![tool_yaml_main](../../Assets/Tools/tool_yaml_main.png)
 
 ## 自定义
 

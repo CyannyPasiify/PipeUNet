@@ -20,14 +20,17 @@ import os
 import torch
 import numpy as np
 import monai.transforms as mT
+from monai.apps.reconstruction.transforms.dictionary import ReferenceBasedNormalizeIntensityd
 from monai.data import MetaTensor
-from monai.utils import GridSampleMode, GridSamplePadMode, PytorchPadMode, NumpyPadMode
-from typing import Dict, Any, Optional, Union, List, Sequence, Tuple
+from monai.utils import GridSampleMode, GridSamplePadMode, PytorchPadMode, NumpyPadMode, InterpolateMode
+from typing import Dict, Any, Optional, Union, List, Sequence, Tuple, TypeVar, Literal
 from typing_extensions import override
 from Transform.monai_transform_custom import DuplicateItemsd, RandCropByLabelClassesd
 from dataclasses import dataclass
 from abc import ABC
 
+T = TypeVar("T")
+TLSeq = Union[List[T], Tuple[T, ...]]
 PathLike = Union[str, os.PathLike]
 DtypeLike = Union[np.dtype, type, str, None]
 
@@ -138,14 +141,14 @@ class ConfigTransformSegmentationDefaultTrain(ConfigTransformBase):
     mask_key: str = 'mask'
     param_volume_tf_duplicate_items_dup_keys_volume: Optional[str] = 'volume_raw'
     param_mask_tf_duplicate_items_dup_keys_mask: Optional[str] = 'mask_raw'
-    param_tf_spacing_pixdim: Union[Tuple[float, ...], List[float], float] = (1.0, 1.0, 1.0)
+    param_tf_spacing_pixdim: Union[TLSeq[float], float] = (1.0, 1.0, 1.0)
     param_tf_spacing_mode_volume: GridSampleMode = GridSampleMode.BILINEAR
     param_tf_spacing_mode_mask: GridSampleMode = GridSampleMode.NEAREST
     param_tf_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.BORDER
     param_tf_padding_mode_mask: GridSamplePadMode = GridSamplePadMode.BORDER
-    param_tf_spatial_pad_spatial_size: Union[Tuple[int, ...], List[float], int] = (128, 128, 128)
+    param_tf_spatial_pad_spatial_size: Union[TLSeq[int], int] = (128, 128, 128)
     param_tf_spatial_pad_mode: Union[PytorchPadMode, NumpyPadMode] = PytorchPadMode.REPLICATE
-    param_tf_rand_crop_by_label_classes_spatial_size: Union[Tuple[int, ...], List[float], int] = (128, 128, 128)
+    param_tf_rand_crop_by_label_classes_spatial_size: Union[TLSeq[int], int] = (128, 128, 128)
     param_tf_rand_crop_by_label_classes_ratios: Optional[List[Union[float, int]]] = None
     param_tf_rand_crop_by_label_classes_num_classes: Optional[int] = None
     param_tf_rand_crop_by_label_classes_num_samples: int = 1
@@ -283,6 +286,316 @@ class ConfigTransformSegmentationDefaultTrain(ConfigTransformBase):
 
 
 @dataclass
+class ConfigTransformSegmentationSimulateNNUNetAugTrain(ConfigTransformBase):
+    """
+    Transform pipeline for training segmentation models
+    This is a transform pipeline mimicking nnUNet:
+      https://github.com/MIC-DKFZ/nnUNet/blob/master/nnunetv2/training/nnUNetTrainer/nnUNetTrainer.py#L739
+    """
+    volume_key: str = 'volume'
+    mask_key: str = 'mask'
+    param_volume_tf_duplicate_items_dup_keys_volume: Optional[str] = 'volume_raw'
+    param_mask_tf_duplicate_items_dup_keys_mask: Optional[str] = 'mask_raw'
+    param_tf_spacing_pixdim: Union[TLSeq[float], float] = (1.0, 1.0, 1.0)
+    param_tf_spacing_mode_volume: Union[GridSampleMode, int] = 3
+    param_tf_spacing_mode_mask: Union[GridSampleMode, int] = 3
+    param_tf_spacing_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.REFLECTION
+    param_tf_spacing_padding_mode_mask: GridSamplePadMode = GridSamplePadMode.REFLECTION
+    param_tf_spatial_pad_spatial_size: Union[TLSeq[int], int] = (128, 128, 128)
+    param_tf_spatial_pad_mode: Union[PytorchPadMode, NumpyPadMode] = PytorchPadMode.REPLICATE
+    param_tf_norm_intensity_subtrahend: Optional[float] = None
+    param_tf_norm_intensity_divisor: Optional[float] = None
+    param_tf_norm_intensity_nonzero: bool = False
+    param_tf_norm_intensity_channel_wise: bool = True
+    param_tf_norm_intensity_dtype: DtypeLike = None
+    param_tf_rand_3d_elastic_sigma_range: Tuple[float, float] = (5.0, 7.0)
+    param_tf_rand_3d_elastic_magnitude_range: Tuple[float, float] = (50.0, 150.0)
+    param_tf_rand_3d_elastic_spatial_size: Union[None, Tuple[int, int, int], int] = None  # Set to None to forbid resize
+    param_tf_rand_3d_elastic_prob: float = 0.2
+    param_tf_rand_3d_elastic_rotate_range: Union[None, float, TLSeq[Union[float, Tuple[float, float]]]] = None
+    param_tf_rand_3d_elastic_shear_range: Union[None, float, TLSeq[Union[float, Tuple[float, float]]]] = None
+    param_tf_rand_3d_elastic_translate_range: Union[None, float, TLSeq[Union[float, Tuple[float, float]]]] = None
+    param_tf_rand_3d_elastic_scale_range: Union[None, float, TLSeq[Union[float, Tuple[float, float]]]] = None
+    param_tf_rand_3d_elastic_mode_volume: Union[GridSampleMode, int] = 3
+    param_tf_rand_3d_elastic_mode_mask: Union[GridSampleMode, int] = 3
+    param_tf_rand_3d_elastic_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.REFLECTION
+    param_tf_rand_3d_elastic_padding_mode_mask: GridSamplePadMode = GridSamplePadMode.REFLECTION
+    param_tf_rand_gaussian_noise_prob: float = 0.1
+    param_tf_rand_gaussian_noise_mean: float = 0.0
+    param_tf_rand_gaussian_noise_std: float = 0.1
+    param_tf_rand_gaussian_noise_dtype: DtypeLike = None
+    param_tf_rand_gaussian_noise_sample_std: bool = True
+    param_tf_rand_gaussian_smooth_sigma_x: Tuple[float, float] = (0.5, 1.0)
+    param_tf_rand_gaussian_smooth_sigma_y: Tuple[float, float] = (0.5, 1.0)
+    param_tf_rand_gaussian_smooth_sigma_z: Tuple[float, float] = (0.5, 1.0)
+    param_tf_rand_gaussian_smooth_approx: Literal["erf", "sampled", "scalespace"] = "erf"
+    param_tf_rand_gaussian_smooth_prob: float = 0.2
+    param_tf_rand_shift_intensity_offsets: Union[float, Tuple[float, float]] = (-5.0, 5.0)
+    param_tf_rand_shift_intensity_safe: bool = False
+    param_tf_rand_shift_intensity_prob: float = 0.15
+    param_tf_rand_shift_intensity_channel_wise: bool = True
+    param_tf_rand_scale_intensity_fixed_mean_factors: Union[float, Tuple[float, float]] = (0.75, 1.25)
+    param_tf_rand_scale_intensity_fixed_mean_fixed_mean: bool = True
+    param_tf_rand_scale_intensity_fixed_mean_preserve_range: bool = True
+    param_tf_rand_scale_intensity_fixed_mean_prob: float = 0.15
+    param_tf_rand_scale_intensity_fixed_mean_dtype: DtypeLike = None
+    param_tf_rand_simulate_low_resolution_prob: float = 0.25
+    param_tf_rand_simulate_low_resolution_downsample_mode: Union[InterpolateMode, str] = InterpolateMode.NEAREST
+    param_tf_rand_simulate_low_resolution_upsample_mode: Union[InterpolateMode, str] = InterpolateMode.TRILINEAR
+    param_tf_rand_simulate_low_resolution_zoom_range: Tuple[float, float] = (0.5, 1.0)
+    param_tf_rand_simulate_low_resolution_align_corners: bool = False
+    param_tf_rand_adjust_contrast_1_prob: float = 0.1
+    param_tf_rand_adjust_contrast_1_gamma: Union[float, Tuple[float, float]] = (0.7, 1.5)
+    param_tf_rand_adjust_contrast_1_invert_image: bool = True
+    param_tf_rand_adjust_contrast_1_retain_stats: bool = True
+    param_tf_rand_adjust_contrast_2_prob: float = 0.3
+    param_tf_rand_adjust_contrast_2_gamma: Union[float, Tuple[float, float]] = (0.7, 1.5)
+    param_tf_rand_adjust_contrast_2_invert_image: bool = False
+    param_tf_rand_adjust_contrast_2_retain_stats: bool = True
+    param_tf_rand_axis_flip_prob: float = 1.0
+    param_tf_rand_crop_by_label_classes_spatial_size: Union[TLSeq[int], int] = (128, 128, 128)
+    param_tf_rand_crop_by_label_classes_ratios: Optional[List[Union[float, int]]] = None
+    param_tf_rand_crop_by_label_classes_num_classes: Optional[int] = None
+    param_tf_rand_crop_by_label_classes_num_samples: int = 1
+    param_tf_as_discrete_argmax: bool = True
+    param_tf_as_discrete_to_onehot: Optional[int] = 2
+    param_tf_as_discrete_threshold: Optional[int] = None
+    param_tf_as_discrete_rounding: Optional[Literal["torchrounding"]] = None
+    param_tf_as_discrete_dim: int = 0
+    param_tf_as_discrete_keepdim: bool = True
+    param_tf_as_discrete_dtype: DtypeLike = torch.float
+    param_tf_allow_missing_keys: bool = False
+    random_seed: Optional[int] = None
+
+    @override
+    def init_essentials(self) -> 'ConfigTransformSegmentationSimulateNNUNetAugTrain':
+        # Initialize individual transforms
+        self._tf_load_image: mT.LoadImaged = mT.LoadImaged(
+            keys=[self.volume_key, self.mask_key],
+            ensure_channel_first=True,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_duplicate_items: DuplicateItemsd = DuplicateItemsd(
+            keys=[self.volume_key, self.mask_key],
+            dup_keys=[
+                self.param_volume_tf_duplicate_items_dup_keys_volume,
+                self.param_mask_tf_duplicate_items_dup_keys_mask
+            ]
+        )
+        self._tf_spacing: mT.Spacingd = mT.Spacingd(
+            keys=[self.volume_key, self.mask_key],
+            pixdim=self.param_tf_spacing_pixdim,
+            mode=[self.param_tf_spacing_mode_volume, self.param_tf_spacing_mode_mask],
+            padding_mode=[self.param_tf_spacing_padding_mode_volume, self.param_tf_spacing_padding_mode_mask],
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_spatial_pad: mT.SpatialPadd = mT.SpatialPadd(
+            keys=[self.volume_key, self.mask_key],
+            spatial_size=self.param_tf_spatial_pad_spatial_size,
+            mode=self.param_tf_spatial_pad_mode,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_norm_intensity: mT.NormalizeIntensityd = mT.NormalizeIntensityd(
+            keys=self.volume_key,
+            subtrahend=self.param_tf_norm_intensity_subtrahend,
+            divisor=self.param_tf_norm_intensity_divisor,
+            nonzero=self.param_tf_norm_intensity_nonzero,
+            channel_wise=self.param_tf_norm_intensity_channel_wise,
+            dtype=self.param_tf_norm_intensity_dtype,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_3d_elastic: mT.Rand3DElasticd = mT.Rand3DElasticd(
+            keys=[self.volume_key, self.mask_key],
+            sigma_range=self.param_tf_rand_3d_elastic_sigma_range,
+            magnitude_range=self.param_tf_rand_3d_elastic_magnitude_range,
+            spatial_size=self.param_tf_rand_3d_elastic_spatial_size,
+            prob=self.param_tf_rand_3d_elastic_prob,
+            rotate_range=self.param_tf_rand_3d_elastic_rotate_range,
+            shear_range=self.param_tf_rand_3d_elastic_shear_range,
+            translate_range=self.param_tf_rand_3d_elastic_translate_range,
+            scale_range=self.param_tf_rand_3d_elastic_scale_range,
+            mode=[self.param_tf_rand_3d_elastic_mode_volume, self.param_tf_rand_3d_elastic_mode_mask],
+            padding_mode=[
+                self.param_tf_rand_3d_elastic_padding_mode_volume,
+                self.param_tf_rand_3d_elastic_padding_mode_mask
+            ],
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_gaussian_noise: mT.RandGaussianNoised = mT.RandGaussianNoised(
+            keys=self.volume_key,
+            prob=self.param_tf_rand_gaussian_noise_prob,
+            mean=self.param_tf_rand_gaussian_noise_mean,
+            std=self.param_tf_rand_gaussian_noise_std,
+            dtype=self.param_tf_rand_gaussian_noise_dtype,
+            sample_std=self.param_tf_rand_gaussian_noise_sample_std,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_gaussian_smooth: mT.RandGaussianSmoothd = mT.RandGaussianSmoothd(
+            keys=self.volume_key,
+            sigma_x=self.param_tf_rand_gaussian_smooth_sigma_x,
+            sigma_y=self.param_tf_rand_gaussian_smooth_sigma_y,
+            sigma_z=self.param_tf_rand_gaussian_smooth_sigma_z,
+            approx=self.param_tf_rand_gaussian_smooth_approx,
+            prob=self.param_tf_rand_gaussian_smooth_prob,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_shift_intensity: mT.RandShiftIntensityd = mT.RandShiftIntensityd(
+            keys=self.volume_key,
+            offsets=self.param_tf_rand_shift_intensity_offsets,
+            safe=self.param_tf_rand_shift_intensity_safe,
+            prob=self.param_tf_rand_shift_intensity_prob,
+            channel_wise=self.param_tf_rand_shift_intensity_channel_wise,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_scale_intensity_fixed_mean: mT.RandScaleIntensityFixedMeand = mT.RandScaleIntensityFixedMeand(
+            keys=self.volume_key,
+            factors=self.param_tf_rand_scale_intensity_fixed_mean_factors,
+            fixed_mean=self.param_tf_rand_scale_intensity_fixed_mean_fixed_mean,
+            preserve_range=self.param_tf_rand_scale_intensity_fixed_mean_preserve_range,
+            prob=self.param_tf_rand_scale_intensity_fixed_mean_prob,
+            dtype=self.param_tf_rand_scale_intensity_fixed_mean_dtype,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_simulate_low_resolution: mT.RandSimulateLowResolutiond = mT.RandSimulateLowResolutiond(
+            keys=self.volume_key,
+            prob=self.param_tf_rand_simulate_low_resolution_prob,
+            downsample_mode=self.param_tf_rand_simulate_low_resolution_downsample_mode,
+            upsample_mode=self.param_tf_rand_simulate_low_resolution_upsample_mode,
+            zoom_range=self.param_tf_rand_simulate_low_resolution_zoom_range,
+            align_corners=self.param_tf_rand_simulate_low_resolution_align_corners,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_adjust_contrast_1: mT.RandAdjustContrastd = mT.RandAdjustContrastd(
+            keys=self.volume_key,
+            prob=self.param_tf_rand_adjust_contrast_1_prob,
+            gamma=self.param_tf_rand_adjust_contrast_1_gamma,
+            invert_image=self.param_tf_rand_adjust_contrast_1_invert_image,
+            retain_stats=self.param_tf_rand_adjust_contrast_1_retain_stats,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_adjust_contrast_2: mT.RandAdjustContrastd = mT.RandAdjustContrastd(
+            keys=self.volume_key,
+            prob=self.param_tf_rand_adjust_contrast_2_prob,
+            gamma=self.param_tf_rand_adjust_contrast_2_gamma,
+            invert_image=self.param_tf_rand_adjust_contrast_2_invert_image,
+            retain_stats=self.param_tf_rand_adjust_contrast_2_retain_stats,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_axis_flipd: mT.RandAxisFlipd = mT.RandAxisFlipd(
+            keys=[self.volume_key, self.mask_key],
+            prob=self.param_tf_rand_axis_flip_prob,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_rand_crop_by_label_classes: RandCropByLabelClassesd = RandCropByLabelClassesd(
+            keys=[self.volume_key, self.mask_key],
+            label_key=self.mask_key,
+            spatial_size=self.param_tf_rand_crop_by_label_classes_spatial_size,
+            ratios=self.param_tf_rand_crop_by_label_classes_ratios,
+            num_classes=self.param_tf_rand_crop_by_label_classes_num_classes,
+            num_samples=self.param_tf_rand_crop_by_label_classes_num_samples,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_as_discrete: mT.AsDiscreted = mT.AsDiscreted(
+            keys=self.mask_key,
+            argmax=self.param_tf_as_discrete_argmax,
+            to_onehot=self.param_tf_as_discrete_to_onehot,
+            threshold=self.param_tf_as_discrete_threshold,
+            rounding=self.param_tf_as_discrete_rounding,
+            dim=self.param_tf_as_discrete_dim,
+            keepdim=self.param_tf_as_discrete_keepdim,
+            dtype=self.param_tf_as_discrete_dtype,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+        self._tf_cast_to_type: mT.CastToTyped = mT.CastToTyped(
+            keys=[self.volume_key, self.mask_key],
+            dtype=torch.float,
+            allow_missing_keys=self.param_tf_allow_missing_keys
+        )
+
+        # Build transform dictionary
+        self.transform_dict: Dict[str, mT.Transform] = {
+            'LoadImaged': self._tf_load_image,
+            'DuplicateItemsd': self._tf_duplicate_items,
+            'Spacingd': self._tf_spacing,
+            'SpatialPadd': self._tf_spatial_pad,
+            'NormalizeIntensityd': self._tf_norm_intensity,
+            'Rand3DElasticd': self._tf_rand_3d_elastic,
+            'RandGaussianNoised': self._tf_rand_gaussian_noise,
+            'RandGaussianSmoothd': self._tf_rand_gaussian_smooth,
+            'RandShiftIntensityd': self._tf_rand_shift_intensity,
+            'RandScaleIntensityFixedMeand': self._tf_rand_scale_intensity_fixed_mean,
+            'RandSimulateLowResolutiond': self._tf_rand_simulate_low_resolution,
+            'RandAdjustContrastd_1': self._tf_rand_adjust_contrast_1,
+            'RandAdjustContrastd_2': self._tf_rand_adjust_contrast_2,
+            'RandAxisFlipd': self._tf_rand_axis_flipd,
+            'RandCropByLabelClassesd': self._tf_rand_crop_by_label_classes,
+            'AsDiscreted': self._tf_as_discrete,
+            'CastToTyped': self._tf_cast_to_type
+        }
+
+        # Initialize transforms with random seed
+        self._initialize_transforms()
+
+        # Compose transforms into a pipeline
+        self._composed_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
+
+        return self
+
+    def _initialize_transforms(self) -> None:
+        """
+        Initialize transforms with random seed for reproducibility
+        """
+        if self.random_seed is None: return
+        for name, transform in self.transform_dict.items():
+            if hasattr(transform, 'set_random_state'):
+                transform_seed: int = self.random_seed + hash(name) % 10000
+                random_state: np.random.RandomState = np.random.RandomState(transform_seed)
+                transform.set_random_state(state=random_state)
+
+    @override
+    def get_state(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get the current state of all transforms for reproducibility
+
+        Returns:
+            Dictionary containing the random states of all applicable transforms
+        """
+        self._assert_init_essentials()
+        state_dict: Dict[str, Dict[str, Any]] = {}
+        for name, transform in self.transform_dict.items():
+            if hasattr(transform, 'get_random_state'):
+                try:
+                    state_dict[name] = {
+                        'random_state': transform.get_random_state()
+                    }
+                except Exception as e:
+                    raise ValueError(f"Fail to acquire random_state for {name}: {str(e)}")
+
+        return state_dict
+
+    @override
+    def set_state(self, state_dict: Dict[str, Dict[str, Any]]) -> None:
+        """
+        Set the state of transforms from a saved state dictionary
+
+        Args:
+            state_dict: Dictionary containing the random states of transforms
+        """
+        self._assert_init_essentials()
+        for name, state in state_dict.items():
+            if name not in self.transform_dict:
+                raise ValueError(f"{name} do not exists")
+
+            if hasattr(self.transform_dict[name], 'set_random_state') and 'random_state' in state:
+                random_state: np.random.RandomState = np.random.RandomState()
+                random_state.set_state(state_dict[name]['random_state'])
+                try:
+                    self.transform_dict[name].set_random_state(state=random_state)
+                except Exception as e:
+                    raise ValueError(f"Fail to set random_state for {name}: {str(e)}")
+
+
+@dataclass
 class ConfigTransformSegmentationDefaultInferencePre(ConfigTransformBase):
     """
     Transform pipeline for inference preprocessing
@@ -313,7 +626,7 @@ class ConfigTransformSegmentationDefaultInferencePre(ConfigTransformBase):
     mask_key: Optional[str] = None
     param_volume_tf_duplicate_items_dup_keys_volume: str = 'volume_raw'
     param_mask_tf_duplicate_items_dup_keys_mask: Optional[str] = None
-    param_tf_spacing_pixdim: Union[Tuple[float, ...], List[float], float] = (1.0, 1.0, 1.0)
+    param_tf_spacing_pixdim: Union[TLSeq[float], float] = (1.0, 1.0, 1.0)
     param_tf_spacing_mode_volume: GridSampleMode = GridSampleMode.BILINEAR
     param_tf_spacing_mode_mask: GridSampleMode = GridSampleMode.NEAREST
     param_tf_padding_mode_volume: GridSamplePadMode = GridSamplePadMode.BORDER
@@ -458,6 +771,7 @@ class ConfigTransformSegmentationDefaultInferencePost(ConfigTransformBase):
         self._composed_transform: mT.Compose = mT.Compose(list(self.transform_dict.values()))
 
         return self
+
 
 if __name__ == "__main__":
     import pathlib as pl

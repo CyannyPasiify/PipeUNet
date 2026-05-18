@@ -186,3 +186,6 @@ cython_debug/
 *.ppt
 debug
 Experiments
+foo*
+bar*
+/Launcher/Shells

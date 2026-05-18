@@ -1030,7 +1030,7 @@ class YAMLConfigCLI:
 if __name__ == "__main__":
     # 解析命令行参数
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description="YAML Config CLI")
-    parser.add_argument('-d', '--debug_level', type=int, default=5, choices=range(6),
+    parser.add_argument('-d', '--debug_level', type=int, default=3, choices=range(6),
                         help='Debug level (0-5): 0=OFF, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=TRACE')
     args = parser.parse_args()
 

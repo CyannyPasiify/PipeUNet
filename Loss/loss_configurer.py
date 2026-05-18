@@ -50,9 +50,9 @@ class ConfigLossBase(ABC):
         self._assert_init_essentials()
         return self.loss(input, target, *args, **kwargs)
 
-    def to(self, device: torch.device, dtype: torch.dtype) -> 'ConfigLossBase':
+    def to(self, *args, **kwargs) -> 'ConfigLossBase':
         self._assert_init_essentials()
-        self.loss.to(device=device, dtype=dtype)
+        self.loss.to(*args, **kwargs)
         return self
 
     def get_loss_operator(self, *args, **kwargs) -> nn.Module:
@@ -101,7 +101,7 @@ class ConfigLossFocal(ConfigLossBase):
         - "AnatomyNet: Deep learning for fast and fully automated whole-volume segmentation of head and neck anatomy",
           Zhu et al., Medical Physics 2018
 
-    Args:
+    Attributes:
         include_background: if False, channel index 0 (background category) is excluded from the loss calculation.
             If False, `alpha` is invalid when using softmax.
         to_onehot_y: whether to convert the label `y` into the one-hot format. Defaults to False.
@@ -161,7 +161,7 @@ class ConfigLossTversky(ConfigLossBase):
     Adapted from:
         https://github.com/NifTK/NiftyNet/blob/v0.6.0/niftynet/layer/loss_segmentation.py#L631
 
-    Args:
+    Attributes:
         include_background: If False channel index 0 (background category) is excluded from the calculation.
         to_onehot_y: whether to convert `y` into the one-hot format. Defaults to False.
         sigmoid: If True, apply a sigmoid function to the prediction.
@@ -228,7 +228,7 @@ class ConfigLossContrastive(ConfigLossBase):
     Adapted from:
         https://github.com/Sara-Ahmed/SiT/blob/1aacd6adcd39b71efc903d16b4e9095b97dda76f/losses.py#L5
 
-    Args:
+    Attributes:
         temperature: Can be scaled between 0 and 1 for learning from negative samples, ideally set to 0.5.
 
     Raises:
@@ -258,7 +258,7 @@ class ConfigLossDice(ConfigLossBase):
     Note that axis N of `input` is expected to be logits or probabilities for each class, if passing logits as input,
     must set `sigmoid=True` or `softmax=True`. And the same axis of `target` can be 1 or N (one-hot format).
 
-    Args:
+    Attributes:
         include_background: if False, channel index 0 (background category) is excluded from the calculation.
             if the non-background segmentations are small compared to the total image size they can get overwhelmed
             by the signal from the background so excluding it in such cases helps convergence.
@@ -326,7 +326,7 @@ class ConfigLossMaskedDice(ConfigLossBase):
     This has the effect of ensuring only the masked region contributes to the loss computation and
     hence gradient calculation.
 
-    Args:
+    Attributes:
         include_background: if False, channel index 0 (background category) is excluded from the calculation.
             if the non-background segmentations are small compared to the total image size they can get overwhelmed
             by the signal from the background so excluding it in such cases helps convergence.
@@ -395,7 +395,7 @@ class ConfigLossDeepSupervisionDice(ConfigLossDeepSupervision):
     Note that axis N of `input` is expected to be logits or probabilities for each class, if passing logits as input,
     must set `sigmoid=True` or `softmax=True`. And the same axis of `target` can be 1 or N (one-hot format).
 
-    Args:
+    Attributes:
         include_background: if False, channel index 0 (background category) is excluded from the calculation.
             if the non-background segmentations are small compared to the total image size they can get overwhelmed
             by the signal from the background so excluding it in such cases helps convergence.
@@ -475,7 +475,7 @@ class ConfigLossGeneralizedDice(ConfigLossBase):
     Adapted from:
         https://github.com/NifTK/NiftyNet/blob/v0.6.0/niftynet/layer/loss_segmentation.py#L279
 
-    Args:
+    Attributes:
         include_background: If False channel index 0 (background category) is excluded from the calculation.
         to_onehot_y: whether to convert the ``target`` into the one-hot format,
             using the number of classes inferred from `input` (``input.shape[1]``). Defaults to False.
@@ -538,7 +538,7 @@ class ConfigLossDeepSupervisionGeneralizedDice(ConfigLossDeepSupervision):
     Adapted from:
         https://github.com/NifTK/NiftyNet/blob/v0.6.0/niftynet/layer/loss_segmentation.py#L279
 
-    Args:
+    Attributes:
         include_background: If False channel index 0 (background category) is excluded from the calculation.
         to_onehot_y: whether to convert the ``target`` into the one-hot format,
             using the number of classes inferred from `input` (``input.shape[1]``). Defaults to False.
@@ -612,7 +612,7 @@ class ConfigLossDiceCE(ConfigLossBase):
     In this implementation, two deprecated parameters ``size_average`` and ``reduce``, and the parameter ``ignore_index`` are
     not supported.
 
-    Args:
+    Attributes:
         ``lambda_ce`` are only used for cross entropy loss.
         ``reduction`` and ``weight`` is used for both losses and other parameters are only used for dice loss.
 
@@ -654,7 +654,7 @@ class ConfigLossDiceCE(ConfigLossBase):
     jaccard: bool = False
     reduction: Literal['mean', 'sum'] = "mean"
     batch: bool = False
-    weight: Optional[torch.Tensor] = None
+    weight: Optional[TLSeq[float]] = None
     lambda_dice: float = 1.0
     lambda_ce: float = 1.0
     label_smoothing: float = 0.0
@@ -669,7 +669,7 @@ class ConfigLossDiceCE(ConfigLossBase):
             jaccard=self.jaccard,
             reduction=self.reduction,
             batch=self.batch,
-            weight=self.weight,
+            weight=torch.tensor(self.weight, dtype=torch.float32) if self.weight is not None else None,
             lambda_dice=self.lambda_dice,
             lambda_ce=self.lambda_ce,
             label_smoothing=self.label_smoothing
@@ -689,7 +689,7 @@ class ConfigLossDeepSupervisionDiceCE(ConfigLossDeepSupervision):
     In this implementation, two deprecated parameters ``size_average`` and ``reduce``, and the parameter ``ignore_index`` are
     not supported.
 
-    Args:
+    Attributes:
         ``lambda_ce`` are only used for cross entropy loss.
         ``reduction`` and ``weight`` is used for both losses and other parameters are only used for dice loss.
 
@@ -738,7 +738,7 @@ class ConfigLossDeepSupervisionDiceCE(ConfigLossDeepSupervision):
     jaccard: bool = False
     reduction: Literal['mean', 'sum'] = "mean"
     batch: bool = False
-    weight: Optional[torch.Tensor] = None
+    weight: Optional[TLSeq[float]] = None
     lambda_dice: float = 1.0
     lambda_ce: float = 1.0
     label_smoothing: float = 0.0
@@ -755,7 +755,7 @@ class ConfigLossDeepSupervisionDiceCE(ConfigLossDeepSupervision):
             jaccard=self.jaccard,
             reduction=self.reduction,
             batch=self.batch,
-            weight=self.weight,
+            weight=torch.tensor(self.weight, dtype=torch.float32) if self.weight is not None else None,
             lambda_dice=self.lambda_dice,
             lambda_ce=self.lambda_ce,
             label_smoothing=self.label_smoothing
@@ -781,7 +781,7 @@ class ConfigLossDiceFocal(ConfigLossBase):
     ``include_background``, ``weight``, ``reduction``, and ``alpha`` are used for both losses,
     and other parameters are only used for dice loss.
 
-    Args:
+    Attributes:
         include_background: if False channel index 0 (background category) is excluded from the calculation.
         to_onehot_y: whether to convert the ``target`` into the one-hot format,
             using the number of classes inferred from `input` (``input.shape[1]``). Defaults to False.
@@ -860,7 +860,7 @@ class ConfigLossDeepSupervisionDiceFocal(ConfigLossDeepSupervision):
     ``include_background``, ``weight``, ``reduction``, and ``alpha`` are used for both losses,
     and other parameters are only used for dice loss.
 
-    Args:
+    Attributes:
         include_background: if False channel index 0 (background category) is excluded from the calculation.
         to_onehot_y: whether to convert the ``target`` into the one-hot format,
             using the number of classes inferred from `input` (``input.shape[1]``). Defaults to False.
@@ -947,7 +947,7 @@ class ConfigLossGeneralizedDiceFocal(ConfigLossBase):
     Compute both Generalized Dice Loss and Focal Loss, and return their weighted average. The details of Generalized Dice Loss
     and Focal Loss are available at ``monai.losses.GeneralizedDiceLoss`` and ``monai.losses.FocalLoss``.
 
-    Args:
+    Attributes:
         include_background (bool, optional): if False channel index 0 (background category) is excluded from the calculation.
             Defaults to True.
         to_onehot_y: whether to convert the ``target`` into the one-hot format,
@@ -1015,7 +1015,7 @@ class ConfigLossDeepSupervisionGeneralizedDiceFocal(ConfigLossDeepSupervision):
     Compute both Generalized Dice Loss and Focal Loss, and return their weighted average. The details of Generalized Dice Loss
     and Focal Loss are available at ``monai.losses.GeneralizedDiceLoss`` and ``monai.losses.FocalLoss``.
 
-    Args:
+    Attributes:
         include_background (bool, optional): if False channel index 0 (background category) is excluded from the calculation.
             Defaults to True.
         to_onehot_y: whether to convert the ``target`` into the one-hot format,
@@ -1104,7 +1104,7 @@ class ConfigLossHausdorffDT(ConfigLossBase):
     The original paper: Karimi, D. et. al. (2019) Reducing the Hausdorff Distance in Medical Image Segmentation with
     Convolutional Neural Networks, IEEE Transactions on medical imaging, 39(2), 499-513
 
-    Args:
+    Attributes:
         include_background: if False, channel index 0 (background category) is excluded from the calculation.
             if the non-background segmentations are small compared to the total image size they can get overwhelmed
             by the signal from the background so excluding it in such cases helps convergence.
@@ -1167,7 +1167,7 @@ class ConfigLossSSIM(ConfigLossBase):
         Wang, Zhou, et al. "Image quality assessment: from error visibility to structural
         similarity." IEEE transactions on image processing 13.4 (2004): 600-612.
 
-    Args:
+    Attributes:
         spatial_dims: number of spatial dimensions of the input images.
         data_range: value range of input images. (usually 1.0 or 255)
         kernel_type: type of kernel, can be "gaussian" or "uniform".
@@ -1221,7 +1221,7 @@ class ConfigLossPerceptual(ConfigLossBase):
     three axes and average. The full 3D approach uses a 3D network to calculate the perceptual loss.
     MedicalNet networks are only compatible with 3D inputs and support channel-wise loss.
 
-    Args:
+    Attributes:
         spatial_dims: number of spatial dimensions.
         network_type: {``"alex"``, ``"vgg"``, ``"squeeze"``, ``"radimagenet_resnet50"``,
         ``"medicalnet_resnet10_23datasets"``, ``"medicalnet_resnet50_23datasets"``, ``"resnet50"``}

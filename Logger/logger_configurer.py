@@ -24,7 +24,6 @@ Dependencies:
 import lightning.pytorch.loggers as loggers
 from typing import TYPE_CHECKING, Dict, Any, Optional, Union, List, Literal, cast
 import os
-from pathlib import Path
 
 if TYPE_CHECKING:
     from wandb.sdk.lib import RunDisabled
@@ -33,6 +32,7 @@ if TYPE_CHECKING:
 from abc import ABC, abstractmethod, ABCMeta
 from dataclasses import dataclass, field
 from typing_extensions import override
+from pathlib import Path
 
 
 @dataclass

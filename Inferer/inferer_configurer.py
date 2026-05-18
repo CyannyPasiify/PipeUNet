@@ -151,7 +151,7 @@ class ConfigInfererSlidingWindow(ConfigInfererBase):
         return self
 
 
-class _MainWithAuxSlidingWindowInferer(mI.SlidingWindowInfererAdapt):
+class _MainWithAuxSlidingWindowInferer(mI.SlidingWindowInferer):
     def _wrapped_network_io(
             self,
             input: Tensor,
@@ -202,7 +202,7 @@ class ConfigInfererMainWithAuxSlidingWindow(ConfigInfererBase):
     sw_device: Optional[Union[torch.device, str]] = None
     device: Optional[Union[torch.device, str]] = None
     progress: bool = False
-    cpu_thresh: Optional[int] = None
+    cpu_thresh: Optional[int] = 5e7
     buffer_steps: Optional[int] = None
     buffer_dim: int = -1
 

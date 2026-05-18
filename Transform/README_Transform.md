@@ -6,11 +6,12 @@
 
 - [`transform_configurer`](transform_configurer.py)：**关键代码**。定义了`ConfigTransformBase`**变换配置包装器**基类，一个基础性的训练预处理变换配置包装器`ConfigTransformSegmentationDefaultTrain`，以及适用于推断时使用的推断预处理变换配置包装器`ConfigTransformSegmentationDefaultInferencePre`和推断后处理变换配置包装器`ConfigTransformSegmentationDefaultInferencePost`。
 
-  | 变换配置包装器                                  | 功能                                                         |
-  | ----------------------------------------------- | ------------------------------------------------------------ |
-  | ConfigTransformSegmentationDefaultTrain         | 一个用于训练例程的变换包装器。支持3D图像文件载入、通道合并、间距规范化、随机裁剪、值域归一化功能的简单变换管线。 |
-  | ConfigTransformSegmentationDefaultInferencePre  | 一个用于推断例程预处理的变换包装器。支持3D图像文件载入、通道合并、值域归一化功能的简单变换管线。 |
-  | ConfigTransformSegmentationDefaultInferencePost | 一个用于推断例程后处理的变换包装器。支持3D图像Tensor的参考重采样（用于恢复原规格）、值域逆向映射（用于恢复原值域范围）的简单变换管线。 |
+  | 变换配置包装器                                    | 功能                                                         |
+  | ------------------------------------------------- | ------------------------------------------------------------ |
+  | ConfigTransformSegmentationDefaultTrain           | 一个用于训练例程的变换包装器。支持3D图像文件载入、通道合并、间距规范化、随机裁剪、值域归一化功能的简单变换管线。 |
+  | ConfigTransformSegmentationSimulateNNUNetAugTrain | 一个用于训练例程的变换包装器。此变换管线模仿自[nnUNet](https://github.com/MIC-DKFZ/nnUNet/blob/master/nnunetv2/training/nnUNetTrainer/nnUNetTrainer.py#L739)（但不完全等价），提供多种随机空间、值域增强。 |
+  | ConfigTransformSegmentationDefaultInferencePre    | 一个用于推断例程预处理的变换包装器。支持3D图像文件载入、通道合并、值域归一化功能的简单变换管线。 |
+  | ConfigTransformSegmentationDefaultInferencePost   | 一个用于推断例程后处理的变换包装器。支持3D图像Tensor的参考重采样（用于恢复原规格）、值域逆向映射（用于恢复原值域范围）的简单变换管线。 |
 
 
 - [`monai_transform_custom`](monai_transform_custom.py)：*<u>辅助代码</u>*。定义了一些扩展自Monai的变换字典包装类以提供Compose便捷性。

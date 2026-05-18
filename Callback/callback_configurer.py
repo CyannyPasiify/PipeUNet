@@ -13,7 +13,7 @@ from pathlib import Path
 from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTheme
 from Logger.logger_configurer import ConfigLoggerCSV
 from abc import ABC, abstractmethod, ABCMeta
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing_extensions import override
 
 
@@ -196,7 +196,7 @@ class ConfigCallbackRichProgressBar(ConfigCallbackBase):
     """
     refresh_rate: int = 1
     leave: bool = False
-    theme: RichProgressBarTheme = RichProgressBarTheme()
+    theme: RichProgressBarTheme = field(default_factory=RichProgressBarTheme)
     console_kwargs: Optional[dict[str, Any]] = None
 
     @override

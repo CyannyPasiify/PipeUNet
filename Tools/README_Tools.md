@@ -10,6 +10,6 @@
 
 ### YAML图形界面配置工具
 
-![tool_yaml_main](../Assets/tool_yaml_main.png)
+![tool_yaml_main](../Assets/Tools/tool_yaml_main.png)
 
-![tool_yaml_obj](../Assets/tool_yaml_obj.png)
+![tool_yaml_obj](../Assets/Tools/tool_yaml_obj.png)

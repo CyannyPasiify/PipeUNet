@@ -26,16 +26,18 @@ from Trainer.trainer_configurer import (
 )
 from Launcher.Parser.parser_segmentation_default import ParserSegmentationDefault
 from Launcher.launcher_ABC import LauncherABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from Transform.transform_configurer import ConfigTransformSegmentationDefaultTrain
 
+# Torch Settings
+torch.set_float32_matmul_precision('medium')
 
 @dataclass
 class LauncherSegmentationDefault(LauncherABC):
-    config_trainer: ConfigTrainerBase = ConfigTrainerSegmentationDefault()
-    config_data_module: ConfigDataModuleBase = ConfigDataModuleSegmentationDefault()
-    config_ltn_module: ConfigLightningModuleBase = ConfigLightningModuleSegmentationDefault()
+    config_trainer: ConfigTrainerBase = field(default_factory=ConfigTrainerSegmentationDefault)
+    config_data_module: ConfigDataModuleBase = field(default_factory=ConfigDataModuleSegmentationDefault)
+    config_ltn_module: ConfigLightningModuleBase = field(default_factory=ConfigLightningModuleSegmentationDefault)
 
     @override
     def init_essentials(self) -> 'LauncherSegmentationDefault':
@@ -156,47 +158,49 @@ if __name__ == "__main__":
     )
 
     # Common: Experiment
-    parser.add_argument('-r', '--experiment_root_dir', type=str, required=True, help='experiment_root_dir')
-    parser.add_argument('-e', '--experiment_name', type=str, required=True, help='experiment_name')
-    parser.add_argument('-v', '--experiment_version', type=str, required=True, help='experiment_version')
+    parser_common: argparse.ArgumentParser = argparse.ArgumentParser(add_help=False)
+    parser_common.add_argument('-r', '--experiment_root_dir', type=str, required=True, help='experiment_root_dir')
+    parser_common.add_argument('-e', '--experiment_name', type=str, required=True, help='experiment_name')
+    parser_common.add_argument('-v', '--experiment_version', type=str, required=True, help='experiment_version')
     # Common: Routine
-    parser.add_argument('--accelerator', type=str, choices=['cpu', 'gpu'], required=True, help='accelerator')
-    parser.add_argument('--devices', type=int, nargs='+', required=True, help='devices, gpu [multi], cpu single num')
-    parser.add_argument('--deterministic', choices=['none', 'warn', 'true', 'false'], default='warn',
-                        help='deterministic, \'warn\' try it best to be deterministic')
+    parser_common.add_argument('--accelerator', type=str, choices=['cpu', 'gpu'], required=True, help='accelerator')
+    parser_common.add_argument('--devices', type=int, nargs='+', required=True,
+                               help='devices, gpu [multi], cpu single num')
+    parser_common.add_argument('--deterministic', choices=['none', 'warn', 'true', 'false'], default='warn',
+                               help='deterministic, \'warn\' try it best to be deterministic')
     # Common: Logger
-    parser.add_argument('--wandb_project', type=str, default='PipeUNet', help='wandb_project')
+    parser_common.add_argument('--wandb_project', type=str, default='PipeUNet', help='wandb_project')
     # Common: DataModule (specified main phase)
     # fit: train (val will have another set of args)
     # finetune: train (val will have another set of args)
     # validation: val
     # test: test
     # predict: predict
-    parser.add_argument('--dataset_root_dir', type=str, required=True, help='dataset_root_dir')
-    parser.add_argument('--dataset_manifest_file', type=str, required=True, help='manifest_file')
-    parser.add_argument('--volume_keys', type=str, nargs='+', required=True, help='volume_keys')
-    parser.add_argument('--mask_keys', type=str, nargs='*', required=True, help='mask_keys')
-    parser.add_argument(
+    parser_common.add_argument('--dataset_root_dir', type=str, required=True, help='dataset_root_dir')
+    parser_common.add_argument('--dataset_manifest_file', type=str, required=True, help='manifest_file')
+    parser_common.add_argument('--volume_keys', type=str, nargs='+', required=True, help='volume_keys')
+    parser_common.add_argument('--mask_keys', type=str, nargs='*', required=True, help='mask_keys')
+    parser_common.add_argument(
         '--cache_dir', type=str, default=None,
         help='cache_dir, absolute path, default at {experiment_root_dir}/{experiment_name}/{experiment_version}/cache'
     )
-    parser.add_argument(
+    parser_common.add_argument(
         '--roi_size', type=int, nargs=3, default=(64, 64, 64),
         help='roi_size for cropping or sliding window inference'
     )
-    parser.add_argument('--num_workers', type=int, default=4, help='workers for data loading')
-    parser.add_argument('--batch_size', type=int, default=1, help='batch_size, 1')
+    parser_common.add_argument('--num_workers', type=int, default=4, help='workers for data loading')
+    parser_common.add_argument('--batch_size', type=int, default=1, help='batch_size, 1')
     # Common: Network
-    parser.add_argument('--num_sequence', '--num_modality', type=int, required=True, help='num_sequence')
-    parser.add_argument('--num_classes', type=int, required=True, help='num_classes')
+    parser_common.add_argument('--num_sequence', '--num_modality', type=int, required=True, help='num_sequence')
+    parser_common.add_argument('--num_classes', type=int, required=True, help='num_classes')
 
     # region Fit
-    parser_fit: argparse.ArgumentParser = subparsers.add_parser('fit', help='fit help')
+    parser_fit: argparse.ArgumentParser = subparsers.add_parser('fit', parents=[parser_common], help='fit help')
     parser_fit.add_argument('-ckpt', '--resume_checkpoint', type=str, default=None,
                             help='checkpoint for resuming training')
     # Fit: Trainer
     parser_fit.add_argument('--epochs', type=int, required=True, help='epochs, 100')
-    parser_fit.add_argument('--accumulate_grad_batches', type=int, default=16, help='accumulate_grad_batches, 16')
+    parser_fit.add_argument('--accumulate_grad_batches', type=int, default=1, help='accumulate_grad_batches, 1')
     # Fit: Callback
     parser_fit.add_argument('--early_stopping', type=int, default=None,
                             help='early_stopping, if specified, it equals patience')
@@ -240,7 +244,8 @@ if __name__ == "__main__":
                             )
     # endregion
     # region Finetune
-    parser_finetune: argparse.ArgumentParser = subparsers.add_parser('finetune', help='finetune help')
+    parser_finetune: argparse.ArgumentParser = subparsers.add_parser('finetune', parents=[parser_common],
+                                                                     help='finetune help')
     parser_finetune.add_argument('-ckpt', '--init_checkpoint', type=str, default=None,
                                  help='checkpoint for initializing module')
     # Finetune: Trainer
@@ -292,7 +297,8 @@ if __name__ == "__main__":
     parser_finetune.add_argument('--map_location', action='append', nargs=2, default=[], type=str, help='map_location')
     # endregion
     # region Validation
-    parser_validation: argparse.ArgumentParser = subparsers.add_parser('validation', help='validation help')
+    parser_validation: argparse.ArgumentParser = subparsers.add_parser('validation', parents=[parser_common],
+                                                                       help='validation help')
     parser_validation.add_argument('-ckpt', '--init_checkpoint', type=str, required=True,
                                    help='checkpoint for initializing module')
     # Validation: val Inferer
@@ -318,7 +324,7 @@ if __name__ == "__main__":
                                    )
     # endregion
     # region Test
-    parser_test: argparse.ArgumentParser = subparsers.add_parser('test', help='test help')
+    parser_test: argparse.ArgumentParser = subparsers.add_parser('test', parents=[parser_common], help='test help')
     parser_test.add_argument('-ckpt', '--init_checkpoint', type=str, required=True,
                              help='checkpoint for initializing module')
     # Test: test Inferer
@@ -343,7 +349,7 @@ if __name__ == "__main__":
                              )
     # endregion
     # region Predict
-    parser_predict: argparse.ArgumentParser = subparsers.add_parser('predict', help='predict help')
+    parser_predict: argparse.ArgumentParser = subparsers.add_parser('predict', parents=[parser_common], help='predict help')
     parser_predict.add_argument('-ckpt', '--init_checkpoint', type=str, required=True,
                                 help='checkpoint for initializing module')
     # Predict: predict Inferer
@@ -368,7 +374,7 @@ if __name__ == "__main__":
     # endregion
     # region Detect
     # Detect: data loader length
-    parser_detect: argparse.ArgumentParser = subparsers.add_parser('detect', help='detect help')
+    parser_detect: argparse.ArgumentParser = subparsers.add_parser('detect', parents=[parser_common], help='detect help')
     # Fit: DataModule (val phase)
     parser_detect.add_argument('--val_dataset_root_dir', type=str, required=True, help='dataset_root_dir')
     parser_detect.add_argument('--val_dataset_manifest_file', type=str, required=True, help='manifest_file')

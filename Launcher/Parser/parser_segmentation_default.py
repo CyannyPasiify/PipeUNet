@@ -72,6 +72,8 @@ from Loss.loss_configurer import (
     ConfigLossBase,
     ConfigLossDice,
     ConfigLossDeepSupervisionDice,
+    ConfigLossGeneralizedDice,
+    ConfigLossDeepSupervisionGeneralizedDice,
     ConfigLossDiceCE,
     ConfigLossDeepSupervisionDiceCE,
     ConfigLossDiceFocal,
@@ -212,11 +214,11 @@ class ParserSegmentationDefault(ParserABC):
             # Platform control
             accelerator='gpu',
             devices=[0],
-            precision='bf16',
+            precision=32,
             enable_distributed_data_parallel=False,
             # Routine control
             max_epochs=100,
-            check_val_every_n_epoch=1,
+            check_val_every_n_epoch=10,
             # Gradient control
             accumulate_grad_batches=10,  # Simulating batch_size*10
             gradient_clip_val=None,
@@ -360,7 +362,7 @@ class ParserSegmentationDefault(ParserABC):
     def default_logger_init_args() -> LoggerInitArgs:
         return LoggerInitArgs(
             enable_csv_logger=True,
-            enable_tensorboard_logger=True,
+            enable_tensorboard_logger=False,
             enable_wandb_logger=True,
             wandb_project='PipeUNet'
         )
@@ -382,12 +384,12 @@ class ParserSegmentationDefault(ParserABC):
             root_dir='Samples',
             manifest_file='Samples/split/split_train.xlsx',
             column_key_map={
-                'volume': 'volume',
+                'volume': 'volume_0',
                 'mask_00_Bg': 'mask_0',
                 'mask_01_ROI': 'mask_1',
             },
-            column_key_relative_path=['volume', 'mask_0', 'mask_1'],
-            column_group_map={'volume': ['volume'], 'mask': ['mask_0', 'mask_1']},
+            column_key_relative_path=['volume_0', 'mask_0', 'mask_1'],
+            column_group_map={'volume': ['volume_0'], 'mask': ['mask_0', 'mask_1']},
             column_dtype_map=None
         )
 
@@ -444,7 +446,7 @@ class ParserSegmentationDefault(ParserABC):
             batch_size=batch_size,
             shuffle=True,
             # Multiprocessing note:
-            # Keep in mind that there shall occur worker thread unexpected exiting if you wrap PersistentDataset with monai.DataLoader
+            # Keep in mind that there may occur worker thread unexpected exiting if you wrap PersistentDataset with monai.DataLoader
             # and set num_workers > 0 for the first run, which might caused by cache file writing issues.
             # It is doubtful whether this error has something to do with CUDA cooperation, because I only encounter this error when
             # using GPU devices while setting num_workers > 0 for the first run.
@@ -455,8 +457,8 @@ class ParserSegmentationDefault(ParserABC):
             # If you modify transform parameters which affects cache (i.e., all non-randomness transforms before the first random transform),
             # then you should delete old cache files and regenerate new ones.
             # Alternatively, you may use CacheDataset or torch Dataset to avoid these matters, at the cost of efficiency loss.
-            num_workers=4,
-            pin_memory=True,
+            num_workers=32,
+            pin_memory=False,
             drop_last=False,
             # Set persistent_workers=false to enable resumable reproducibility.
             # When false, Dataloader will use the specified RNG to init each worker every epoch,
@@ -474,12 +476,12 @@ class ParserSegmentationDefault(ParserABC):
             root_dir='Samples',
             manifest_file='Samples/split/split_val.xlsx',
             column_key_map={
-                'volume': 'volume',
+                'volume': 'volume_0',
                 'mask_00_Bg': 'mask_0',
                 'mask_01_ROI': 'mask_1'
             },
-            column_key_relative_path=['volume', 'mask_0', 'mask_1'],
-            column_group_map={'volume': ['volume'], 'mask': ['mask_0', 'mask_1']},
+            column_key_relative_path=['volume_0', 'mask_0', 'mask_1'],
+            column_group_map={'volume': ['volume_0'], 'mask': ['mask_0', 'mask_1']},
             column_dtype_map=None
         )
 
@@ -514,8 +516,8 @@ class ParserSegmentationDefault(ParserABC):
             config_transform=ParserSegmentationDefault.default_val_config_transform(),
             batch_size=1,
             shuffle=False,
-            num_workers=0,
-            pin_memory=True,
+            num_workers=32,
+            pin_memory=False,
             drop_last=False
         )
 
@@ -525,18 +527,18 @@ class ParserSegmentationDefault(ParserABC):
             root_dir='Samples',
             manifest_file='Samples/split/split_test.xlsx',
             column_key_map={
-                'volume': 'volume',
+                'volume': 'volume_0',
                 'mask_00_Bg': 'mask_0',
                 'mask_01_ROI': 'mask_1'
             },
-            column_key_relative_path=['volume', 'mask_0', 'mask_1'],
-            column_group_map={'volume': ['volume'], 'mask': ['mask_0', 'mask_1']},
+            column_key_relative_path=['volume_0', 'mask_0', 'mask_1'],
+            column_group_map={'volume': ['volume_0'], 'mask': ['mask_0', 'mask_1']},
             column_dtype_map=None
         )
 
     @staticmethod
     def default_test_config_dataset() -> ConfigDatasetBase:
-        return ConfigDatasetPersistent()
+        return ConfigDatasetCache()
 
     @staticmethod
     def default_test_config_transform() -> ConfigTransformSegmentationDefaultInferencePre:
@@ -565,8 +567,8 @@ class ParserSegmentationDefault(ParserABC):
             config_transform=ParserSegmentationDefault.default_test_config_transform(),
             batch_size=1,
             shuffle=False,
-            num_workers=0,
-            pin_memory=True,
+            num_workers=32,
+            pin_memory=False,
             drop_last=False
         )
 
@@ -576,16 +578,16 @@ class ParserSegmentationDefault(ParserABC):
             root_dir='Samples',
             manifest_file='Samples/split/split_predict.xlsx',
             column_key_map={
-                'volume': 'volume'
+                'volume': 'volume_0'
             },
-            column_key_relative_path=['volume'],
-            column_group_map={'volume': ['volume']},
+            column_key_relative_path=['volume_0'],
+            column_group_map={'volume': ['volume_0']},
             column_dtype_map=None
         )
 
     @staticmethod
     def default_predict_config_dataset() -> ConfigDatasetBase:
-        return ConfigDatasetPersistent()
+        return ConfigDatasetCache()
 
     @staticmethod
     def default_predict_config_transform() -> ConfigTransformSegmentationDefaultInferencePre:
@@ -610,8 +612,8 @@ class ParserSegmentationDefault(ParserABC):
             config_transform=ParserSegmentationDefault.default_predict_config_transform(),
             batch_size=1,
             shuffle=False,
-            num_workers=0,
-            pin_memory=True,
+            num_workers=32,
+            pin_memory=False,
             drop_last=False
         )
 
@@ -823,8 +825,7 @@ class ParserSegmentationDefault(ParserABC):
                 config_metric=MCPREC(
                     num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
                     average='macro',
-                    multidim_average='global',
-                    ignore_index=0  # Ignoring background
+                    multidim_average='global'
                 ),
                 description_info='Precision metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
@@ -844,8 +845,7 @@ class ParserSegmentationDefault(ParserABC):
                 config_metric=MCRECALL(
                     num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
                     average='macro',
-                    multidim_average='global',
-                    ignore_index=0  # Ignoring background
+                    multidim_average='global'
                 ),
                 description_info='Recall metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
@@ -865,8 +865,7 @@ class ParserSegmentationDefault(ParserABC):
             #     config_metric=MCSPEC(
             #         num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
             #         average='macro',
-            #         multidim_average='global',
-            #         ignore_index=0  # Ignoring background
+            #         multidim_average='global'
             #     ),
             #     description_info='Specificity metric (ignoring background) '
             #                      'for multi-class (organs not overlapped) segmentation',
@@ -886,8 +885,7 @@ class ParserSegmentationDefault(ParserABC):
             #     config_metric=MCF1(
             #         num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
             #         average='macro',
-            #         multidim_average='global',
-            #         ignore_index=0  # Ignoring background
+            #         multidim_average='global'
             #     ),
             #     description_info='F1-Score metric (ignoring background) '
             #                      'for multi-class (organs not overlapped) segmentation',
@@ -932,22 +930,49 @@ class ParserSegmentationDefault(ParserABC):
         ]
 
     @staticmethod
-    def default_config_loss() -> ConfigLossDeepSupervisionDiceCE:
-        return ConfigLossDeepSupervisionDiceCE(
+    def default_config_loss(num_classes: int = 2) -> ConfigLossBase:
+        # Basic Dice Loss
+        # config_loss: ConfigLossBase = ConfigLossDeepSupervisionDice(
+        #     include_background=False,  # Foregrounds are small
+        #     to_onehot_y=False,  # We use (B, C, X, Y, Z) C-binary map as mask
+        #     sigmoid=False,
+        #     softmax=True,  # Assume multi-class (organs not overlapped) segmentation
+        #     jaccard=False,
+        #     reduction="mean",
+        #     batch=False,
+        #     weight=None,
+        #     ds_weight_mode='exp',
+        #     ds_weights=None
+        # )
+        # This is suitable for multi-class segmentation with many classes (eg: >10) to balance class contributions
+        config_loss: ConfigLossBase = ConfigLossDeepSupervisionGeneralizedDice(
             include_background=False,  # Foregrounds are small
             to_onehot_y=False,  # We use (B, C, X, Y, Z) C-binary map as mask
             sigmoid=False,
             softmax=True,  # Assume multi-class (organs not overlapped) segmentation
-            jaccard=False,
             reduction="mean",
             batch=False,
-            weight=None,
-            lambda_dice=1.0,
-            lambda_ce=1.0,
-            label_smoothing=0.0,
             ds_weight_mode='exp',
             ds_weights=None
         )
+        # Composed Loss, Dice + CE Loss
+        # config_loss: ConfigLossBase = ConfigLossDeepSupervisionDiceCE(
+        #     include_background=False,  # Foregrounds are small
+        #     to_onehot_y=False,  # We use (B, C, X, Y, Z) C-binary map as mask
+        #     sigmoid=False,
+        #     softmax=True,  # Assume multi-class (organs not overlapped) segmentation
+        #     jaccard=False,
+        #     reduction="mean",
+        #     batch=False,
+        #     weight=[0.001] + [1.0] * (num_classes - 1),  # Background equipped with lower weight if extremely unbalanced
+        #     lambda_dice=1.0,
+        #     lambda_ce=1.0,
+        #     label_smoothing=0.0,
+        #     ds_weight_mode='exp',
+        #     ds_weights=None
+        # )
+
+        return config_loss
 
     @staticmethod
     def default_config_optimizer() -> ConfigOptimizerAdamW:
@@ -985,7 +1010,7 @@ class ParserSegmentationDefault(ParserABC):
                 ParserSegmentationDefault.default_train_metric_init_args_collection(num_classes),
             loss_init_args=NamedLossInitArgs(
                 name='train/loss',
-                config_loss=ParserSegmentationDefault.default_config_loss(),
+                config_loss=ParserSegmentationDefault.default_config_loss(num_classes),
                 description_info='Dice + Cross Entropy compounded loss for deep supervision',
                 logger=True,
                 on_step=True,
@@ -1014,7 +1039,7 @@ class ParserSegmentationDefault(ParserABC):
         return ConfigInfererMainWithAuxSlidingWindow(
             roi_size=(128, 128, 128),
             sw_batch_size=1,
-            overlap=0.5,
+            overlap=0.25,
             mode=BlendMode.GAUSSIAN,
             sigma_scale=0.125,
             padding_mode=PytorchPadMode.REPLICATE,
@@ -1273,8 +1298,7 @@ class ParserSegmentationDefault(ParserABC):
             #     config_metric=MCPREC(
             #         num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
             #         average='macro',
-            #         multidim_average='global',
-            #         ignore_index=0  # Ignoring background
+            #         multidim_average='global'
             #     ),
             #     description_info='Precision metric (ignoring background) '
             #                      'for multi-class (organs not overlapped) segmentation',
@@ -1294,8 +1318,7 @@ class ParserSegmentationDefault(ParserABC):
             #     config_metric=MCRECALL(
             #         num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
             #         average='macro',
-            #         multidim_average='global',
-            #         ignore_index=0  # Ignoring background
+            #         multidim_average='global'
             #     ),
             #     description_info='Recall metric (ignoring background) '
             #                      'for multi-class (organs not overlapped) segmentation',
@@ -1315,8 +1338,7 @@ class ParserSegmentationDefault(ParserABC):
             #     config_metric=MCSPEC(
             #         num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
             #         average='macro',
-            #         multidim_average='global',
-            #         ignore_index=0  # Ignoring background
+            #         multidim_average='global'
             #     ),
             #     description_info='Specificity metric (ignoring background) '
             #                      'for multi-class (organs not overlapped) segmentation',
@@ -1336,8 +1358,7 @@ class ParserSegmentationDefault(ParserABC):
             #     config_metric=MCF1(
             #         num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
             #         average='macro',
-            #         multidim_average='global',
-            #         ignore_index=0  # Ignoring background
+            #         multidim_average='global'
             #     ),
             #     description_info='F1-Score metric (ignoring background) '
             #                      'for multi-class (organs not overlapped) segmentation',
@@ -1389,7 +1410,7 @@ class ParserSegmentationDefault(ParserABC):
                 ParserSegmentationDefault.default_val_metric_init_args_collection(num_classes),
             loss_init_args=NamedLossInitArgs(
                 name='val/loss',
-                config_loss=ParserSegmentationDefault.default_config_loss(),
+                config_loss=ParserSegmentationDefault.default_config_loss(num_classes),
                 description_info='Dice + Cross Entropy compounded loss for deep supervision',
                 logger=True,
                 on_step=True,
@@ -1665,8 +1686,7 @@ class ParserSegmentationDefault(ParserABC):
                 config_metric=MCPREC(
                     num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
                     average='macro',
-                    multidim_average='global',
-                    ignore_index=0  # Ignoring background
+                    multidim_average='global'
                 ),
                 description_info='Precision metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
@@ -1686,8 +1706,7 @@ class ParserSegmentationDefault(ParserABC):
                 config_metric=MCRECALL(
                     num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
                     average='macro',
-                    multidim_average='global',
-                    ignore_index=0  # Ignoring background
+                    multidim_average='global'
                 ),
                 description_info='Recall metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
@@ -1707,8 +1726,7 @@ class ParserSegmentationDefault(ParserABC):
                 config_metric=MCSPEC(
                     num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
                     average='macro',
-                    multidim_average='global',
-                    ignore_index=0  # Ignoring background
+                    multidim_average='global'
                 ),
                 description_info='Specificity metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
@@ -1728,8 +1746,7 @@ class ParserSegmentationDefault(ParserABC):
                 config_metric=MCF1(
                     num_classes=num_classes,  # Assume N classes (background & N-1 foregrounds)
                     average='macro',
-                    multidim_average='global',
-                    ignore_index=0  # Ignoring background
+                    multidim_average='global'
                 ),
                 description_info='F1-Score metric (ignoring background) '
                                  'for multi-class (organs not overlapped) segmentation',
@@ -1780,7 +1797,7 @@ class ParserSegmentationDefault(ParserABC):
             metric_init_args_collection=ParserSegmentationDefault.default_test_metric_init_args_collection(num_classes),
             loss_init_args=NamedLossInitArgs(
                 name='test/loss',
-                config_loss=ParserSegmentationDefault.default_config_loss(),
+                config_loss=ParserSegmentationDefault.default_config_loss(num_classes),
                 description_info='Dice + Cross Entropy compounded loss for deep supervision',
                 logger=True,
                 on_step=True,
@@ -1916,9 +1933,10 @@ class ParserSegmentationDefault(ParserABC):
             )
 
     # Dataclass Attributes: Trainer, DataModule and LightningModule
-    config_trainer: ConfigTrainerSegmentationDefault = ConfigTrainerSegmentationDefault()
-    config_data_module: ConfigDataModuleSegmentationDefault = ConfigDataModuleSegmentationDefault()
-    config_ltn_module: ConfigLightningModuleSegmentationDefault = ConfigLightningModuleSegmentationDefault()
+    config_trainer: ConfigTrainerSegmentationDefault = field(default_factory=ConfigTrainerSegmentationDefault)
+    config_data_module: ConfigDataModuleSegmentationDefault = field(default_factory=ConfigDataModuleSegmentationDefault)
+    config_ltn_module: ConfigLightningModuleSegmentationDefault = \
+        field(default_factory=ConfigLightningModuleSegmentationDefault)
 
     def to_yaml(
             self,

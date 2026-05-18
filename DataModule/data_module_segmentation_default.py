@@ -23,7 +23,7 @@ import pathlib as pl
 from monai.data.dataloader import DataLoader
 import lightning as L
 from typing import Dict, Any, Optional, Union, Literal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from Dataset.dataset_configurer import ConfigDatasetBase, ConfigDatasetPersistent, ConfigDatasetCache
 from Transform.transform_configurer import (
     ConfigTransformBase,
@@ -47,11 +47,12 @@ class DataModuleSegmentationDefaultInitArgs:
     """
     # Dataset Retriever
     config_retriever: ConfigDatasetManifestRetrieverSegmentationDefault = \
-        ConfigDatasetManifestRetrieverSegmentationDefault()
+        field(default_factory=ConfigDatasetManifestRetrieverSegmentationDefault)
     # Runtime Dataset
-    config_dataset: ConfigDatasetBase = ConfigDatasetCache()  # Wrapped MONAI dataset class to use
+    config_dataset: ConfigDatasetBase = field(default_factory=ConfigDatasetCache)  # Wrapped MONAI dataset class to use
     # Transform
-    config_transform: ConfigTransformBase = ConfigTransformSegmentationDefaultInferencePre  # Transform class to use
+    config_transform: ConfigTransformBase = \
+        field(default_factory=ConfigTransformSegmentationDefaultInferencePre)  # Transform class to use
     batch_size: Optional[int] = 1  # Batch size for dataloader
     shuffle: Optional[bool] = None  # Whether to shuffle data
     num_workers: int = 0  # Number of worker processes

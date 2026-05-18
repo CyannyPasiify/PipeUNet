@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Literal, Set
 import lightning as L
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing_extensions import override
 
 from Module.ltn_module_segmentation_default import (
@@ -46,7 +46,7 @@ class ConfigLightningModuleBase(ABC):
 
 @dataclass
 class ConfigLightningModuleSegmentationDefault(ConfigLightningModuleBase):
-    network_init_args: NamedNetworkInitArgs = NamedNetworkInitArgs()
+    network_init_args: NamedNetworkInitArgs = field(default_factory=NamedNetworkInitArgs)
     module_training_step_addition_args: Optional[ModuleTrainingStepAdditionArgs] = None
     module_validation_step_addition_args: Optional[ModuleValidationStepAdditionArgs] = None
     module_test_step_addition_args: Optional[ModuleTestStepAdditionArgs] = None

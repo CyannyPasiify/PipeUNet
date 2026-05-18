@@ -5,11 +5,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Union
 from dataclasses import dataclass
 
-@dataclass(init=False)
+@dataclass
 class LauncherABC(ABC):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        pass
-
     def is_ready(self) -> bool:
         return hasattr(self, "_is_ready")
 
