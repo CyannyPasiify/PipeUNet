@@ -6,7 +6,7 @@
 ![GitHub contributors](https://img.shields.io/github/contributors/CyannyPasiify/PipeUNet)
 ![Visitors](https://visitor-badge.laobi.icu/badge?page_id=CyannyPasiify/PipeUNet)
 ![GitHub last commit](https://img.shields.io/github/last-commit/CyannyPasiify/PipeUNet)
-![GitHub Repo stars](https://img.shields.io/github/stars/CyannyPasiify/PipeUNet)
+![GitHub Repo stars](https://img.shields.io/github/stars/CyannyPasiify/PipeUNet?style=social)
 
 </div>
 
