@@ -147,7 +147,7 @@ mamba install pytorch=2.11=gpu_cuda130* monai=1.5.2 lightning=2.5.5 wandb matplo
 mamba install cucim -c rapidsai
 ```
 
-**⚠警告**：由于依赖较新版本的Numpy和Protobuf包库，Tensorboard日志器可能无法兼容工作。
+⚠**警告**：由于依赖较新版本的Numpy和Protobuf包库，Tensorboard日志器可能无法兼容工作。
 
 ## 关键工具包
 
