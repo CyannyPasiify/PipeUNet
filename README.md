@@ -93,6 +93,10 @@
 
 关于包管理器，推荐使用[Miniforge](https://conda-forge.org/download)提供的Mamba包管理器进行环境配置，它可能比Conda包管理器效率更高。如果您使用Conda包管理器，请将以下命令中的`mamba`替换为`conda`。
 
+如果您想要运行测试代码，可下载我们提供的示例样本包[[Baidu Drive](https://pan.baidu.com/s/1EyeR1rrI-w3i9RQ8CsOH8g?pwd=j2ah)]，请将其中的Samples放置于项目根目录下。
+
+如果您使用WandB日志器，请确保您已完成[Weights & Biases: The AI developer platform](https://wandb.ai/site)的注册，然后在当前系统中登录或将`WANDB_API_KEY`注册为环境变量。
+
 ### 已测试环境1
 
 **注意**：此测试环境尝试安装一个较早稳定版本的工具包集合。

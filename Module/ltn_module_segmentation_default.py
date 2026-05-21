@@ -518,8 +518,8 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         cls_logits: Tensor
         aux_cls_logits: List[Tensor]
         cls_logits, aux_cls_logits = self.validation_config_inferer(volume, self)
-        print(cls_logits.size())
-        print([x.size() for x in aux_cls_logits])
+        print(f"cls_logits: {cls_logits.size()}")
+        print(f"aux_cls_logits: {[x.size() for x in aux_cls_logits]}")
         # Reordered logits
         logits: List[Tensor] = [cls_logits] + list(reversed(aux_cls_logits))
 
@@ -547,7 +547,7 @@ class LightningModuleSegmentationDefault(L.LightningModule):
 
         # Calculate and log metrics
         pred_to_raw = F.interpolate(logits[0].detach(), raw_spatial_size, mode="trilinear", align_corners=False)
-        print(f"pred_to_raw: on device {pred_to_raw.device}")
+        print(f"metric calculation: on device {pred_to_raw.device}")
         ret[step_args.pred_key] = pred_to_raw
         metrics_desc: Dict[str, NamedMetricInitArgs] = self.validation_metrics_desc
         for name, metric_func in self.validation_config_metrics.items():
@@ -623,6 +623,8 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         cls_logits: Tensor
         aux_cls_logits: List[Tensor]
         cls_logits, aux_cls_logits = self.test_config_inferer(volume, self)
+        print(f"cls_logits: {cls_logits.size()}")
+        print(f"aux_cls_logits: {[x.size() for x in aux_cls_logits]}")
         # Reordered logits
         logits: List[Tensor] = [cls_logits] + list(reversed(aux_cls_logits))
 
@@ -651,9 +653,11 @@ class LightningModuleSegmentationDefault(L.LightningModule):
 
         # Calculate and log metrics
         pred_to_raw = F.interpolate(logits[0].detach(), raw_spatial_size, mode="trilinear", align_corners=False)
+        print(f"metric calculation: on device {pred_to_raw.device}")
         ret[step_args.pred_key] = pred_to_raw
         metrics_desc: Dict[str, NamedMetricInitArgs] = self.test_metrics_desc
         for name, metric_func in self.test_config_metrics.items():
+            print(f"test step: Calculating {name}")
             desc: NamedMetricInitArgs = metrics_desc[name]
             pred, gt = pred_to_raw.detach(), mask_raw.detach()
             gt = gt.to(device=pred.device)
@@ -717,6 +721,8 @@ class LightningModuleSegmentationDefault(L.LightningModule):
         cls_logits: Tensor
         aux_cls_logits: List[Tensor]
         cls_logits, aux_cls_logits = self.predict_config_inferer(volume, self)
+        print(f"cls_logits: {cls_logits.size()}")
+        print(f"aux_cls_logits: {[x.size() for x in aux_cls_logits]}")
         # Reordered logits
         logits: List[Tensor] = [cls_logits] + list(reversed(aux_cls_logits))
         ret.update({
@@ -729,9 +735,11 @@ class LightningModuleSegmentationDefault(L.LightningModule):
 
         # Calculate and log metrics
         pred_to_raw = F.interpolate(logits[0].detach(), raw_spatial_size, mode="trilinear", align_corners=False)
+        print(f"metric calculation: on device {pred_to_raw.device}")
         ret[step_args.pred_key] = pred_to_raw
         metrics_desc: Dict[str, NamedMetricInitArgs] = self.predict_metrics_desc
         for name, metric_func in self.predict_config_metrics.items():
+            print(f"predict step: Calculating {name}")
             desc: NamedMetricInitArgs = metrics_desc[name]
             pred = pred_to_raw.detach()
             if desc.preprocess_pred_func is not None:
